@@ -1,6 +1,6 @@
 # P1 · Onboarding: current prototype (A) vs simpler alternative (B)
 
-**Status:** Prototypes for comparison. Both are **stand-alone pages outside the app**. They save nothing, change no financial rules and are not deployed to users.
+**Status:** **Owner decision DEC-026: B is the preferred direction for Stage A, subject to successful testing with real users. A stays as a comparison prototype. Neither is implemented in the app.** Prototypes for comparison. Both are **stand-alone pages outside the app**. They save nothing, change no financial rules and are not deployed to users.
 
 **Try them** (preview origin, cannot touch real data):
 
@@ -27,7 +27,7 @@ B rethinks the journey; it is not a polished A.
 | 1. Total money now, details later | Separate M-Pesa, cash and extra-account fields | **One number:** "How much money do you have right now?" Splitting into M-Pesa, cash and bank comes later, from Home. |
 | 2. Next income, with "not sure" | "Fixed day each month" or "It varies", then a period choice and an optional expected amount | **Three plain choices:** "On a date I know" (pick the date), "Every day or most days", "I'm not sure" (plan one week at a time) |
 | 3. Urgent payments, skippable | Asked *after* the first answer, as a checklist item | **Asked before the answer**, with tap-chips (Rent, School fees, Loan / Fuliza, Chama, KPLC tokens, Water, Other) and a "Nothing urgent" button |
-| 4. Immediate, understandable picture | "KSh X free… about KSh Y a day", with a note that bills aren't included yet | "**You can use about KSh Y a day, until Sat, 28 Nov**", then a plain sum: "You have… You must pay… That leaves…" |
+| 4. Immediate, understandable picture | "KSh X free… about KSh Y a day", with a note that bills aren't included yet | "**To make your money last until Sat, 28 Nov, plan on about KSh Y a day**", then a plain sum ("You have… You must pay… That leaves…") and "This is a planning guide, not a fixed daily allowance. Some days cost more than others." Home leads with the **amount left until the next money**, with the daily figure underneath "as a guide" (DEC-026). |
 | 5. Finish setup gradually on Home | Checklist of 6 items | 4 next steps: split money, put money aside, PIN, backup. Plus "− I spent / + I received" from the first visit. |
 | Name and welcome screen | Asked first | **Removed.** It isn't needed for the answer. |
 
@@ -38,15 +38,16 @@ B rethinks the journey; it is not a polished A.
 **Setup**
 - Same scenario in both: 7,000 shillings in total; next money on Sat 28 Nov; rent of 3,000 due before then.
 - Phone width: 390 px.
-- PIN: "optional" variant.
+- PIN: required at first run in both (DEC-026). **A asks for it first**, so 4 of A's 9 taps are PIN digits. **B asks for it after the answer**, before Home. Without the PIN, A needs 5 taps (the same as B), but its first answer still leaves out the rent.
 - Script: it drives each prototype through to the first answer, then counts the work involved.
 
 | | A | B |
 |---|---|---|
 | Screens before the answer | 5 | **4** |
-| Taps | 9 | **5** |
+| Taps to the answer | 9 (incl. 4 PIN digits) | **5** (PIN comes after) |
 | Characters typed | 9 | 9 |
-| Words to read | 174 | **100** |
+| Words to read before the answer | 152 | **100** |
+| Words on the answer screen | 92 | **53** |
 | Finance terms on screen | "balance", "account" | **none** |
 | Reading ease (Flesch; higher is easier) | 77 | **85** |
 | Does the first answer include the rent? | **No.** It shows 2,333/day; adding rent later costs 4 taps and 6 characters more. | **Yes**: 1,333/day |
@@ -58,7 +59,7 @@ B rethinks the journey; it is not a polished A.
 - payments larger than the money held: shows "KSh 0 a day" and the shortfall;
 - "every day" and "not sure": 7-day plan;
 - Kiswahili;
-- PIN required and PIN optional;
+- PIN required (the optional variant was removed after DEC-026);
 - a past date or today: refused, with a message;
 - a payment chip tapped with no amount: refused, with a message (fixed during this review, see §4).
 
@@ -108,7 +109,7 @@ For each screen I asked three things:
 **Use B as the basis for Stage A**, subject to the first-run test.
 
 - **Why B:**
-  - about half the taps and 40% fewer words;
+  - a third fewer words before the answer (100 vs 152), 42% fewer on the answer screen (53 vs 92), and the answer arrives before the PIN step;
   - no finance jargon;
   - and, most importantly, **the first number already protects urgent payments**, so it doesn't over-promise.
 - **Keep from A:**
@@ -123,8 +124,10 @@ For each screen I asked three things:
   - whether to ask the name at all.
 
 **Owner decisions this raises** (none urgent):
-1. **PIN at first run.** Still open (ONBOARDING §7.1; security policy). B works either way: the switch in the black bar shows both.
-2. **Approve the first-run test** as part of the P4 pack.
-3. **Choose A or B for Stage A**, ideally after the test.
+1. ~~PIN at first run~~ → **decided: required** (DEC-026). Unchanged from today's app; any change needs its own decision brief.
+2. ~~Approve the first-run test~~ → **test design approved** (DEC-026). Running it waits for approval of the complete P4 pack.
+3. ~~A or B~~ → **B preferred**, subject to the real-user test (DEC-026).
+
+**Implementation note for Stage A (to settle in its brief):** B asks for the PIN *after* the first answer. In the real app nothing may be saved before the PIN is set, or the PIN screen moves before the questions. Either keeps the security position unchanged.
 
 **Reversible:** yes. Both are throw-away prototypes, and nothing in the app has changed.

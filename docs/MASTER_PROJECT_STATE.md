@@ -123,6 +123,7 @@ Full detail: `FINANCIAL_RULES.md`.
 - DEC-022: savings behaviour: available = balance − set aside; linked use-from-goal; corrections never create income or spending. **Owner-specified.**
 - DEC-021: UI/UX redesign: modern, calm, clean and welcoming; presentation only. **Owner-requested.**
 - DEC-020: data protection & recovery strategy (`DATA_RECOVERY.md`), with an in-app backup reminder. **Owner-required.**
+- DEC-026: onboarding prototype B preferred for Stage A (subject to a real-user test; not implemented); first-run test design approved (running it isn't); **PIN stays required at first run**; the daily figure is a planning guide, not an allowance. **Owner-decided.**
 
 ## 7. Decisions waiting for the owner
 
@@ -138,7 +139,7 @@ Full detail: `FINANCIAL_RULES.md`.
 | 6 | **DB-3** Fuliza, chama and family-support rules | Brief exists (strategy §8) |
 | 7 | **DB-4** Backup to the user's own cloud | Waits for the assessment (P5) |
 | 8 | **DB-2** Paid tier and measurement | Waits for customer evidence (P4) |
-| 9 | Onboarding design (P1) | Owner reviews the spec; decides PIN-at-first-run and the mock go-ahead |
+| 9 | ~~Onboarding design (P1)~~ | **Decided (DEC-026):** B preferred subject to a real-user test; PIN required. Stage A build needs its own approval |
 | 10 | **D13 schema guard**: scope and Option B approved in principle (DEC-025). **Implementation needs a separate go-ahead** after Release 1 | Open defect |
 | 11 | **P4 interview pack** approval (and interviewer, thank-you amount, Kiswahili review) | Ready for review |
 

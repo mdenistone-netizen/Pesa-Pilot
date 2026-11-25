@@ -70,7 +70,7 @@
 </style>
 </head>
 <body>
-<div class="proto-bar" role="note"><span>PROTOTYPE · not the real app · nothing is saved · <span class="timer" id="timer">0:00</span></span><span><button type="button" id="pinVariantBtn">PIN: required</button> <button type="button" id="restartBtn">Restart</button></span></div>
+<div class="proto-bar" role="note"><span>PROTOTYPE · not the real app · nothing is saved · <span class="timer" id="timer">0:00</span></span><span><button type="button" id="restartBtn">Restart</button></span></div>
 <main class="wrap" id="app"></main>
 <div class="sheet-bg" id="sheetBg"><div class="sheet" id="sheet" role="dialog" aria-modal="true"></div></div>
 <script>
@@ -78,7 +78,7 @@
   "use strict";
   // Everything lives in memory only. Reloading or closing the page clears it. No storage APIs are used.
   const TODAY = new Date(); TODAY.setHours(12,0,0,0);
-  let s, startedAt = null, firstValueSeconds = null, pinRequired = true;
+  let s, startedAt = null, firstValueSeconds = null, pinRequired = true /* DEC-026: PIN required at first run; no switch */;
   const reset = () => { s = { step:"welcome", name:"", pin:"", mpesa:"", cash:"", extra:[], pattern:"", payday:"", period:7, expAmount:"", expDate:"", bills:[], loans:[], goals:[], buffer:0, sources:[], backup:false, checklistHidden:false }; startedAt = null; firstValueSeconds = null; };
   const $ = id => document.getElementById(id);
   const num = v => { const n = Number(String(v).replace(/[^0-9.]/g,"")); return Number.isFinite(n) ? Math.round(n) : 0; };
@@ -128,7 +128,7 @@
       <div class="card"><label for="name">Your first name <span class="muted">(optional)</span></label><input id="name" autocomplete="given-name" value="${esc(s.name)}" placeholder="e.g. Achieng">
       <button class="btn primary" data-go="pin">Start</button></div>`,
     pin: () => `
-      <div class="card owner"><div class="step">Owner decision pending (security)</div><p class="muted" style="margin:0">This screen shows <strong>${pinRequired ? "Variant A: PIN required" : "Variant B: \"Set PIN\" or \"Later\""}</strong>. Use the <strong>PIN</strong> button in the black bar to switch. Today's app requires a PIN.</p></div>
+      
       <div class="card"><div class="step">Step 1 of 3 · Protect your records</div><h1>${pinRequired ? "Create a PIN" : "Protect with a PIN?"}</h1>
       <p class="muted">A 4–8 digit PIN locks PesaPilot on this phone. ${pinRequired ? "" : "Recommended, especially if others use your phone."}</p>
       <div class="pin">${[0,1,2,3].map(i => `<i class="${i < s.pin.length ? "f" : ""}"></i>`).join("")}</div>
@@ -191,7 +191,7 @@
   };
 
   // ---- Rendering & events ----
-  function render() { $("app").innerHTML = screens[s.step](); $("pinVariantBtn").textContent = `PIN: ${pinRequired ? "required" : "optional"}`; window.scrollTo(0, 0); }
+  function render() { $("app").innerHTML = screens[s.step](); window.scrollTo(0, 0); }
   function openSheet(key) { $("sheet").innerHTML = `<div class="sheet-head"><span class="step">Setup</span><button class="x" type="button" data-close="1" aria-label="Close">×</button></div>${sheets[key]()}`; $("sheetBg").classList.add("open"); }
   function closeSheet() { $("sheetBg").classList.remove("open"); }
   function readInputs() { ["name","mpesa","cash","payday","expAmount","expDate"].forEach(k => { const el = $(k); if (el) s[k] = el.value; }); }
@@ -230,7 +230,6 @@
     if (e.target.id === "payday") { const btn = document.querySelector('[data-go="result"]'); const ok = num(e.target.value) >= 1 && num(e.target.value) <= 31; btn.disabled = !ok; btn.style.opacity = ok ? "" : ".5"; }
   });
   $("restartBtn").onclick = () => { reset(); $("timer").textContent = "0:00"; render(); };
-  $("pinVariantBtn").onclick = () => { pinRequired = !pinRequired; if (s.step === "pin") render(); else $("pinVariantBtn").textContent = `PIN: ${pinRequired ? "required" : "optional"}`; };
   reset(); render();
 })();
 </script>
