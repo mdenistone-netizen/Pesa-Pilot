@@ -161,6 +161,19 @@ test("migration is idempotent: loading migrated data again changes nothing", asy
   await context.close();
 });
 
+test("migration normalises legacy types: missing -> expense, 'Income' -> income", async () => {
+  const seed = realisticMonth();
+  delete seed.transactions[2].type;          // 6,500 food with no type
+  seed.transactions[1].type = "Income";      // 8,000 freelance, capitalised
+  const { page, context } = await h.openApp({ seed });
+  const d = (await h.exportBackup(page)).data;
+  assert.equal(d.transactions.find(t => t.id === 3).type, "expense");
+  assert.equal(d.transactions.find(t => t.id === 2).type, "income");
+  await h.goView(page, "home");
+  assert.match(await h.bodyText(page), /recorded money KSh 22,900/);
+  await context.close();
+});
+
 test("migration still repairs invalid values (negative amounts, unknown frequency)", async () => {
   const seed = realisticMonth();
   seed.transactions[2].amount = -50;
