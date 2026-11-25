@@ -14,7 +14,7 @@ This brief replaces the first design where they differ (see §10).
 
 ## 1. The decision
 
-Approve the rules PesaPilot uses to answer two questions:
+Approve the rules PesaPilot uses (14 choices in §8) to answer two questions:
 1. **"Will I make it to my next income?"** A verdict (On track / Tight / Short / Already short), with the reasons, the timing and the assumptions.
 2. **"Before You Spend":** what a purchase would do to that verdict, **before** anything is recorded.
 
@@ -52,16 +52,47 @@ Approve the rules PesaPilot uses to answer two questions:
 
 **Verdicts**
 
-| Verdict | Rule | Plain message (draft) |
-|---|---|---|
-| **Already short** | Must-pays, taken in date order, are more than A, even before any daily spending | "Rent of KSh 6,500 is due on Fri 27 Nov and you have KSh 5,000. You need KSh 1,500 more by then." |
-| **Short** | M < 0 | "At your usual spending, you'd be about KSh 150 short by Tue 1 Dec. To make it, keep to about KSh 428 a day." |
-| **Tight** | 0 ≤ M < cushion | "You should make it, with only about KSh 500 to spare. One unexpected cost could leave you short." |
-| **On track** | M ≥ cushion | "Yes. At your usual spending you'd still have about KSh 5,500 on Sun 29 Nov, and your KSh 1,000 safety buffer stays untouched." |
+The verdict is about the time **until your next income** (the horizon). It counts money you actually have, never expected income.
 
-**Two extra lines, shown when they apply**
-- **Runway:** "If no money comes in, at your usual spending your money lasts until Mon 30 Nov." This uses actual money only, and continues past the horizon to cover later payments.
-- **First payment at risk:** the first must-pay **before the next income** that the money wouldn't cover at usual spending. Example: "Rent KSh 6,500 on 1 Dec: you'd have about KSh 4,800."
+| Verdict | Exact rule | What it means, in plain words | Draft message |
+|---|---|---|---|
+| **Already short** | The must-pays due before your next income, added up in date order, are **more than A**. Usual spending, savings plans and the buffer are **ignored** for this test. | "**Your payments alone are more than your money.** Even if you spent nothing on food or transport, you couldn't pay what's due before your next money." | "Rent of KSh 6,500 is due on Fri 27 Nov. You have KSh 5,000. **Even if you spend nothing else**, you need KSh 1,500 more by 27 Nov." |
+| **Short** | **Not** Already short, but **M < 0**. | "**You can pay what's due, but not that plus your normal daily spending.** Something has to give: spend less each day, pay something later, or find more money." | "You can pay the chama, but **at your usual spending** (about KSh 450 a day) you'd run out on Tue 1 Dec, about KSh 150 short. To make it, keep to about KSh 428 a day." |
+| **Tight** | 0 ≤ M < cushion | "You should make it, but with very little to spare." | "You should make it, with only about KSh 500 to spare. One unexpected cost could leave you short." |
+| **On track** | M ≥ cushion | "You should make it, and keep your safety money." | "Yes. At your usual spending you'd still have about KSh 5,500 on Sun 29 Nov, and your KSh 1,000 safety buffer stays untouched." |
+
+**The difference between Short and Already short, in one line each** (for the app's "What does this mean?"):
+- **Already short** = *the bills alone don't fit.* Cutting daily spending can't fix it. You need more money, or to agree a later date for a payment.
+- **Short** = *the bills fit, but bills plus everyday spending don't.* Spending less each day can fix it, and the app says by how much.
+
+The two are tested in that order, so a person is never shown both. A "Short" result whose cause is only the savings plan says so (§4.5).
+
+### Timing: two scenarios, never mixed
+
+A payment due *after* an expected payday is only safe if that money really comes. So the timing check runs **two separate scenarios** over the **next 30 days**, and the screen labels them clearly.
+
+**1. "If no money comes in"** (always shown)
+- Uses actual money only.
+- Usual spending every day; savings plans and planned spending on the first day.
+- Each payment is taken on its due date, **including payments due after the expected payday**.
+- It shows:
+  - **the first payment you couldn't fully pay**, and how much you'd have towards it;
+  - **how long your money lasts** (the runway).
+- Its wording depends on when the payment falls:
+  - **Before your next income:** "School fees KSh 2,500 on Mon 30 Nov: you'd have about KSh 1,500." This always matches a Short or Already-short verdict.
+  - **After your expected payday:** "**If your salary doesn't come on 30 Nov**, rent of KSh 6,500 on 1 Dec couldn't be paid: you'd have about KSh 4,800." This can appear **even when the verdict is On track**, because the verdict assumes a fixed payday happens (DEC-015). This warning is the safety net if it doesn't.
+
+**2. "If [payment] arrives on [date]"** (one per expected payment, never combined)
+- The same run, with **only that one payment** added on its date.
+- On the payment's date, payments due that day are taken **before** the money arrives, since it may come late in the day.
+- It shows either:
+  - "If the KSh 5,000 from the wholesale customer arrives on Fri 27 Nov, your payments in the next 30 days are covered"; or
+  - "Even if it arrives, rent on Fri 27 Nov is due **before** it: you'd have about KSh 4,400 of KSh 6,500."
+- It **never changes the verdict** or the no-income scenario.
+
+**Rules the model checks for every example:**
+- Adding expected income changes **neither the verdict nor the no-income warning**.
+- Adding a payment never improves the verdict.
 
 **Today's "Left to spend" (DEC-015) stays exactly as it is.** The verdict is a new layer on top of it.
 
@@ -85,9 +116,9 @@ Approve the rules PesaPilot uses to answer two questions:
 
 ### 4.3 Bills due on different dates
 - Every must-pay is placed on its **due date**. This gives:
-  - the **first payment at risk** (§3);
+  - the **first payment you couldn't pay if no money comes in**, checked 30 days ahead, so payments due after an expected payday are included (§3, Timing);
   - an **"Already short"** warning when a bill falls due before the money exists, even if the end-of-period sum looks fine.
-- **Bills due soon after payday** (e.g. rent on 1 Dec when salary comes on 30 Nov) are not deducted, because the salary pays them. They are listed as **"Due soon after your pay"**, so a late salary is visible (example 1b).
+- **Bills due soon after payday** (e.g. rent on 1 Dec when salary comes on 30 Nov) are not deducted, because the salary pays them. But the **no-income scenario still checks them** and warns if they would fail without the salary: "If your salary doesn't come on 30 Nov, rent on 1 Dec couldn't be paid" (examples 1 and 1b).
 - **A bill due on payday itself** is outside the period under DEC-015. If the pay arrives late in the day, it could still bite. **Recommended:** keep the rule and show a note ("Rent is due on your payday. If your pay comes late, pay it from …"). The alternative is to amend DEC-015 (choice 4).
 
 ### 4.4 Debt repayments
@@ -127,7 +158,7 @@ Approve the rules PesaPilot uses to answer two questions:
 **Output (nothing is recorded):**
 1. **Can you pay it now?** It warns if the amount is more than that account's free money and would use money **set aside** (as today's spending warning does).
 2. **Verdict before → after**, with the margin and the new daily guide.
-3. **The first payment at risk after the purchase,** if any.
+3. **The first payment at risk after the purchase,** in both scenarios, labelled "if no money comes in" or "even if [payment] arrives".
 4. **When it would make you Short and you have savings set aside:** an offer of "Use money from a savings goal", explained, never automatic.
 5. **Actions:** **Record this expense** (opens the normal form, pre-filled) / **Not now** / **Save as planned spending**.
 
@@ -135,7 +166,7 @@ Approve the rules PesaPilot uses to answer two questions:
 
 | Amount | After | Margin | Daily guide | Message |
 |---|---|---|---|---|
-| 4,000 | On track | 1,500 | 1,600 → 800 | "You can pay this and stay on track." |
+| 4,000 | On track | 1,500 | 1,600 → 800 | "You can pay this and stay on track **if your salary comes on 30 Nov**. If it doesn't, rent of KSh 6,500 on 1 Dec couldn't be paid: you'd have about KSh 800." |
 | 5,000 | **Tight** | 500 | 600 | "You can pay it, but you'd use half your safety buffer." |
 | 7,000 | **Short** | −1,500 | 200 | "This would leave you about KSh 1,500 short. The KCB loan on 29 Nov would have only about KSh 700 towards KSh 1,500. You have KSh 3,000 set aside for School fees. Using it is your choice." |
 
@@ -156,16 +187,17 @@ The safety buffer if set; otherwise max(KSh 500, 10% of N).
 
 | # | Who | Key facts | Result |
 |---|---|---|---|
-| 1 | **Wanjiru**, salaried, pay Mon 30 Nov | A 12,000 (3,000 set aside, not counted). KPLC 1,000 (26 Nov), water 500 (28 Nov), KCB loan 1,500 (29 Nov). Rent 6,500 on 1 Dec, *after* payday. Buffer 1,000. D = 700. 5 days. | Must-pay 3,000. N 3,500. **M 5,500 → On track.** Today's Left to spend 8,000 (unchanged). Rent listed as "Due soon after your pay". Runway: to 30 Nov if no salary. |
-| 1b | Same, **salary moved to Wed 2 Dec** | 7 days. Rent now falls before the pay. | Must-pay 9,500. N 4,900. **M −2,400 → Short.** "Keep to about KSh 214 a day" (this keeps the KSh 1,000 buffer). Rent is the first payment at risk (about 4,800 available on 1 Dec vs 6,500). |
+| 1 | **Wanjiru**, salaried, pay Mon 30 Nov | A 12,000 (3,000 set aside, not counted). KPLC 1,000 (26 Nov), water 500 (28 Nov), KCB loan 1,500 (29 Nov). Rent 6,500 on 1 Dec, *after* payday. Buffer 1,000. D = 700. 5 days. | Must-pay 3,000. N 3,500. **M 5,500 → On track.** Today's Left to spend 8,000 (unchanged). **If no money comes in:** rent on 1 Dec couldn't be paid (about 4,800 of 6,500); money lasts until 30 Nov. **If the salary arrives on 30 Nov:** everything is covered. |
+| 1b | Same, **salary moved to Wed 2 Dec** | 7 days. Rent now falls before the pay. | Must-pay 9,500. N 4,900. **M −2,400 → Short.** "Keep to about KSh 214 a day" (this keeps the KSh 1,000 buffer). Rent on 1 Dec now falls **before** the pay: about 4,800 of 6,500, in both scenarios ("even if your salary arrives on 2 Dec, rent is due before it"). |
 | 2 | **Otieno**, irregular (boda + clients), 7-day plan | A 4,000. Chama 1,000 (29 Nov). D = 450. Expecting client 3,000 (27 Nov) and chama payout 10,000 (5 Dec). Fuliza 800 owed. | Must-pay 1,000. N 3,150. **M −150 → Short.** "Keep to about KSh 428 a day." Runway to Mon 30 Nov. If the client pays: Fuliza may take 800, so about 2,200 reaches him and about 2,050 is spare (**not counted**). Chama payout: "Expected later". |
 | 2b | Otieno on Fri 27 Nov; **the client hasn't paid** | He spent as usual (A now 3,100). | **Still Short**, same runway (30 Nov). Nothing jumps, because the payment was never counted. The client line shows "Late: Received / New date / It won't come". |
-| 3 | **Akinyi**, tailoring | A 5,000. Rent 6,500 due Fri 27 Nov. Order payment 4,000 expected 28 Nov. | **Already short by 1,500 on 27 Nov.** The "if it arrives" line says rent is due **the day before** that money. |
+| 3 | **Akinyi**, tailoring | A 5,000. Rent 6,500 due Fri 27 Nov. Order payment 4,000 expected 28 Nov. | **Already short by 1,500 on 27 Nov** (the bills alone don't fit). No income: about 4,400 towards rent on 27 Nov. "Even if the order is paid on 28 Nov, rent is due before it." |
 | 4 | **Mwangi**, saving for school fees | A 6,000 (2,000 set aside, not counted). Fees instalment 2,000. Savings plan 1,500 this period. D = 400. 7 days. | **M −300 → Short**, but only because of the savings plan: "You'd make it if you set aside KSh 1,500 less this period." |
 | 5 | Before You Spend | Example 5 table above | — |
+| 6 | **Njeri**, mama mboga, 7-day plan | A 3,000. School fees 2,500 due Mon 30 Nov. D = 300. Expecting 5,000 from a wholesale customer on Fri 27 Nov. | Not Already short (the fees fit: 2,500 ≤ 3,000). **M −1,600 → Short** (fees plus usual spending don't fit). **If no money comes in:** school fees on 30 Nov, about 1,500 of 2,500. **If the customer pays on 27 Nov:** covered. The fees fall *after* the expected payment, which is exactly why both scenarios are shown. |
 
 **Properties the model checks** (these become tests if built):
-- Adding any amount of expected income **never** changes the verdict.
+- Adding any amount of expected income **never** changes the verdict **or the no-income warning**.
 - Adding a commitment **never** improves the verdict.
 
 ## 7. What it would change, and what it wouldn't
@@ -199,6 +231,8 @@ The safety buffer if set; otherwise max(KSh 500, 10% of N).
 | 10 | Fuliza and auto-repaid loans | **Decide in DB-3**; until then, a warning only | Deduct the Fuliza balance now as a must-pay |
 | 11 | Before You Spend actions | **Record / Not now / Save as planned** | Record / Not now |
 | 12 | The 3 optional stored fields (§7) | **Approve** (additive, after D13) | None (fewer features) |
+| 13 | Timing scenarios (§3) | **"If no money comes in" always shown, 30 days ahead, including payments after the expected payday; plus one "if it arrives" scenario per payment; same-day payments taken before income** | Look only until the next income (misses the late-salary case); 14 days ahead |
+| 14 | Short vs Already short wording (§3) | **As drafted**: "the bills alone don't fit" vs "bills plus everyday spending don't fit"; to be checked in user testing | Other wording after testing |
 
 **Reversible?**
 - **Yes.** It is a read-only layer, and the optional fields are additive and ignorable.
@@ -215,7 +249,7 @@ The safety buffer if set; otherwise max(KSh 500, 10% of N).
 **1. Irregular horizon** now never ends at an expected-payment date.
 - **Why:** the model showed that this assumes the payment arrives.
 
-**2. "Lowest point" replaced by runway and first payment at risk.**
+**2. "Lowest point" replaced by runway and first payment at risk, in two labelled scenarios** (no income / if a payment arrives; owner's review, 25 Nov).
 - With no expected income counted, the money only goes down. So the lowest point is always the end of the period, and the old timing view added nothing.
 - The useful timing questions are:
   - which payment is first at risk;
