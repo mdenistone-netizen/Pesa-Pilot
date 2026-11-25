@@ -57,10 +57,35 @@ You can set aside at most the account's **available** amount. Once a shilling is
 - Deleting a goal transfer removes the goal allocations it created.
 - Amounts are rounded to the cent and totals are added in whole cents, so floating-point drift cannot occur.
 
-## 6. Safe to spend (interim, improved in Phase 2)
-- Reserve = total held − set aside for goals − bills due before payday − debt plan − goal monthly targets − planned expenses.
-- Per day = reserve ÷ days to payday.
-- Phase 2 will replace the single fixed payday with an income-pattern-aware calculation.
+## 6. Safe to spend (DEC-015)
+
+**Planning period**
+- **Fixed payday:** from today up to (not including) the next payday.
+- **Irregular income:** the next 7, 14 or 30 days (the user chooses), starting today.
+
+**Spending money** = the sum of *available* (balance − set aside) across **spending accounts**.
+- M-Pesa, cash, bank and other accounts are spending accounts by default.
+- Savings-type accounts (M-Shwari, SACCO, savings) are excluded unless the user marks one "count as spending money".
+- Goal money is therefore deducted exactly once: through *available*, and only in accounts that are counted at all.
+
+**Deducted from spending money (each item once):**
+
+| Commitment | Amount |
+|---|---|
+| Bills | Unpaid remainder of each bill occurrence due within the period, plus the most recent overdue unpaid occurrence. Partial payments reduce it. |
+| Debt instalments | For each debt with a monthly plan: min(plan, outstanding) − repayments already recorded this calendar month (never below 0). Debts with no plan are **not** guessed: they are listed as "no repayment plan". |
+| Goal plans | For each unfinished goal with a monthly target (or weekly × 4.33): min(target, still needed) − money set aside for it this calendar month (never below 0). Money already set aside is excluded here because it was already deducted through *available*. |
+| Planned spending | The amount the user enters for known extra spending in this period. |
+| Minimum buffer | Optional amount the user always wants left untouched. |
+
+**Result**
+- Reserve = spending money − all deductions.
+- Safe to spend per day = reserve ÷ days in the period. A negative result is shown as a shortfall.
+
+**Income**
+- Only income actually received is counted.
+- **Expected income** (source, amount, expected date, account) is listed separately with "if it arrives" figures.
+- Marking it received creates a normal income entry for the amount and date actually received.
 
 ## 7. Upgrade from schema 9 (one time, reversible)
 
@@ -76,3 +101,25 @@ Safeguards:
 - Nothing is deleted.
 - The untouched original data is stored once in `pesapilot_pre_v10_snapshot`, in a format the schema 9 app can import.
 - Total held rises by exactly the savings that schema 9 had wrongly counted as spent.
+
+## 8. Balance adjustments and reconciliation (DEC-016)
+
+**Reconcile an account:** the user enters what an account *actually* held on a date.
+- **Recorded balance** = the account balance including every entry dated on or before that date.
+- **Difference** = actual − recorded.
+
+**What gets recorded**
+- An **adjustment** entry (`type: "adjustment"`, direction in or out).
+  - It stores the recorded balance, the actual balance, the difference, the date and the reason.
+  - It changes the account balance. It is **not** income or spending.
+- If the actual balance is lower and the user knows they spent the money, the difference is recorded instead as an **expense** in category "Unrecorded spending", with the same reconciliation details. That one counts as spending.
+
+**Reversals instead of deletion**
+- Adjustments and reconciliation expenses **cannot be edited or deleted**.
+- **Reverse** creates a reversal entry and links the two.
+- Both stay visible in history, and both are excluded from every balance and total, so their combined effect is zero.
+- A reversal cannot itself be reversed: reconcile again instead.
+
+**Audit trail**
+- Each account has a reconciliation history: date, recorded, actual, difference, classification, reason and reversal status.
+- The Money screen shows the net total of unexplained differences.

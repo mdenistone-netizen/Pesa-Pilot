@@ -11,7 +11,7 @@ Read this first. Other documents hold the detail:
 | `DEV_LOG.md` | Session-by-session history |
 | `ROADMAP.md` | Phase plan |
 
-_Last updated: 2026-11-25 · after Phase 1 (CR-002) and agreement on the working arrangement (DEC-014)._
+_Last updated: 2026-11-25 · Phase 2 approved (DEC-015, DEC-016) and in progress; production protection in force (DEC-017)._
 
 ---
 
@@ -20,9 +20,9 @@ _Last updated: 2026-11-25 · after Phase 1 (CR-002) and agreement on the working
 | | |
 |---|---|
 | Product | Kenyan personal finance app: accounts (M-Pesa, cash, bank, savings), budgets, goals, bills, debts |
-| Live app | https://pesa-pilot.netlify.app/ · runs `main` @ `8e33d44` (schema 9) · **unchanged since July/Aug 2026** |
+| Live app | https://pesa-pilot.netlify.app/ · runs `main` @ `8e33d44` (schema 9) · **holds real users' financial data** |
 | Work branch | `claude/pesapilot-master-handover-0z1xae` · schema 10 · **33/33 tests pass** · not deployed |
-| Deployment plan | Ship Phases 0.5 + 1 + 2 together, once, after Phase 2 is verified and the owner approves |
+| Deployment plan | Ship Phases 0.5 + 1 + 2 together, once, after Phase 2 is verified, a deployment checklist is presented and the owner explicitly approves |
 | Firebase / cloud | **Not implemented**, and deliberately postponed (DEC-005) |
 
 ## 2. Architecture (current)
@@ -36,6 +36,35 @@ _Last updated: 2026-11-25 · after Phase 1 (CR-002) and agreement on the working
 - **Upgrades:** `migrate()` runs on every load. It is non-destructive and idempotent (DEC-004, DEC-012).
 - **Tests:** `npm test` runs headless-browser tests with a fixed clock. `npm run test:ui-snapshot` proves screens are unchanged during refactors (DEC-003).
 
+## 2a. Deployment & data facts (verified 2026-11-25 from GitHub)
+
+| Question | Answer | Evidence |
+|---|---|---|
+| What triggers production deploys? | Changes to **`main`** (the repo's default branch). Netlify is connected to GitHub. | Netlify bot and status checks on the repo. The production-branch setting itself lives in Netlify and cannot be read from here: to confirm, check Netlify → Site configuration → Build & deploy → Branches. |
+| Branch we develop on | `claude/pesapilot-master-handover-0z1xae` | — |
+| Do PRs get previews? | **Yes.** PR #1 → `deploy-preview-1--pesa-pilot.netlify.app`, rebuilt on every push. | `netlify/pesa-pilot/deploy-preview` status on the branch commits |
+| Does merging publish? | **Yes**, automatically, and `main` has **no branch protection**. | GitHub branch list (`protected: false`) |
+| Is PR #1 safe? | It was open and "clean", so a single tap could have merged it. It is now a **draft titled "[DO NOT MERGE]"**. | — |
+| Where is user data? | **Only in each user's own browser** (localStorage on their phone or computer). There is no backend or database, and neither we nor Netlify hold a copy. | Code inspection: no network calls or backend |
+| Can a preview touch real data? | **No.** A preview has a different web address, and browsers keep each address's storage separate. Previews start empty. | Browser same-origin storage rule |
+| Is the repo public? | Yes. Code and docs are public; no user data is in it. Never commit real backups. | — |
+
+**What this means for releases**
+- Because data lives on devices, a release *is* the migration: each user's data upgrades the first time they open the new version.
+- We cannot roll back users' data centrally. The protection is therefore on the device:
+  - an automatic untouched pre-upgrade snapshot;
+  - a "Download pre-accounts copy" button;
+  - an import path into the old version, proven by a test.
+- **Owner action recommended:** turn on branch protection for `main` in GitHub (Settings → Branches → Add rule → require a pull request before merging). That makes an accidental push impossible.
+
+## 2b. Production safeguards (DEC-017, required by owner)
+1. All development and testing happen on separate branches. Nothing unverified or unfinished reaches `main`.
+2. No migration runs against production data during development. Migrations are tested on copies of representative data.
+3. Before any production release, backups and rollback are verified by tests.
+4. Existing records and history are always preserved. Production data is never reset, overwritten or cleared.
+5. Deploy previews are used for visual and functional testing. They are isolated from production storage.
+6. Every production deployment needs a **deployment checklist** and the owner's **explicit approval**.
+
 ## 3. Phase status
 
 | Phase | Scope | Status |
@@ -43,7 +72,7 @@ _Last updated: 2026-11-25 · after Phase 1 (CR-002) and agreement on the working
 | 0 | Baseline inspection | Done |
 | 0.5 | Test suite, non-destructive migration, dead code removed (CR-001) | Implemented + tested |
 | 1 | Accounts, transfers, goal allocations, correct classification, reversible upgrade (CR-002) | Implemented + tested |
-| **2** | **Safe-to-spend for irregular income, reconcile to real balance, commitment fixes** | **Next: needs decisions A and B below** |
+| **2** | **Safe-to-spend for irregular income (DEC-015), reconcile with reversible adjustments (DEC-016), expected income, commitment fixes** | **In progress** on the work branch |
 | 3 | Money owed to me, savings/debt refinements, daily opening/closing view, flexible budgets | Planned |
 | 4 | Security & reliability: hashed PIN, backup hardening, PWA/offline | Planned |
 | 5 | Dashboard & insights on the corrected numbers | Planned |
@@ -84,50 +113,28 @@ Full detail: `FINANCIAL_RULES.md`.
 - DEC-012: reversible upgrade.
 - DEC-013: legacy app-created entries go to "Other / unassigned".
 - DEC-014: working arrangement (below).
+- DEC-015: safe to spend = plan until your next income. **Owner-approved** with refinements: deduct allocations, buffer, no double counting, expected income shown separately.
+- DEC-016: reconcile = labelled adjustment with an audit trail. **Owner-approved** with refinements: reversal instead of deletion, optional "unrecorded spending".
+- DEC-017: production protection (§2b).
 
 ## 7. Decisions waiting for the owner
-
-### Decision A: How should "safe to spend" work for people without a fixed payday?
-- **Why it matters:** it is the number people act on daily. Today it divides money by days until a single fixed payday, which is wrong for freelancers, casual workers and business owners.
-- **Recommended:** **"Plan until your next income".**
-  1. Each user picks how they're paid: a fixed payday, *or* irregular income with a planning period (1 week, 2 weeks or 1 month).
-  2. Safe to spend per day = (spendable money − commitments due within the period) ÷ days in the period.
-  3. **Spendable money** = available money in M-Pesa, cash and bank. Savings accounts (M-Shwari, SACCO) are left out unless the user marks one as spending money.
-  4. **Expected income is never counted** until it arrives. It is shown separately ("if the KSh 20,000 from the client arrives…").
-  5. **Debt commitments** use the debt's repayment plan only. The invented "5% of income" fallback is removed; debts without a plan are flagged for the user instead.
-- **Alternatives:**
-  - (2) Average past income: simple, but dangerous for irregular earners, because it assumes money that may never come.
-  - (3) Keep the fixed payday: fails the core requirement.
-- **Trade-offs:** the recommended option is conservative, so the number may feel low after a slow week. That is intentional, because it errs towards never over-promising.
-- **Reversible?** Yes. It changes the calculation only, not stored data. One new profile setting is added.
-
-### Decision B: How should "my real balance is…" (reconcile) record the difference?
-- **Why it matters:**
-  - People forget small M-Pesa and cash transactions, so recorded balances drift from reality.
-  - Upgraded users also need an easy way to correct the accounts that started at zero after the Phase 1 upgrade.
-- **Recommended:** a labelled **balance adjustment** entry.
-  - It changes the account balance and appears in history as "Adjustment".
-  - It is **not** income or spending.
-  - The app shows the total of unexplained differences, so the user can see how much went unrecorded.
-  - When the user knows they spent the money, a tick-box records it as spending under "Unrecorded spending" instead.
-- **Alternatives:**
-  - (2) Silently change the opening balance: tidy, but it hides the history.
-  - (3) Always record the difference as income or spending: it distorts reports when the gap is really an old recording error.
-- **Reversible?** Yes: adjustments are ordinary entries that can be edited or deleted. It adds one new transaction kind (`adjustment`).
+None right now. Decisions A and B were approved as DEC-015 and DEC-016; the rules are in `FINANCIAL_RULES.md` §6 and §8.
 
 ## 8. Risks
-- **Unconfirmed deployment setup:** I still don't know how Netlify deploys (automatically from GitHub `main`, or by manual upload), or whether real user data exists on the live site. Until confirmed, `main` is treated as live and the upgrade is built as if real data exists.
+- **Real users, data only on their devices:** a faulty release could damage data we can't see or restore centrally. Mitigations: on-device snapshot, proven rollback, deployment checklist, and owner approval (DEC-017).
+- **`main` is unprotected on GitHub:** one accidental merge publishes. Mitigated by the draft "[DO NOT MERGE]" PR; the owner should enable branch protection.
 - **Upgraded account balances need correcting:** they start at zero opening balance, so individual accounts can look wrong (below zero) until users reconcile. This is why Decision B is in Phase 2, before deployment.
 - **Single-file growth:** `index.html` is about 175 KB. That is acceptable now; I will propose splitting it if changes start to become risky.
 
 ## 9. Next steps
-1. Owner answers Decisions A and B. Short answers are fine, e.g. "A: recommended, B: recommended".
-2. Meanwhile, Claude continues with work those decisions don't block:
-   - commitment-calculation fixes;
-   - the transaction list's account editing for "Other / unassigned" entries;
-   - the 360 px Bills layout;
-   - more tests.
-3. Build Phase 2, then hold a checkpoint and a deployment decision brief.
+1. Build Phase 2 on the work branch:
+   - DEC-015 safe to spend, including expected income;
+   - DEC-016 reconcile with reversals and history;
+   - spending-account setting;
+   - debt fallback removed;
+   - independent fixes.
+2. Phase 2 checkpoint with test evidence, plus a check on the deploy preview.
+3. Then a **deployment decision brief and checklist** for Phases 0.5–2, for the owner's explicit approval.
 
 ## 10. Working arrangement (DEC-014)
 - **Claude:** architect and builder. Makes routine engineering decisions alone. Brings **decision briefs** for financial rules, data structures, architecture, security, user data, costs and major features. Keeps working on unblocked tasks. Gives evidence-based checkpoints. Keeps these documents current. Never deploys or destroys data without approval.
