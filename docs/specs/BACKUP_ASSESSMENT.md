@@ -1,6 +1,6 @@
 # P5 · Backup Architecture & Privacy Assessment (input to DB-4)
 
-**Status:** assessment only (DEC-023). **Local-first stays the default.** No cloud storage or infrastructure will be added without DB-4 approval.
+**Status:** assessment only (DEC-023). **The decision proposal is `DB-4_DECISION_BRIEF.md`.** **Local-first stays the default.** No cloud storage or infrastructure will be added without DB-4 approval.
 
 ## 1. The problem
 - All records live in the phone's browser storage (DATA_RECOVERY.md).

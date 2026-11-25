@@ -155,3 +155,23 @@ These need Node and Playwright, which are pre-installed in Claude Code cloud ses
   - cushion double-counting of the buffer;
   - a second daily figure (now one: DEC-015 safe to spend per day).
 - No app code or financial rules changed.
+
+### 2026-11-25 · DB-5 refined; DB-4 and DB-6 decision briefs (planning only)
+- The owner accepted DEC-026 as recorded. DB-5 is not approved; they asked for:
+  - a clear split between the no-income and if-it-arrives timing scenarios;
+  - a precise Short vs Already short.
+- **DB-5:**
+  - the model now runs a 30-day "if no money comes in" scenario, which includes payments after an expected payday, plus one "if it arrives" scenario per payment. Same-day payments are taken before income.
+  - **New example 6 (Njeri):** school fees due after an expected payment fail only if it doesn't come.
+  - **New property:** expected income never changes the no-income warning.
+  - Already short = "the bills alone don't fit"; Short = "bills plus everyday spending don't fit".
+  - 14 choices.
+- **DB-4** (`specs/DB-4_DECISION_BRIEF.md`):
+  - protected backups with a password + recovery code; share sheet; plain backups kept;
+  - what-if-lost table; restore steps.
+  - **Tested:** both live 8e33d44 and the Release 1 branch refuse an encrypted-style file with a clear message and no storage change. AES-GCM detects tampering. PBKDF2 at 600k rounds takes 77 ms in cloud Chromium (estimated 1–2 s on a low-end phone).
+- **DB-6** (`specs/DB-6_DECISION_BRIEF.md`):
+  - network first with a 3 s limit; per-version caches; reload banner; self-removing kill switch.
+  - **Tested** with a throw-away service-worker proof in the scratchpad: offline open, update, offline-after-update, kill switch, data identical throughout.
+  - The proof caught a stale-copy bug (offline served the old version after an update); the fix is in the design and the test list.
+- No app code, financial rules or infrastructure changed. Nothing merged or deployed.

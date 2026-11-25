@@ -1,6 +1,6 @@
 # P6 · DB-6: Installable & Offline PesaPilot (PWA, defect D9): assessment
 
-**Status:** assessment and decision brief (planning only, DEC-023). Building it is **Stage C** and needs owner approval. **Local-first is preserved.** A PWA adds no server and no data upload.
+**Status:** assessment (planning only, DEC-023). **Superseded where they differ by `DB-6_DECISION_BRIEF.md`.** Building it is **Stage C** and needs owner approval. **Local-first is preserved.** A PWA adds no server and no data upload.
 
 ## 1. The decision
 Should PesaPilot become a full Progressive Web App (PWA), and how should it update itself safely?
