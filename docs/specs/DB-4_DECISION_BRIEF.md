@@ -45,18 +45,97 @@ Should PesaPilot let users save a **password-protected (encrypted) backup file**
 
 | Part | Choice | Why |
 |---|---|---|
-| Data key | A random 256-bit key (K) made on the phone when protection is first switched on | Strong, and never typed by anyone |
+| Data key | A random 256-bit data key (DK) made on the phone when protection is first switched on | Strong, and never typed by anyone |
 | Encryption | **AES-GCM-256** with a fresh random IV for every backup | Standard; it **detects any change** to the file [T] |
 | Password → key | **PBKDF2-SHA-256, 600,000 rounds**, random 16-byte salt | Slows down guessing. The PIN uses 150,000 rounds because it is checked often on the phone; a file that can be attacked offline needs more. |
-| Two locks | K is stored inside the file twice: once locked with the password, once locked with the recovery code | Either key opens the file |
+| Two locks | DK is stored inside the file twice: once locked with the password, once locked with the recovery code | Either key opens the file |
 | Recovery code | 16 characters in 4 groups (e.g. `K7QM-3XRA-9VTE-HW2C`); no look-alike characters (0/O, 1/I/L); about 80 bits of randomness | Practical to write down; too strong to guess |
 | File label | `app: "PesaPilot"`, a **new backup version number** (so older apps refuse it [T]), `encrypted: true`, algorithm names and settings. **Nothing about the user's money is readable.** | Safe with older apps; open about how it was made |
-| Not in the file | The PIN or its hash (DEC-019), device ids, or K in readable form | Same rules as today |
+| Not in the file | The PIN or its hash (DEC-019), device ids, or DK in readable form | Same rules as today |
 
 **Accurate wording (DEC-019 style)**
 - "Your **backup file** is encrypted: it is locked with your backup password."
 - "Records **on this phone** are not encrypted. Your PIN locks the app on this phone."
 - We never say "your data is encrypted" without saying which data.
+
+## 3a. Key architecture (clarified 25 Nov, owner review)
+Checked by `../prototypes/protected-backup/model.js`, which uses the same Web Crypto functions the browser provides. All 7 questions below have passing checks.
+
+### The four things, kept separate
+
+| Name | What it is | Where it exists | Who knows it |
+|---|---|---|---|
+| **Data key (DK)** | A random 256-bit AES-GCM key. **The only key that encrypts the records** in a backup file. | Made on the phone when protection is switched on. Stored on the phone as the **on-device secret** (below). Inside every backup file, but **only in locked form** (twice). | Nobody types or sees it |
+| **Password key (P-key)** | Derived from the backup password with PBKDF2-SHA-256 (600,000 rounds, its own random salt). Its only job is to **lock and unlock DK**. | **Never stored anywhere.** Re-derived from the password when needed, then discarded. | Whoever knows the password |
+| **Recovery key (R-key)** | Derived the same way from the recovery code (its own salt). Its only job is to **lock and unlock DK**. | **Never stored anywhere.** | Whoever has the paper code |
+| **On-device secret** | A **non-extractable** copy of DK in the browser's IndexedDB, plus the two locked copies of DK (by P-key and by R-key) and their salts | The phone only. **Never in any backup or export** (as the PIN, DEC-019). | — |
+
+**Never stored anywhere:** the password, the recovery code, the P-key or the R-key.
+
+### Answers to the seven questions
+
+**1. How does the password unlock the backup?**
+- Password + the salt in the file → P-key.
+- P-key unlocks the **password lock** in the file, giving DK.
+- DK decrypts the records.
+- A wrong password fails at the unlock step, and nothing changes.
+- The file's whole header is authenticated with the records (AES-GCM associated data), so editing any part makes it fail [model-checked].
+
+**2. How does the recovery code unlock the same backup?**
+- Code + its own salt → R-key.
+- R-key unlocks the **code lock** in the same file, giving **the same DK**, which decrypts the same records.
+- Two locks, one key inside.
+- The code can be typed in lower case, without dashes, and with O/0 or I/1 mixed up [model-checked].
+
+**3. What exactly is stored on the phone for one-tap backups?** Five things, under a storage area of their own, separate from the records:
+- a non-extractable DK;
+- the password lock (salt, IV, locked DK);
+- the code lock (salt, IV, locked DK);
+- a key identifier;
+- the date protection was set up.
+
+There is no password, no code, no P-key and no R-key [model-checked].
+
+**4. How is the on-device secret protected?**
+- **Non-extractable:** the browser lets PesaPilot *use* DK to encrypt, but **refuses to give out its value**, even to PesaPilot's own code [tested in Chromium: export blocked, still usable after a reload].
+- **Same-origin isolation:** only pages from PesaPilot's web address can reach it, inside the phone's app sandbox.
+- **PIN screen:** the app's screens are behind the PIN (required, DEC-026).
+- **Never exported:** checked by the same tests as the PIN (DEC-019).
+- **Honest limit:** someone who can open PesaPilot on the unlocked phone can *make new backups*, and can already read the records there. They **cannot** take DK off the phone, and they **cannot** use the phone to open backup files: opening a file always needs the password or the code. Malware with full control of the phone's browser is out of scope, as it is for the records.
+
+**5. What happens when the password is changed?**
+- It needs the **current password or the recovery code**, because the phone's DK can't be read out to re-lock it.
+- DK stays the same.
+- Only the password lock is replaced.
+
+| | Opens with old password | Opens with new password | Opens with recovery code |
+|---|---|---|---|
+| Backups made **before** the change | **Yes** | No | **Yes** |
+| Backups made **after** the change | No | **Yes** | **Yes** |
+
+[All six cases model-checked.] The screen says: "Older backups still open with your old password or your recovery code."
+
+**6. Can a user restore on a replacement phone using only the recovery code?**
+- **Yes.** Import → "Use recovery code instead" → the records are restored.
+- The new phone then:
+  - keeps DK (non-extractable);
+  - asks for a new backup password;
+  - keeps the **same** recovery code, so the paper copy stays valid.
+- Backups made on the new phone open with the new password **or the same code** [model-checked].
+
+**7. What if the phone is lost but the backup file and recovery code remain?**
+- **Everything up to that backup is recovered**, on any phone (as answer 6).
+- A wrong code fails without changing anything.
+- An edited file is refused [model-checked].
+- **Whoever has the lost phone:**
+  - can't open the backup files without the password or code;
+  - can't take DK off the phone;
+  - could read the records on the phone only by getting past the PIN, as today.
+- **Advice in the app after recovery:** "Make a new recovery code" if the old paper may also have been seen. That creates a new DK, and future backups need the new code.
+
+**Changed by this design** (compared with §4–§6 before 25 Nov):
+- Changing the password now needs the old password **or** the recovery code, not just the PIN. This closes a gap: someone using an unlocked phone can't re-lock DK with their own password and then open old backups found elsewhere.
+- If **both** the password and the code are forgotten but the phone is fine, the user starts **new protection** (new DK, new code). Old backups stay locked to the old secrets.
 
 ## 4. Passwords
 
@@ -68,22 +147,23 @@ Should PesaPilot let users save a **password-protected (encrypted) backup file**
   - at least 8 characters;
   - not the same as the PIN;
   - if it is only numbers, at least 12 digits.
-- **Hint shown:** "A short sentence you'll remember works well, for example `mama mboga 2026`."
+- **Hint shown:** "Use **four or more unrelated words** you can remember, for example `chungwa basi kumi mlango`. Don't use names, birthdays, phone or ID numbers, or a saying people know."
+  - The example is never accepted as a password, and nor is a short list of common passwords.
 - **The recovery code** is shown once, with "I've written it down". The user then types back 4 characters of it as a check.
 
 **Day to day: one tap**
-- The phone keeps K (like the PIN, it is never put in any export), so later backups are **one tap** and need no password.
-- **Why this is safe enough:** anyone who can already open the app on this phone can see the records anyway. K adds no new exposure on the phone itself.
+- The phone keeps the **on-device secret** (§3a): a non-extractable copy of DK, never exported. So later backups are **one tap** and need no password.
+- **Why this is safe enough:** the key can be used but not read out, and opening any backup file still needs the password or code (§3a, answer 4).
 
 **Remembering it**
 - Once a month, with the backup reminder (DEC-020): "**Do you still remember your backup password?**" The user types it, and the app checks it on the phone, so nothing is sent anywhere.
-- If they've forgotten it, they set a new one straight away (see §5).
+- If they've forgotten it, they use the recovery code to set a new one straight away (§3a, answer 5).
 
-**Changing the password**
-- Needs the PIN.
+**Changing the password** (§3a, answer 5)
+- Needs the **current password or the recovery code**.
 - New backups use the new password.
 - **Older backup files still open with the old password, or with the recovery code**, which doesn't change.
-- **"Make a new recovery code"** creates a new K. Old backups then still need the *old* code or old password. The screen says so in plain words.
+- **"Make a new recovery code"** creates a new DK (needs the current password). Old backups then still need the *old* code or old password. The screen says so in plain words.
 
 ## 5. What happens if something is lost
 
@@ -92,11 +172,26 @@ Should PesaPilot let users save a **password-protected (encrypted) backup file**
 | **Phone lost; password remembered** | **Yes**, up to the latest backup | New phone → open PesaPilot → Import backup → type the password |
 | **Phone lost; password forgotten; recovery code kept** | **Yes** | Import → "Use recovery code instead" → then set a new password |
 | **Phone lost; password AND recovery code both lost** | **No**, for protected backups. Nobody can open them, including PesaPilot. | Only a plain backup, if one exists, can help. **This is the one real new risk, and the screens say it clearly before the user chooses protection.** |
-| **Phone fine; password forgotten** | **Nothing is lost**: the records are on the phone | Unlock with the PIN → set a new backup password → **make a fresh backup straight away**. (Older backups still need the old password or the recovery code.) |
-| **Phone fine; recovery code lost** | Nothing is lost | "Make a new recovery code" → write it down → make a fresh backup |
-| **PIN forgotten** | Unchanged from today (DATA_RECOVERY §3): the "Forgot your PIN?" path saves a copy, resets this phone and re-imports. The backup password isn't needed. | As today |
+| **Phone fine; password forgotten** | **Nothing is lost**: the records are on the phone | Use the **recovery code** to set a new password, then make a fresh backup. Older backups still open with the code. |
+| **Phone fine; password AND code forgotten** | **Nothing on the phone is lost** | "Start new protection" (new DK, new password, new code) → **make a fresh backup straight away**. Old protected backups stay locked to the old secrets. |
+| **Phone fine; recovery code lost** | Nothing is lost | "Make a new recovery code" (needs the password) → write it down → make a fresh backup. Old backups still open with the password. |
+| **PIN forgotten** | Unchanged from today (DATA_RECOVERY §3): the "Forgot your PIN?" path saves a copy, resets this phone and re-imports. The backup password isn't needed. **That copy is a plain, unprotected file**, with the warnings in §5a. | As today |
 | **Someone finds the backup file** | They can't read it without the password or code. They can see it's a PesaPilot backup, its size, and the date in its file name. | Nothing |
 | **Someone has the phone, unlocked** | They can read the records, as today. This brief doesn't change that. Encrypting records on the phone itself is **out of scope** (see §8). | PIN, as today |
+
+## 5a. Forgot-PIN copy: make the plain file unmistakable (owner, 25 Nov)
+The process stays as today (DB-4.9). The **wording and file name** change so nobody mistakes the copy for a protected backup. This is also proposed for the current app wording, as part of DB-4's build.
+
+**Before it downloads:**
+> **This copy is NOT protected.** Anyone who opens this file can read all your records. Keep it private, and delete it after you've restored your records.
+> [I understand, save the copy] · [Cancel]
+
+**File name:** `PesaPilot-UNPROTECTED-copy-2026-11-25.json`
+
+**After restoring:**
+> Your records are back. **Delete the unprotected copy** from your phone's Downloads. PesaPilot can't delete it for you. [How to delete it] · [Make a protected backup now]
+
+The same message goes in `DATA_RECOVERY.md` §3, so the in-app wording and the recovery guide match (CLAUDE.md 3a).
 
 ## 6. Restoring
 
@@ -110,7 +205,7 @@ Should PesaPilot let users save a **password-protected (encrypted) backup file**
    - a safety copy of the current data is made first;
    - the phone keeps **its own PIN** (DEC-019);
    - a new phone without a PIN is asked to set one (PIN required, DEC-026).
-7. **After restoring:** the phone takes over K from the file, so **the same password and recovery code keep working** for future backups.
+7. **After restoring:** the phone keeps DK (non-extractable) and asks for a backup password. The **same recovery code** keeps working for future backups (§3a, answer 6).
 
 **Older app versions:** today's live app and Release 1 both refuse a protected file with "This backup was created by a newer version of PesaPilot." Nothing is changed [T].
 
@@ -147,15 +242,15 @@ Should PesaPilot let users save a **password-protected (encrypted) backup file**
 | **Kenya Data Protection Act** | Minimal: we still don't collect or process users' financial data |
 | **Support** | We **cannot** recover a forgotten password. The app, the FAQ and `DATA_RECOVERY.md` must say so plainly. |
 | **Compatibility** | Plain backups keep working both ways. Older apps refuse protected files safely [T]. |
-| **Stored data** | One new on-phone setting (K plus its two locked copies), never exported. No change to records. |
+| **Stored data** | The on-device secret (§3a) in **IndexedDB**, a browser storage area the app doesn't use today, kept apart from the records (localStorage). Never exported. No change to records and no schema change. Note for DB-6: a service worker *can* technically reach IndexedDB. PesaPilot's worker will contain no storage code, and a test checks that. |
 | **Order of work** | After Release 1, and after the D13 fix (so an older app can't damage the new setting). Can be built separately from DB-5 and DB-6. |
 
 ## 10. Testing (when built)
 - **Round trip:** protect → back up → import on a fresh profile, with the password and with the recovery code.
 - **Failure cases:** wrong password, wrong code, a tampered file, a truncated file → refused, **nothing changed**.
-- **Changes:** after a password change, old files still open with the old password or the code; a new code needs a new K.
+- **Changes:** after a password change, old files still open with the old password or the code; a new code needs a new DK; changing the password needs the old password or the code; the on-device DK cannot be exported.
 - **Compatibility:** plain ↔ protected; refusal by today's live app and Release 1 (already tested).
-- **Exports:** no PIN, PIN hash or K appears in any export (extends the existing DEC-019 tests).
+- **Exports:** no PIN, PIN hash, DK or lock record appears in any export or plain backup (extends the existing DEC-019 tests).
 - **Real devices:** unlock time on a low-end Android phone; the share sheet to WhatsApp, Drive and Gmail.
 - **Full suites:** regression, migration, engine fingerprint and UI audit.
 
@@ -165,13 +260,13 @@ Should PesaPilot let users save a **password-protected (encrypted) backup file**
 |---|---|---|---|
 | 1 | Add protected backups as a future stage | **Yes**, after Release 1 and D13 | Not now |
 | 2 | Encryption method | **AES-GCM-256; PBKDF2-SHA-256 at 600,000 rounds; random salt and IV** | Other parameters after phone timing tests |
-| 3 | Recovery | **Password + recovery code (1b)** | Password only (1a); code only (1c) |
+| 3 | Recovery | **Password + recovery code (1b)**, with the key architecture in §3a | Password only (1a); code only (1c) |
 | 4 | Default | **Offer protection first; "Save without protection" stays available, with a warning** | Force protection; keep plain as the default |
-| 5 | One-tap backups (phone keeps the backup key, never exported) | **Yes** | Type the password for every backup |
-| 6 | Password rules | **At least 8 characters; not the PIN; 12+ if only numbers** | Stricter rules |
+| 5 | One-tap backups (non-extractable DK in IndexedDB, never exported; §3a answers 3–4) | **Yes** | Type the password for every backup |
+| 6 | Password rules | **At least 8 characters; not the PIN; 12+ if only numbers; common passwords and the example refused; guidance: 4+ unrelated words** | Stricter minimum (e.g. 12 characters) |
 | 7 | Monthly "do you remember your password?" check | **Yes, with the backup reminder** | No checks |
 | 8 | Saving | **Share sheet, with download as the fallback** | Download only |
-| 9 | Forgot-PIN path | **Unchanged** | — |
+| 9 | Forgot-PIN path | **Process unchanged; the plain copy clearly labelled "NOT protected", with a delete reminder (§5a)** | Make that copy protected (risks loss if the password is also forgotten) |
 | 10 | Automatic Drive backup (Option 2) / PesaPilot cloud (Option 3) | **Not now** | Investigate Option 2 after interviews |
 
 **Reversible?** Yes.

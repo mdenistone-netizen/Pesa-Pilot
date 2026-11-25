@@ -119,7 +119,43 @@ function beforeYouSpend(x, amount, opts = {}) {
     firstAtRiskAfter: after.noIncome.firstAtRisk, offerUseSavings: after.verdict !== "On track" && x.setAside > 0 };
 }
 
-module.exports = { willIMakeIt, beforeYouSpend, horizon };
+
+// ---------- DB-5.5 usual daily spending estimate (D) ----------
+// Window: the last 28 FULL calendar days before today (today is excluded because it is incomplete),
+// or fewer if the user started recording less than 28 days ago. Divided by CALENDAR days in the window:
+// a day with no entries counts as a zero-spending day. Quality checks decide whether the figure can be
+// trusted on its own (see the brief's §5.4).
+const median = a => { const s = [...a].sort((x, y) => x - y), m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
+function estimateUsualDaily({ today, trackingStart, entries, adjustments = [], userDaily = null }) {
+  const end = addDays(today, -1);
+  const days = Math.min(28, daysBetween(trackingStart, today));          // full days available
+  if (days < 7) return { status: "ask", reason: "fewer than 7 days of records", daily: userDaily, used: "your figure" };
+  const start = addDays(today, -days);
+  const inWin = e => e.date >= start && e.date <= end;
+  const spend = entries.filter(e => inWin(e) && e.kind === "expense");   // bill payments and goal use are not counted (already elsewhere)
+  let excluded = [];
+  if (spend.length >= 10) {                                               // one-offs only judged with enough entries
+    const m = median(spend.map(e => e.amount));
+    excluded = spend.filter(e => e.amount > 3 * m);
+  }
+  const counted = spend.filter(e => !excluded.includes(e));
+  // Unrecorded spending found by reconciling: spread over the days since that account's previous reconcile,
+  // and only the part that falls inside the window is counted.
+  const unrecorded = adjustments.filter(a => a.date >= start && a.date <= end).reduce((t, a) => {
+    const span = Math.max(1, daysBetween(a.since, a.date)), dayBefore = addDays(start, -1), overlap = Math.max(0, daysBetween(a.since > dayBefore ? a.since : dayBefore, a.date)); // days after `since`, up to and incl. the reconcile date
+    return t + a.amount * Math.min(1, overlap / span);
+  }, 0);
+  const total = counted.reduce((t, e) => t + e.amount, 0) + unrecorded;
+  const computed = Math.round(total / days);
+  const recordedDays = new Set(spend.map(e => e.date)).size, coverage = recordedDays / days;
+  const incomplete = coverage < 0.5 && unrecorded === 0;
+  let daily = computed, used = "records", status = "ok";
+  if (incomplete) { status = "check"; if (userDaily != null) { daily = Math.max(computed, userDaily); used = daily === computed ? "records" : "your figure (higher)"; } }
+  return { status, days, recordedDays, coverage: Math.round(coverage * 100), counted: Math.round(total - unrecorded), unrecorded: Math.round(unrecorded),
+    excluded: excluded.map(e => `${e.note || "expense"} ${e.amount}`), computed, daily, used };
+}
+
+module.exports = { willIMakeIt, beforeYouSpend, horizon, estimateUsualDaily };
 
 // ---------- Worked examples (clock: Wed 25 Nov 2026) ----------
 if (require.main === module) {
@@ -203,6 +239,39 @@ if (require.main === module) {
     assert.deepEqual(willIMakeIt({ ...base, expected: [{ name: "x", amount: 1e6, date: base.today }] }).noIncome, willIMakeIt(base).noIncome);
     const more = willIMakeIt({ ...base, mustPay: [...base.mustPay, { name: "extra", amount: 500, due: base.today }] }).verdict;
     assert.ok(rank[more] <= rank[v]);
+  }
+
+  // ---------- DB-5.5 estimate examples ----------
+  const T = "2026-11-25", day = i => addDays(T, -i);                // day(1) = yesterday … day(28)
+  // E1 good records: 21 of 28 days have entries; 600 on each recorded day → 12,600 / 28 calendar days = 450.
+  const e1d = Array.from({ length: 21 }, (_, i) => ({ date: day(i + 1), amount: 600, kind: "expense" }));
+  const d1 = estimateUsualDaily({ today: T, trackingStart: "2026-09-01", entries: [...e1d, { date: day(3), amount: 6500, kind: "bill" }, { date: day(4), amount: 2000, kind: "goalUse" }] });
+  show("D1 good records", d1); assert.equal(d1.daily, 450); assert.equal(d1.status, "ok"); assert.equal(d1.coverage, 75);
+  // E2 incomplete: only 8 days recorded, 300 each → 2,400 / 28 = 86 a day. Flagged; user says 400 → 400 used.
+  const e2d = Array.from({ length: 8 }, (_, i) => ({ date: day(i * 3 + 1), amount: 300, kind: "expense" }));
+  const d2a = estimateUsualDaily({ today: T, trackingStart: "2026-09-01", entries: e2d });
+  const d2b = estimateUsualDaily({ today: T, trackingStart: "2026-09-01", entries: e2d, userDaily: 400 });
+  show("D2 incomplete records", { d2a, d2b }); assert.equal(d2a.computed, 86); assert.equal(d2a.status, "check"); assert.equal(d2b.daily, 400);
+  // E3 same records, but a reconcile on M-Pesa found 7,000 unrecorded spending since a reconcile 35 days ago:
+  // 28/35 of it is inside the window = 5,600 → (2,400 + 5,600) / 28 = 286. Trusted (the gap was measured).
+  const d3 = estimateUsualDaily({ today: T, trackingStart: "2026-09-01", entries: e2d, adjustments: [{ date: day(1), amount: 7000, since: day(36) }] });
+  show("D3 with reconcile", d3); assert.equal(d3.unrecorded, 5600); assert.equal(d3.daily, 286); assert.equal(d3.status, "ok");
+  // E4 a one-off: 20 entries of about 300 plus a 12,000 phone → phone left out and listed.
+  const e4d = Array.from({ length: 20 }, (_, i) => ({ date: day(i + 1), amount: 300, kind: "expense" }));
+  const d4 = estimateUsualDaily({ today: T, trackingStart: "2026-09-01", entries: [...e4d, { date: day(2), amount: 12000, kind: "expense", note: "Phone" }] });
+  show("D4 one-off", d4); assert.deepEqual(d4.excluded, ["Phone 12000"]); assert.equal(d4.daily, 214);
+  // E5 new user (4 days) → ask, never guess.
+  const d5 = estimateUsualDaily({ today: T, trackingStart: day(4), entries: e1d.slice(0, 3) });
+  assert.equal(d5.status, "ask");
+  // E6 today's partial day is never in the average.
+  const d6 = estimateUsualDaily({ today: T, trackingStart: "2026-09-01", entries: [...e1d, { date: T, amount: 50000, kind: "expense" }] });
+  assert.equal(d6.daily, 450);
+
+  // DB-5.6: the default cushion is a warning threshold only. It never changes Left to spend or the daily guide.
+  for (const base of [otieno, akinyi, mwangi, njeri]) {        // all have no buffer, so the default cushion applies
+    const res = willIMakeIt(base);
+    assert.equal(res.reserveDEC015, res.leftAfterCommitments);  // nothing extra deducted
+    assert.equal(res.dailyGuide, Math.max(0, Math.floor(res.leftAfterCommitments / res.horizon.days)));
   }
   console.log("\nAll DB-5 worked examples and properties check out.");
 }

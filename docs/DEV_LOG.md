@@ -183,3 +183,17 @@ These need Node and Playwright, which are pre-installed in Claude Code cloud ses
   2. **The "cancelled" expected-income status needs schema 11.** Release 1's loader (`index.html:853`) rewrites unknown statuses to "expected", so the D13 guard must apply. This makes it a small production migration.
 - DB-4: proposed keeping the backup key under its own storage key (never exported, no schema change).
 - Nothing approved or implemented.
+
+### 2026-11-25 · Decision pack round 2 (owner feedback; no approval)
+- **DB-5.5:** exact estimate rules (calendar-day divisor, empty days = 0, coverage check → ask and use the higher figure, one-offs listed). `estimateUsualDaily` added to the model with examples D1–D6.
+  - **Correction:** reconcile gaps are now included, spread over time; excluding them made the estimate too low for people who forget to record.
+- **DB-5.6:** added a model property: the default cushion never changes Left to spend or the daily guide.
+- **Schema 11, tested on a copy of Release 1:** opening changes nothing; saving relabels to 10 and rewrites "cancelled" to "expected", but keeps extra fields. Design: 4 layers (D13 first; schema 11 + backup version; `cancelledAt` as the source of truth; rollback floor).
+- **DB-4:** key architecture (DK, P-key, R-key, on-device secret) with `prototypes/protected-backup/model.js`; all 7 owner questions are model-checked.
+  - Chromium: a non-extractable key in IndexedDB survives a reload and can't be exported.
+  - **Change:** a password change needs the old password or the code.
+  - New password example; "NOT protected" Forgot-PIN copy wording.
+- **DB-6:** corrected the storage claim. Tested: inside a worker, localStorage is undefined, while IndexedDB and caches are available.
+  - Records are only in localStorage (checked).
+  - Safeguards specified; clean repeated proof runs: a failed install keeps the old version; a good update clears old caches.
+- No app code, schema or production change.

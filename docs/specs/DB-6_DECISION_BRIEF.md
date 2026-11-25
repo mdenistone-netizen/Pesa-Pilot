@@ -46,7 +46,7 @@ Should PesaPilot become an **installable app that opens without internet** (a Pr
 | Piece | What it does | Touches records? |
 |---|---|---|
 | `manifest.webmanifest` + icons (192, 512, maskable) | Name, icon and colours for installing | No |
-| `sw.js` (service worker) | Keeps a copy of the **app files only** (page, font, icons) for offline opening | **No. A service worker can't read browser storage (localStorage) at all.** |
+| `sw.js` (service worker) | Keeps a copy of the **app files only** (page, font, icons) for offline opening | **No.** The records are in localStorage, which a service worker **cannot reach** [tested]. See §2a for what a worker *can* reach. |
 | Update prompt in the app | "A new version of PesaPilot is ready. [Reload]" | No |
 | `navigator.storage.persist()` | Asks the browser not to clear PesaPilot's data | No (protects it) |
 | Netlify headers | `sw.js` and the page always revalidated | No |
@@ -56,6 +56,39 @@ Should PesaPilot become an **installable app that opens without internet** (a Pr
 - no push notifications;
 - no background sync;
 - no analytics.
+
+## 2a. Where the records live, and what a worker can reach (corrected 25 Nov)
+**Correction:** the earlier wording said a service worker "can't read browser storage at all". That was too broad.
+
+**PesaPilot's storage today** (checked in `index.html`): **localStorage only.** The app uses no IndexedDB, no cookies, no Cache Storage and no sessionStorage.
+
+| Key | Holds |
+|---|---|
+| `pesapilot_v2` | All financial records and settings |
+| `pesapilot_safety_backup_v9` | The safety backup |
+| `pesapilot_pre_v10_snapshot` | The pre-upgrade copy |
+| `pesapilot_device_id` | Device id |
+| `pesapilot_onboarding_v1` | Onboarding done |
+| `pesapilot_pin_attempts` | PIN lockout counter |
+
+**What a service worker can reach** [tested in Chromium, from inside the worker]:
+
+| Storage | Reachable by the worker? | Holds |
+|---|---|---|
+| localStorage | **No** (`undefined` inside workers, by design of the web platform) | **All PesaPilot records** |
+| sessionStorage | **No** | Nothing |
+| Cache Storage | Yes | The app-file copies the worker itself makes |
+| IndexedDB | **Yes** | Nothing today. DB-4 proposes the backup key there. |
+
+**Demonstrated:**
+- with records in localStorage, the worker installed, updated, failed an update and was killed;
+- **the records were identical after every step**;
+- a worker cannot modify what it cannot reach.
+
+**The remaining theoretical path is our own worker code touching IndexedDB.** The design prevents it in three ways:
+1. the worker's code does only caching;
+2. a test fails the build if `sw.js` mentions IndexedDB or any storage API;
+3. the DB-4 key is **non-extractable**, so even code that could reach it couldn't read its value.
 
 ## 3. Update design (how nobody gets stuck)
 
@@ -81,6 +114,43 @@ Should PesaPilot become an **installable app that opens without internet** (a Pr
    - RELEASE_1_CHECKLIST §8 gets that step when Stage C is built.
 
 **What an offline user sees:** the app works normally, with a small note: "You're offline. Everything still works; updates when you're back online."
+
+## 3a. Update safeguards in detail (owner review, 25 Nov)
+**[T]** means tested in the throw-away proof (scratchpad, Chromium, clean runs repeated twice). Everything here must be **re-tested on real Android phones** with the finished build (§8).
+
+**1. Atomic updates: a phone never ends up with half a version.**
+- A new worker copies **all** of its version's files into a new, separate cache before it can take over.
+- If any file fails, the whole install fails and the current version stays in charge, untouched [T].
+- The switch happens only after a complete copy, and only when the user taps Reload (or at the next fresh open).
+- Old caches are deleted only *after* the switch [T].
+- The app is one page with its code inside, so the page and its logic always match. Only the font and icons are separate; they are version-stamped and can't change behaviour.
+
+**2. Failed or interrupted downloads**
+- **Install fails** (data runs out, server error) → the current version keeps running, online and offline [T]. The leftover empty cache is deleted, and the update is retried on the next online open.
+- **A page download fails or takes over 3 s** → the phone's copy of the **current** version opens.
+- **A half-downloaded page is never cached:** only complete, successful responses are stored.
+
+**3. No mixing of versions**
+
+| Risk | Guard |
+|---|---|
+| Two versions' files mixed | Each version reads and writes **only its own cache** [T; the first proof's bug] |
+| Page and worker on different versions | The page records its version. If the controlling worker is a different version, the page shows the Reload banner. Its logic is all in the page, so a mismatch can't mix code. |
+| Two tabs on different versions | On Reload, all tabs reload together (a message between tabs). A tab that doesn't reload is stopped from saving newer data by the D13 guard. |
+| Old code meeting newer data (offline phone, old tab) | **D13 guard** (released before Stage C): read-only, with "Please reload to update" |
+
+**4. Kill-switch delivery**
+- The worker is registered so that its file is **never taken from the browser's HTTP cache** (`updateViaCache: "none"`). Netlify serves `sw.js` with "always revalidate".
+- The app also asks for an update check on every open.
+- So **every phone that opens PesaPilot online gets the kill switch on that open** [T: it removed the worker and caches; the records were identical].
+- **Limit:** a phone that never comes online keeps its copy. It is protected by the D13 guard, and it gets the kill switch on its first online open.
+
+**5. Offline rollback and rollback in general**
+- A phone that is offline during a rollback keeps running the version it has until it comes online. Then network first loads the rolled-back page, and the kill switch (deployed with the rollback) removes the worker.
+- **Rollback floor:** after any schema change (e.g. schema 11, DB-5.12), the rollback build must understand that schema. Otherwise the D13 guard would rightly make it read-only for everyone.
+  - So each schema gets a named "safe rollback build", as `8370097` is for schema 10.
+  - **Release 1 is never a rollback target after schema 11.**
+- The recovery procedure (RELEASE_1_CHECKLIST §8 pattern) gets both steps when Stage C is built.
 
 ## 4. Data use and phones in Kenya
 - **First open after an update:** about 62 KB compressed for the page, plus the font (48 KB) only when it changes.
@@ -112,7 +182,7 @@ Should PesaPilot become an **installable app that opens without internet** (a Pr
 
 | Area | Effect |
 |---|---|
-| **Privacy** | Unchanged. Only app files are cached. The worker can't read records. Nothing is sent anywhere. |
+| **Privacy** | Unchanged. Only app files are cached. The records (localStorage) are out of the worker's reach [tested]. The worker contains no code for IndexedDB, which it *could* reach (§2a); a test enforces this. Nothing is sent anywhere. |
 | **Security** | Same HTTPS site. New risk: stale code, handled by §3 and D13. Only listed app files are cached, never `/docs/` pages, prototypes or demo data. |
 | **User control** | Installing is optional. Updates are visible. Uninstalling removes the icon; the records follow normal browser rules. |
 | **Update reliability** | The main risk. Mitigated by: network first with a time limit, per-version caches, the reload prompt, the D13 guard, the kill switch and tests. Residual: a phone offline for weeks runs its saved copy, which is safe because of D13. |
@@ -132,9 +202,15 @@ Should PesaPilot become an **installable app that opens without internet** (a Pr
 - **D13 guard:** an older copy facing newer data is read-only.
 - **Kill switch:** the worker and caches are removed and the data is untouched; the rollback path works with a worker installed.
 - **Slow network:** with a simulated poor connection, the phone's copy opens within about 3 seconds.
-- **Scope:** `/docs/` is never cached; nothing in browser storage is touched by the worker.
+- **Scope:**
+  - `/docs/` is never cached;
+  - a test reads `sw.js` and fails if it mentions `indexedDB`, `localStorage`, `cookie` or any address outside PesaPilot;
+  - the records are byte-identical before and after install, update and kill switch.
 - **Full suites:** regression, migration, engine fingerprint, UI audit and snapshot.
-- **On the preview:** install on a real Android phone; confirm Netlify revalidation.
+- **Real Android phones (required before approval to deploy):**
+  - at least one low-end and one mid-range phone, in Chrome and the phone's own browser;
+  - install, offline open, update with Reload, an interrupted update (data switched off mid-download), the kill switch and a rollback;
+  - confirm Netlify revalidation and the 3-second fallback on a slow connection.
 
 ## 9. Choices for you
 

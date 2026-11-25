@@ -170,18 +170,59 @@ A payment due *after* an expected payday is only safe if that money really comes
 | 5,000 | **Tight** | 500 | 600 | "You can pay it, but you'd use half your safety buffer." |
 | 7,000 | **Short** | −1,500 | 200 | "This would leave you about KSh 1,500 short. The KCB loan on 29 Nov would have only about KSh 700 towards KSh 1,500. You have KSh 3,000 set aside for School fees. Using it is your choice." |
 
-### 5.4 Usual spending estimate (D)
-- **Recommended:** the average of the last 28 days of **expense entries**, excluding:
-  - bill payments (already in must-pay);
-  - money used from savings goals;
-  - unrecorded-spending adjustments;
-  - single expenses over 3× the median (one-offs).
-- **With under 7 days of records,** ask: "About how much do you spend on a normal day?"
-- **The user can override it,** with an end date.
-- **Always shown** with "based on the last 4 weeks" or "your estimate".
+### 5.4 Usual spending estimate (D): exact rules (clarified 25 Nov, owner review)
+Checked by the model: `estimateUsualDaily` in `../prototypes/will-i-make-it/model.js`, examples D1–D6.
 
-### 5.5 Cushion
-The safety buffer if set; otherwise max(KSh 500, 10% of N).
+**1. What is divided by what**
+- **Window:** the last **28 full calendar days before today**. Today is left out because it isn't finished.
+- **Shorter history:** if the user started recording less than 28 days ago, the window is the number of full days since they started.
+- **The divisor is calendar days, not days with entries.** 28 days in the window means ÷ 28.
+
+**2. Days with no entries**
+- They **count as zero-spending days.** Some days really are zero.
+- Because a missing day could also be a *forgotten* day, the quality checks below decide whether the result can be trusted.
+
+**3. What is counted**
+
+| Counted | Not counted (and why) |
+|---|---|
+| Expense entries, including M-Pesa charges | **Bill payments** (already a must-pay) |
+| **Unrecorded spending found by reconciling** (DEC-016), spread over the days since that account's previous reconcile. Only the part inside the window counts. | **Money used from a savings goal** (planned use of saved money) |
+| | **One-offs:** a single expense over 3× the median expense, judged only when there are ≥ 10 expenses in the window. Always **listed** ("Left out: Phone KSh 12,000"), and the user can put it back. |
+| | Transfers, savings, debt repayments, borrowing (never spending: DEC-010) |
+
+**Correction:** the first version *excluded* reconcile adjustments. That made the estimate too low for exactly the people who forget to record, so they are now **included, spread over time**.
+
+**4. Protection against a wrong figure**
+
+| Risk | Check | What happens |
+|---|---|---|
+| **Too low** because of forgotten entries | **Coverage:** fewer than half the days in the window have any expense, and no reconcile measured the gap | Marked "Your records may be incomplete". The app asks "About how much do you spend on a normal day?" and uses **the higher** of the two figures (the cautious choice). |
+| **Too low or high** because the user is new | Fewer than 7 full days of records | Never guessed: the app asks the user |
+| **Too high** because of a one-off | The 3× median rule (≥ 10 entries) | Left out and listed; the user can put it back |
+| **Too high** because of bills | Bill payments excluded | Already in must-pay |
+| **Unusual week ahead** (travel, a funeral) | User override with an end date | Their figure is used until that date, then the estimate returns |
+| **Today's half-finished day** | Today excluded | — |
+
+**Always shown with its working**, e.g.:
+> "About KSh 450 a day: KSh 12,600 over the last 28 days (21 days had entries). Left out: rent (a bill)."
+
+**Examples (model-checked)**
+
+| # | Records | Result |
+|---|---|---|
+| D1 | 21 of 28 days recorded, 600 each; rent and goal use also recorded | 12,600 ÷ 28 = **450**, trusted |
+| D2 | Only 8 days recorded, 300 each | 2,400 ÷ 28 = 86, **flagged as incomplete**. User says 400, so **400** is used. |
+| D3 | As D2, plus a reconcile that found 7,000 unrecorded spending over 35 days | 28/35 of 7,000 = 5,600 is inside the window. (2,400 + 5,600) ÷ 28 = **286**, trusted (the gap was measured) |
+| D4 | 20 entries of 300 + a 12,000 phone | Phone left out and listed: 6,000 ÷ 28 = **214** |
+| D5 | Recording for 4 days | **Asks the user** |
+| D6 | Good records + a 50,000 expense today | Today ignored: **450** |
+
+### 5.5 Cushion: a warning threshold only
+- The cushion is the safety buffer if set; otherwise max(KSh 500, 10% of N).
+- **The default cushion is never deducted from anything.** It only decides whether the verdict says "On track" or "Tight".
+- Left to spend and the daily guide are unchanged by it. The model checks this for every example with no buffer.
+- Only a buffer the **user** sets is deducted, as DEC-015 already does.
 
 ## 6. Worked examples (clock: Wed 25 Nov 2026)
 
@@ -216,6 +257,27 @@ The safety buffer if set; otherwise max(KSh 500, 10% of N).
   2. a one-cycle payday change ("my pay is late this month");
   3. an expected-income "cancelled" status, kept in history.
 
+  **Schema 11 safeguards (tested on a copy, 25 Nov).**
+
+  | Test | Result |
+  |---|---|
+  | Release 1 **only opens** schema 11 data | Nothing changes |
+  | Release 1 **saves** schema 11 data (any edit) | Schema relabelled 10 (D13); a `"cancelled"` status rewritten to `"expected"`; **but extra fields survive**: a `cancelledAt` date and both new profile settings were kept |
+
+  **The design therefore has 4 layers:**
+  1. **D13 released first.** Every version from then on refuses to save newer data.
+  2. **Schema 11 + a new backup version.** Release 1 refuses schema 11 backups (refusal tested for DB-4 files).
+  3. **"Cancelled" is recorded by a `cancelledAt` date, which is the source of truth.**
+     - The status field is a convenience copy.
+     - If Release 1 ever rewrites the status, the next schema 11 load restores it from `cancelledAt`.
+     - The 10 → 11 upgrade runs safely again if Release 1 relabels the data: it is idempotent (DEC-004).
+     - To be tested exactly as above.
+  4. **Rollback floor.** After schema 11, emergency rollback must use a build that understands schema 11, **never Release 1**. The recovery procedure is updated with the stage.
+
+  **Remaining exposure:** a Release 1 tab left open from before the update.
+  - Release 1 reloads when another tab saves (R1, tested), so it fetches the new version.
+  - Layer 3 repairs any status it rewrote.
+
   **Correction (25 Nov): this needs a schema bump (10 → 11).**
   - Release 1 rewrites any expected-income status other than "received" to "expected" (`index.html:853`), so a "cancelled" item would come back if an older version saved the data.
   - With schema 11, **D13's guard** (DEC-025, fixed first) makes older versions read-only for this data.
@@ -231,7 +293,7 @@ The safety buffer if set; otherwise max(KSh 500, 10% of N).
 | 2 | Expected income | Per-payment "if it arrives" lines; **remove the combined line** on Plan | Keep the combined line as well |
 | 3 | Irregular horizon | **Always the planning period** | End at a payment the user marks (not recommended: assumes it arrives) |
 | 4 | Bill due on payday | **Keep DEC-015 and show a note** | Amend DEC-015 to count it in this period (more cautious; changes Left to spend) |
-| 5 | Usual spending | **28-day average with exclusions, plus override** | Median of daily totals; user-entered only |
+| 5 | Usual spending | **28 calendar days (no-entry days = 0), reconcile gaps included, one-offs listed, coverage check → ask and use the higher figure; override** (§5.4) | Median of daily totals; user-entered only |
 | 6 | Cushion | **Buffer if set; else max(500, 10% of N)** | Buffer only; a fixed KSh 1,000 |
 | 7 | Late or missing income | **Late status + Received / New date / Won't come; "Waiting for your pay" after a missed payday** | Do nothing until the user edits it |
 | 8 | Late salary | **One-cycle "my pay is late"** | Edit the usual payday (affects later months) |

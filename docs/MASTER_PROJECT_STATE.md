@@ -143,7 +143,23 @@ Full detail: `FINANCIAL_RULES.md`.
 | 10 | **D13 schema guard**: scope and Option B approved in principle (DEC-025). **Implementation needs a separate go-ahead** after Release 1 | Open defect |
 | 11 | **P4 interview pack** approval (and interviewer, thank-you amount, Kiswahili review) | Ready for review |
 
-**Owner review pending (25 Nov):** all 33 choices in one place: `specs/DECISION_PACK_DB5_DB4_DB6.md`. Each choice gives the decision, recommendation, alternatives, the effect on an ordinary user, risks, and whether it changes an existing rule. Release 1, D13, DB-4, DB-5 and DB-6 are **separate approval matters**. Nothing in them is approved or implemented. Other waiting items: Release 1 preview review, P4 pack approval, D13 implementation go-ahead after Release 1.
+**Owner review position (25 Nov, round 1). Feedback, not approval:**
+- **DB-5:** supports the verdicts, expected-income treatment, irregular horizon, savings protections, Before You Spend, and Short vs Already short.
+  - DB-5.5 needed clarification (done: brief §5.4).
+  - DB-5.6 provisional, with the cushion as a warning only (confirmed: §5.5).
+  - DB-5.7/5.8 supported, subject to D13 and schema 11 safeguards.
+  - DB-5.12 not before D13 is released (safeguards: §7).
+- **DB-4:** supports encrypted backups, with cloud out of scope.
+  - DB-4.3/4.5 wait for the key architecture (done: §3a).
+  - Stronger password example (done).
+  - Forgot-PIN process kept, with an unmistakable plain-copy warning (done: §5a).
+- **DB-6:** supports the PWA after Release 1 and D13.
+  - The storage statement is corrected (§2a).
+  - Update safeguards specified (§3a).
+  - Real Android testing is required.
+- **No schema change, code, merge or deployment is authorised.** Release 1, D13, DB-4, DB-5 and DB-6 stay separate.
+
+**Owner review pending (round 2):** clarifications ready. All 33 choices are in one place: `specs/DECISION_PACK_DB5_DB4_DB6.md`. Each choice gives the decision, recommendation, alternatives, the effect on an ordinary user, risks, and whether it changes an existing rule. Release 1, D13, DB-4, DB-5 and DB-6 are **separate approval matters**. Nothing in them is approved or implemented. Other waiting items: Release 1 preview review, P4 pack approval, D13 implementation go-ahead after Release 1.
 
 ## 8. Risks
 - **Real users, data only on their devices:** a faulty release could damage data we can't see or restore centrally. Mitigations: on-device snapshot, proven rollback, deployment checklist, and owner approval (DEC-017).

@@ -26,6 +26,20 @@ Approving one approves none of the others. Production is untouched until you exp
 
 ---
 
+## Changes after your review (25 Nov, round 2)
+Your review position is recorded in `MASTER_PROJECT_STATE.md`. **Nothing is approved for implementation.** The answers to your questions are in the briefs; this list says where.
+
+| Your point | Where answered | Evidence | What changed |
+|---|---|---|---|
+| DB-5.5 divisor, empty days, incomplete records | DB-5 brief §5.4 | Model examples D1–D6 | Divided by **calendar** days; empty days = 0; a coverage check asks the user and uses the higher figure. **Correction:** reconcile gaps are now *included*, spread over time (excluding them made the estimate too low). |
+| DB-5.6 cushion is a threshold only | DB-5 brief §5.5 | Model property for every no-buffer example | Confirmed. Wording made explicit. |
+| DB-5.7/5.8/5.12 Release 1 must not overwrite schema 11 | DB-5 brief §7 | **Tested on a copy:** Release 1 opening schema 11 changes nothing; *saving* relabels it 10 and rewrites "cancelled" to "expected", **but keeps extra fields** | 4 layers: D13 first; schema 11 + backup version; `cancelledAt` date as the source of truth (survives Release 1); rollback floor (never Release 1 after schema 11) |
+| DB-4 key architecture, Q1–Q7 | DB-4 brief §3a | Model: all 7 answers checked. Chromium: non-extractable key survives a reload and can't be exported. | Four items separated (DK, P-key, R-key, on-device secret). **Change:** the phone key is non-extractable in IndexedDB, so changing the password needs the old password **or** the recovery code. This closes the "unlocked phone re-locks the key" gap. |
+| DB-4.6 example | DB-4 brief §4 | — | `chungwa basi kumi mlango` (4 unrelated words). The example and common passwords are refused. |
+| DB-4.9 plain copy | DB-4 brief §5a | — | "NOT protected" warning, `UNPROTECTED` in the file name, and a delete reminder. The process is unchanged. |
+| DB-6.5 storage claim | DB-6 brief §2a | Chromium: worker sees localStorage `undefined`, IndexedDB and caches available; records identical after every step | **Corrected:** the worker can't reach localStorage (where all records are) but *can* reach IndexedDB and caches. A test forbids storage code in `sw.js`. |
+| DB-6.2/6.4 safeguards | DB-6 brief §3a | Clean repeated runs: a failed install keeps the old version; a good update clears old caches; the kill switch removes everything | Atomic installs, failed downloads, version mixing, kill-switch delivery (`updateViaCache: "none"`), offline rollback, rollback floor, real-Android test list |
+
 ## Summary
 
 | # | Question | Recommendation | Changes an existing rule? |
@@ -157,15 +171,20 @@ Also adopt the four verdicts in brief §3 (On track / Tight / Short / Already sh
 
 **Decision:** How PesaPilot estimates "usual spending per day" (D).
 
-**Recommendation:**
-- The average of the last 28 days of expense entries.
-- Excluded:
+**Recommendation** (exact rules in DB-5 brief §5.4; model-checked):
+- **Total ÷ 28 calendar days:** the last 28 full days before today; today is excluded. A shorter window applies if the user is newer.
+- **Days with no entries count as zero.**
+- **Counted:**
+  - expenses;
+  - unrecorded spending found by reconciling, spread over the days since the previous reconcile.
+- **Not counted:**
   - bill payments;
-  - money used from savings goals;
-  - unrecorded-spending adjustments;
-  - single expenses over 3× the median.
-- With under 7 days of records, ask the user.
-- The user can always override it, with an end date.
+  - goal use;
+  - transfers, savings and debt repayments;
+  - one-offs over 3× the median, when there are ≥ 10 entries. These are listed, and the user can put them back.
+- **Fewer than 7 days of records:** ask the user.
+- **Fewer than half the days recorded, and no reconcile:** "Your records may be incomplete". Ask the user, and use **the higher** figure.
+- **Override:** the user can always override, with an end date.
 
 **Alternatives:**
 - the median of daily totals (more robust, harder to explain);
@@ -175,7 +194,8 @@ Also adopt the four verdicts in brief §3 (On track / Tight / Short / Already sh
 
 **Risks:**
 - **Financial:** too low an estimate makes the verdict optimistic. Mitigated by showing the figure and allowing overrides.
-- **Accuracy:** if many expenses aren't recorded, it is too low. The reconcile reminder helps.
+- **Accuracy:** forgotten entries make it too low. Guarded by the coverage check, by counting reconcile gaps, and by "use the higher figure".
+- **Too high:** one-offs are listed and excluded; bills are excluded.
 - **Maintenance:** the exclusion rules need tests.
 
 **Changes an existing rule?** **New rule.** Its override is stored data: see DB-5.12.
@@ -334,6 +354,18 @@ Also adopt the four verdicts in brief §3 (On track / Tight / Short / Already sh
 - **Migration:** the bump is a **small data migration** (10 → 11: only the version label and defaults). Under DEC-017 it gets the full migration and rollback tests and deployment approval.
 - **Maintenance:** included in backups; tested with import into older versions.
 
+**Tested on a copy (25 Nov):**
+- Release 1 only *opening* schema 11 data changes nothing.
+- Release 1 *saving* it relabels it schema 10 and rewrites "cancelled" to "expected", **but keeps a `cancelledAt` date and both new profile settings**.
+
+**So the design has four layers:**
+1. D13 first;
+2. schema 11 + a new backup version (Release 1 refuses the backups);
+3. `cancelledAt` as the source of truth, with the status restored from it on the next load;
+4. a rollback floor (never Release 1 after schema 11).
+
+Details: DB-5 brief §7.
+
 **Changes an existing rule?** **Data structure change:** schema 11, with optional fields. No existing field changes meaning. A production data migration under DEC-017.
 
 ---
@@ -467,7 +499,7 @@ DEC-019 is unchanged: no PIN or hash in any file. The wording stays accurate: "y
 
 ### DB-4.5 · One-tap backups
 
-**Decision:** The phone keeps the backup key, so later backups need no password. The key is **never** put in any export, like the PIN.
+**Decision:** The phone keeps a **non-extractable** copy of the data key (DK) in IndexedDB, together with the two locked copies of DK. So later backups need no password. Never put in any export, like the PIN. Full architecture: DB-4 brief §3a.
 
 **Recommendation:** Yes.
 
@@ -476,12 +508,17 @@ DEC-019 is unchanged: no PIN or hash in any file. The wording stays accurate: "y
 **For an ordinary user:** "Back up" is one tap, which means more frequent backups.
 
 **Risks:**
-- **Security:** someone who can open the app on the phone could change the backup password and then open older backups, **if** they also get those files. Changing the password needs the PIN (required at first run, DEC-026). Anyone inside the app can already see the records.
+- **Security:**
+  - the key can be used but **not read out** [tested];
+  - opening any backup file always needs the password or the recovery code;
+  - changing the password needs the **old password or the code**, not just the PIN.
+
+  So someone using an unlocked phone **cannot** take the key off it, or re-lock it to open old backups. They can make new backups, and can already read the records in the app, as today.
 - **Maintenance:** a new secret on the phone, scrubbed from exports with the same tests as DEC-019.
 
 **Changes an existing rule?** **New on-phone secret,** handled by DEC-019's rule: never exported.
 
-**Proposed storage:** its own storage key, separate from the records. Then it is never part of any backup or export by design, needs no schema change, and older versions simply ignore it.
+**Proposed storage:** **IndexedDB**, separate from the records (localStorage). It is never part of any backup or export by design, needs no schema change, and older versions ignore it. A service worker could technically reach IndexedDB; DB-6's worker contains no storage code, enforced by a test.
 
 ---
 
@@ -491,13 +528,14 @@ DEC-019 is unchanged: no PIN or hash in any file. The wording stays accurate: "y
 - at least 8 characters;
 - not the same as the PIN;
 - if only numbers, at least 12 digits;
-- hint: "a short sentence you'll remember".
+- guidance: "four or more unrelated words"; no names, birthdays, phone or ID numbers;
+- the example and a short list of common passwords are refused.
 
 **Recommendation:** Approve.
 
 **Alternative:** Stricter rules (mixed characters). These are harder to remember, so more lost passwords.
 
-**For an ordinary user:** Something like `mama mboga 2026` works, which is easy to remember.
+**For an ordinary user:** Something like `chungwa basi kumi mlango` (four unrelated words): easy to remember, hard to guess. The example itself is refused, so nobody copies it.
 
 **Risks:**
 - **Security:** a guessable sentence is weaker. The 600,000 rounds slow guessing down a lot.
@@ -547,16 +585,20 @@ DEC-019 is unchanged: no PIN or hash in any file. The wording stays accurate: "y
 
 **Decision:** Keep today's "Forgot your PIN?" path unchanged: it saves a copy, resets the phone and re-imports.
 
-**Recommendation:** Unchanged.
+**Recommendation:** Keep the process unchanged, but make the plain copy **unmistakable** (DB-4 brief §5a):
+- "**This copy is NOT protected.** Anyone who opens this file can read all your records";
+- the file is named `PesaPilot-UNPROTECTED-copy-<date>.json`;
+- after restoring: "Delete the unprotected copy from Downloads. PesaPilot can't delete it for you";
+- the same wording in `DATA_RECOVERY.md`.
 
 **Alternative:** Make that copy a protected file. This is more private, but if the user has also forgotten the backup password, they could lose everything during the reset.
 
-**For an ordinary user:** As today.
+**For an ordinary user:** As today, but with clear warnings and a reminder to delete the copy.
 
 **Risks:**
 - **Privacy:** that copy is a plain file left in Downloads. Someone with the phone could already use this path today; DATA_RECOVERY states it honestly. The alternative trades this for data-loss risk.
 
-**Changes an existing rule?** **No.**
+**Changes an existing rule?** **No rule.** Wording changes in the current Forgot-PIN screens and in `DATA_RECOVERY.md` (DEC-020), built with DB-4.
 
 ---
 
@@ -604,7 +646,7 @@ DEC-019 is unchanged: no PIN or hash in any file. The wording stays accurate: "y
 
 **Risks:**
 - **Maintenance:** a new release-risk area, because stale copies on phones could run old code. Handled by DB-6.2 to DB-6.5 and the D13 guard.
-- **Privacy:** unchanged; the worker can't read records.
+- **Privacy:** unchanged. The records are in localStorage, which a worker can't reach [tested]. The worker contains no storage code (test-enforced). See DB-6 brief §2a.
 - **Cost:** KSh 0.
 
 **Changes an existing rule?**
@@ -632,6 +674,12 @@ DEC-019 is unchanged: no PIN or hash in any file. The wording stays accurate: "y
 **Risks:**
 - **Data:** an offline phone runs its saved copy. That is safe because of the D13 guard (an older copy facing newer data won't save).
 - **Tested:** offline after an update now opens the newest version seen. The first proof had a bug here; the fix is in the design.
+
+**Safeguards** (DB-6 brief §3a):
+- **atomic installs:** all files or nothing; a failed install keeps the current version [tested];
+- **failed or slow downloads:** the current version's copy is used;
+- **no mixing:** each version uses only its own cache; the page/worker version is checked; all tabs reload together; D13 guard;
+- **real-Android testing:** required before any deployment approval.
 
 **Changes an existing rule?** **No.**
 
@@ -671,6 +719,11 @@ DEC-019 is unchanged: no PIN or hash in any file. The wording stays accurate: "y
 - **Reach:** a phone that stays offline keeps its copy until it comes online. The D13 guard protects its data.
 - **Tested:** the worker and copies were removed, and the data was identical.
 
+**Delivery and rollback** (DB-6 brief §3a):
+- `sw.js` is never taken from the HTTP cache (`updateViaCache: "none"`), and the app checks for updates on every open. So every phone that opens online gets the kill switch on that open [tested].
+- **Offline phones** get it on their first online open; until then the D13 guard protects them.
+- **Rollback floor:** after a schema change, roll back only to a build that understands that schema.
+
 **Changes an existing rule?** **No.**
 
 ---
@@ -686,7 +739,11 @@ DEC-019 is unchanged: no PIN or hash in any file. The wording stays accurate: "y
 **For an ordinary user:** Nothing visible. Small storage use.
 
 **Risks:**
-- **Privacy:** none added. Service workers can't read browser storage at all.
+- **Privacy:** none added.
+  - **Corrected:** a service worker can't reach **localStorage**, where all PesaPilot records are kept [tested]. It *can* reach IndexedDB and Cache Storage.
+  - The worker's code only caches app files.
+  - A test fails if `sw.js` mentions any storage API.
+  - The DB-4 key in IndexedDB is non-extractable.
 - **Maintenance:** the file list must be updated if app files change; a test checks it.
 
 **Changes an existing rule?** **No.** It complements the open Release 1 checklist item about keeping `/docs/` off the live site.
