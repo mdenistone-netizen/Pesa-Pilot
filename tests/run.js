@@ -238,7 +238,8 @@ test("upgrade 9 -> 10: accounts created, nothing lost, saving becomes a transfer
   assert.deepEqual((await accountCard(page, "Savings \\(before accounts\\)")).balance, "KSh 3,000");
   const snapshot = await page.evaluate(() => JSON.parse(localStorage.getItem("pesapilot_pre_v10_snapshot")));
   assert.equal(snapshot.backupVersion, 3, "snapshot must be importable by the schema 9 app");
-  assert.deepEqual(snapshot.data, seed, "pre-upgrade snapshot is the untouched original");
+  const { pin, deviceId, deviceFingerprint, ...records } = seed;
+  assert.deepEqual(snapshot.data, records, "pre-upgrade snapshot = the untouched original records (PIN and device ids removed, DEC-019)");
   noErrors(errors); await context.close();
 });
 
@@ -456,7 +457,8 @@ test("rollback: the pre-accounts copy downloads and imports into the original sc
   await h.goView(page, "settings");
   const [download] = await Promise.all([page.waitForEvent("download"), h.clickAction(page, "download-pre-upgrade")]);
   const copy = JSON.parse(require("fs").readFileSync(await download.path(), "utf8"));
-  assert.deepEqual(copy.data, seed);
+  const { pin, deviceId, deviceFingerprint, ...records } = seed;
+  assert.deepEqual(copy.data, records);
   noErrors(errors); await context.close();
   // Load the last schema 9 release (commit 8e33d44) and import the copy into it.
   const os = require("os"), path = require("path"), fs = require("fs");
@@ -711,13 +713,178 @@ test("[D4 fixed] deleting a goal's linked savings entry also reverses the goal p
   await context.close();
 });
 
-knownDefect("D6", "exported backups never contain the PIN in plain text", async () => {
+test("two open tabs: a save in one makes the other reload instead of overwriting it", async () => {
+  const { page, context } = await h.openApp({ seed: wallet() });
+  const other = await context.newPage();
+  await other.clock.setFixedTime(h.FIXED_NOW);
+  await other.goto(page.url()); await h.settle(other);
+  await h.goView(page, "money");
+  await h.clickAction(page, "add-expense");
+  await h.submitForm(page, "transactionForm", { txAmount: "750", txAccountForm: "mpesa" });
+  await other.waitForTimeout(1500);
+  await h.goView(other, "money");
+  assert.equal((await accountCard(other, "M-Pesa")).balance, "KSh 9,250", "other tab shows the new entry");
+  await h.clickAction(other, "add-expense");
+  await h.submitForm(other, "transactionForm", { txAmount: "250", txAccountForm: "mpesa" });
+  assert.equal((await h.storedState(other)).transactions.length, 3, "both entries kept");
+  await context.close();
+});
+
+test("timezone (D10): the upgrade gives identical records whatever timezone the phone uses", async () => {
+  const results = [];
+  for (const timezoneId of ["Africa/Nairobi", "America/New_York", "Asia/Kolkata"]) {
+    const browser = await require("playwright").chromium.launch();
+    const ctx = await browser.newContext({ acceptDownloads: true, timezoneId });
+    const p = await ctx.newPage(); p.on("dialog", d => d.accept());
+    await p.clock.setFixedTime(h.FIXED_NOW);
+    await p.goto("file://" + require("path").resolve(__dirname, "..", "index.html"));
+    await p.evaluate(seed => { localStorage.clear(); localStorage.setItem("pesapilot_onboarding_v1", "done"); localStorage.setItem("pesapilot_v2", JSON.stringify(seed)); }, realisticMonth());
+    await p.reload(); await h.settle(p);
+    const d = (await h.exportBackup(p)).data;
+    results.push(JSON.stringify([d.transactions.map(t => [t.id, t.type, t.amount, t.date, t.accountId]), d.allocations.map(a => [a.goalId, a.accountId, a.amount]), d.goals.map(g => g.current), d.debts.map(x => x.repaid)]));
+    await browser.close();
+  }
+  assert.equal(results[1], results[0]); assert.equal(results[2], results[0]);
+});
+
+// ------------------------------------------------------------------ PIN protection (DEC-019)
+const allStorage = page => page.evaluate(() => Object.keys(localStorage).map(k => k + "=" + localStorage.getItem(k)).join("\n"));
+const typePin = async (page, digits) => { for (const d of digits) await page.evaluate(x => document.querySelector(`[data-pin="${x}"]`).click(), d); await page.waitForTimeout(700); };
+const locked = page => page.evaluate(() => !document.getElementById("lockScreen").classList.contains("hidden"));
+
+test("[D6 fixed] an existing plain-text PIN is converted to a salted hash and removed everywhere", async () => {
+  const seed = realisticMonth(); seed.pin = "4821";
+  const { page, context, errors } = await h.openApp({ seed });
+  await page.waitForTimeout(800);
+  const s = await h.storedState(page);
+  assert.equal(s.pin, "");
+  assert.equal(s.pinHash.algorithm, "PBKDF2-SHA-256");
+  assert.equal(s.pinHash.length, 4);
+  assert.ok(s.pinHash.iterations >= 100000);
+  assert.equal(Buffer.from(s.pinHash.salt, "base64").length, 16, "16-byte salt");
+  assert.equal(Buffer.from(s.pinHash.hash, "base64").length, 32, "256-bit hash");
+  assert.ok(!(await allStorage(page)).includes("4821"), "no plain-text PIN left anywhere in browser storage (incl. snapshots)");
+  assert.ok(await locked(page), "still locked after conversion");
+  await typePin(page, "4821");
+  assert.equal(await locked(page), false, "the original PIN still unlocks");
+  assert.match(await h.bodyText(page), /recorded money KSh 25,900/, "records intact after conversion");
+  const backup = await h.exportBackup(page);
+  const text = JSON.stringify(backup);
+  assert.ok(!text.includes("4821") && !("pin" in backup.data) && !("pinHash" in backup.data) && !text.includes(s.pinHash.hash) && !text.includes(s.pinHash.salt), "backup has no PIN or PIN hash");
+  assert.ok(!("deviceFingerprint" in backup.data) && !("deviceId" in backup.data), "backup has no device identifiers");
+  await h.goView(page, "settings");
+  const [download] = await Promise.all([page.waitForEvent("download"), h.clickAction(page, "download-pre-upgrade")]);
+  const copyText = require("fs").readFileSync(await download.path(), "utf8");
+  assert.ok(!copyText.includes("4821") && !copyText.includes('"pin"'), "pre-accounts copy has no PIN");
+  noErrors(errors); await context.close();
+});
+
+test("PIN: wrong entries are rejected and slowed down after 5 attempts", async () => {
+  const seed = wallet(); seed.pin = "2580";
+  const { page, context } = await h.openApp({ seed });
+  await page.waitForTimeout(600);
+  await typePin(page, "1111");
+  assert.ok(await locked(page));
+  assert.match(await page.innerText("#pinNote"), /Incorrect PIN/);
+  for (let i = 0; i < 4; i++) await typePin(page, "1111");
+  assert.match(await page.innerText("#pinNote"), /Too many attempts\. Try again in \d+ seconds/);
+  await typePin(page, "2580");                       // correct PIN ignored during the pause
+  assert.ok(await locked(page), "locked during the pause");
+  await context.close();
+});
+
+test("PIN: every PIN gets its own random salt (same PIN, different stored hash)", async () => {
+  const records = [];
+  for (let i = 0; i < 2; i++) {
+    const { page, context } = await h.openApp({ seed: wallet() });
+    await h.goView(page, "settings");
+    await h.clickAction(page, "change-pin");
+    await h.submitForm(page, "pinForm", { newPin: "2468", confirmPin: "2468" });
+    await page.waitForTimeout(600);
+    records.push((await h.storedState(page)).pinHash);
+    await context.close();
+  }
+  assert.notEqual(records[0].salt, records[1].salt);
+  assert.notEqual(records[0].hash, records[1].hash);
+});
+
+test("PIN: change requires the current PIN; the new PIN works after reload, the old one does not", async () => {
+  const seed = wallet(); seed.pin = "4821";
+  const { page, context } = await h.openApp({ seed });
+  await page.waitForTimeout(600);
+  await typePin(page, "4821");
+  await h.goView(page, "settings");
+  await h.clickAction(page, "change-pin");
+  await h.submitForm(page, "pinForm", { currentPin: "0000", newPin: "13579", confirmPin: "13579" });
+  await page.waitForTimeout(600);
+  assert.match(await h.toastText(page), /current PIN is incorrect/);
+  await h.submitForm(page, "pinForm", { currentPin: "4821", newPin: "13579", confirmPin: "13579" });
+  await page.waitForTimeout(600);
+  assert.equal((await h.storedState(page)).pinHash.length, 5);
+  await page.reload(); await h.settle(page);
+  await typePin(page, "4821");
+  assert.ok(await locked(page), "old PIN rejected");
+  await page.evaluate(() => document.querySelector('[data-pin="clear"]').click());
+  await typePin(page, "13579");
+  assert.equal(await locked(page), false, "new PIN unlocks");
+  await context.close();
+});
+
+test("PIN: importing a backup keeps this device's own PIN (or none)", async () => {
+  const source = await h.openApp({ seed: realisticMonth() });
+  const backup = await h.exportBackup(source.page);
+  await source.context.close();
+  const seed = wallet(); seed.pin = "9753";
+  const { page, context } = await h.openApp({ seed });
+  await page.waitForTimeout(600);
+  await typePin(page, "9753");
+  const before = (await h.storedState(page)).pinHash;
+  await h.importBackup(page, backup);
+  const after = await h.storedState(page);
+  assert.deepEqual(after.pinHash, before, "device PIN kept");
+  assert.equal(after.transactions.length, 8, "imported records present");
+  assert.ok(await locked(page), "device still asks for its PIN");
+  await context.close();
+  const fresh = await h.openApp({ seed: wallet() });
+  await h.importBackup(fresh.page, backup);
+  assert.equal((await h.storedState(fresh.page)).pinHash, null, "a device without a PIN stays without one");
+  assert.equal(await locked(fresh.page), false);
+  await fresh.context.close();
+});
+
+test("forgotten PIN: backup is downloaded (without PIN), device reset, records restored by import", async () => {
   const seed = realisticMonth(); seed.pin = "4821";
   const { page, context } = await h.openApp({ seed });
-  await page.evaluate(() => { for (const d of "4821") document.querySelector(`[data-pin="${d}"]`).click(); });
-  await page.waitForTimeout(300);
-  const backup = await h.exportBackup(page);
-  assert.ok(!JSON.stringify(backup).includes('"4821"'), "PIN 4821 found in backup");
+  await page.waitForTimeout(600);
+  await page.evaluate(() => document.querySelector('[data-action="forgot-pin"]').click());
+  await page.waitForTimeout(200);
+  const navigation = page.waitForNavigation();
+  const [download] = await Promise.all([page.waitForEvent("download"), h.clickAction(page, "confirm-pin-reset")]);
+  await navigation; await h.settle(page);
+  const backup = JSON.parse(require("fs").readFileSync(await download.path(), "utf8"));
+  assert.ok(!JSON.stringify(backup).includes("4821") && !("pinHash" in backup.data), "recovery backup has no PIN");
+  assert.equal(await locked(page), false, "device reset: no PIN");
+  assert.equal((await h.storedState(page)), null, "device cleared");
+  await page.evaluate(() => localStorage.setItem("pesapilot_onboarding_v1", "done"));
+  await page.reload(); await h.settle(page);
+  await h.importBackup(page, backup);
+  const s = await h.storedState(page);
+  assert.equal(s.transactions.length, 8, "records restored");
+  assert.equal(s.goals[0].current, 3000);
+  assert.equal(s.pinHash, null, "user sets a new PIN afterwards");
+  await context.close();
+});
+
+test("backup reminder: shown until the user downloads a backup, then the date is displayed", async () => {
+  const { page, context } = await h.openApp({ seed: realisticMonth() });
+  assert.match(await h.bodyText(page), /You haven't backed up yet\. Your records live only on this phone/);
+  await h.goView(page, "settings");
+  assert.match(await h.bodyText(page), /Last backup: never/);
+  await h.exportBackup(page);
+  await h.goView(page, "settings");
+  assert.match(await h.bodyText(page), /Last backup: 25 Nov 2026 \(0 days ago\)/);
+  await h.goView(page, "home");
+  assert.doesNotMatch(await page.innerText("#homeView"), /backed up yet/);
   await context.close();
 });
 

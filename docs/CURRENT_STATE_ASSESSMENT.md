@@ -32,7 +32,7 @@ Evidence was produced by loading the real `index.html` in headless Chromium (Nai
 | D3 | Debt repayments are expenses, but borrowing is never recorded as money received; no "money owed to me" at all. | No receivable/lent/borrow logic exists (keyword search: 0 hits). | High (missing feature) |
 | D4 ✅ fixed CR-002 | Deleting/editing a linked transaction does not update its goal/debt/bill. | `delete-transaction` just filters the array (line 1518); `goal.current`, `debt.repaid`, bill payments stay unchanged. | High — silent inconsistency |
 | D5 ✅ fixed CR-003 | Safe-to-spend uses the all-time balance, assumes a single fixed payday, and debt fallback = 5% of declared monthly income. | `planner()` / `debtCommitments()` (~lines 880–895). Not valid for irregular income. | High |
-| D6 | PIN stored and exported in **plaintext**. | `state.pin` is saved raw in localStorage and included in JSON backups (export confirmed the `pin` field). Device fingerprint (user agent) also exported. | High (security) |
+| D6 ✅ fixed CR-004 | PIN stored and exported in **plaintext**. | `state.pin` is saved raw in localStorage and included in JSON backups (export confirmed the `pin` field). Device fingerprint (user agent) also exported. | High (security) |
 | D7 ✅ fixed CR-001 | Dead/duplicate code. | `renderGoals/Debts/Reports/Settings` defined twice (later wins), plus `renderSettingsLegacy`, `bindActionsLegacy`, `payBillOriginal`. | Medium (maintainability) |
 | D8 ✅ fixed CR-002 | No multi-account model, opening balances or transfers. | Not present. | Core gap |
 | D9 | No PWA manifest/service worker. | Not present. | Medium |

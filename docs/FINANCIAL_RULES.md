@@ -123,3 +123,10 @@ Safeguards:
 **Audit trail**
 - Each account has a reconciliation history: date, recorded, actual, difference, classification, reason and reversal status.
 - The Money screen shows the net total of unexplained differences.
+
+## 9. Records, security and recovery (DEC-019, DEC-020)
+- Financial records are never deleted by upgrades.
+- Adjustments are reversed, never deleted (§8).
+- Backups contain every financial record but **no PIN and no PIN hash**.
+- The PIN only locks the app on one device. PIN hashing is **not** encryption of the records.
+- Recovery after losing a device depends on the user's backup file. See `DATA_RECOVERY.md`.

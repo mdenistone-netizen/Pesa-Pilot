@@ -37,3 +37,11 @@ These need Node and Playwright, which are pre-installed in Claude Code cloud ses
 - Built CR-003 (DEC-015 safe to spend, DEC-016 reconcile with reversals, expected income) plus independent fixes (D11, legacy entry reassignment test).
 - 44/44 tests pass.
 - Raised Decisions C (release scope) and D (PIN protection).
+
+### 2026-11-25 · Release 1 preparation
+- The owner approved C (release scope, with conditions) and D (PIN, with requirements), and required a data-recovery strategy. Recorded as DEC-018, DEC-019 and DEC-020, and in CLAUDE.md.
+- Built CR-004: PIN hashing and scrubbing, lockout, backups without PIN or device ids, backup reminder, cross-tab protection.
+- Built the migration verification suite: original live app vs new version on 4 representative data sets, plus rollback.
+- Found that the original build destroys upgraded data, so the emergency rollback target is now `8370097`. Recorded in RELEASE_1_CHECKLIST.
+- 53/53 regression and 4/4 migration pass.
+- Waiting for the owner's preview review and deploy approval.

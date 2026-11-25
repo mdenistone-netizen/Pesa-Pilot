@@ -574,13 +574,76 @@
       const screenSize = typeof screen === "undefined" ? "" : [screen.width,screen.height].sort().join("x");
       return [navigator.userAgent,navigator.platform,navigator.language,screenSize].join("|");
     };
+    // ---- PIN protection (DEC-019). Stores PBKDF2-SHA-256 of the PIN with a unique random salt.
+    // This protects how the PIN is stored; it does not encrypt the financial records.
+    const PIN_ITERATIONS = 150000;
+    const PIN_ATTEMPTS_KEY = "pesapilot_pin_attempts";
+    const bytesToBase64 = bytes => btoa(String.fromCharCode(...new Uint8Array(bytes)));
+    const base64ToBytes = text => Uint8Array.from(atob(text), char => char.charCodeAt(0));
+    const pinCryptoAvailable = () => Boolean(typeof crypto !== "undefined" && crypto.subtle && crypto.getRandomValues);
+    async function derivePinHash(pin, saltBytes, iterations) {
+      const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(pin), "PBKDF2", false, ["deriveBits"]);
+      return bytesToBase64(await crypto.subtle.deriveBits({ name:"PBKDF2", hash:"SHA-256", salt:saltBytes, iterations }, key, 256));
+    }
+    async function createPinRecord(pin) {
+      const salt = crypto.getRandomValues(new Uint8Array(16));
+      return { algorithm:"PBKDF2-SHA-256", iterations:PIN_ITERATIONS, salt:bytesToBase64(salt), hash:await derivePinHash(pin, salt, PIN_ITERATIONS), length:pin.length, createdAt:new Date().toISOString() };
+    }
+    function validPinRecord(record) {
+      return Boolean(record && typeof record === "object" && record.algorithm === "PBKDF2-SHA-256" && typeof record.salt === "string" && typeof record.hash === "string" && Number(record.iterations) >= 1000 && Number(record.length) >= 4 && Number(record.length) <= 8);
+    }
+    function equalStrings(a, b) {
+      if (a.length !== b.length) return false;
+      let difference = 0;
+      for (let index = 0; index < a.length; index++) difference |= a.charCodeAt(index) ^ b.charCodeAt(index);
+      return difference === 0;
+    }
+    function hasPin() { return Boolean(state.pinHash || state.pin); }
+    function pinLength() { return state.pinHash ? Number(state.pinHash.length) : String(state.pin || "").length; }
+    async function verifyPin(pin) {
+      if (state.pinHash) return equalStrings(await derivePinHash(pin, base64ToBytes(state.pinHash.salt), Number(state.pinHash.iterations)), state.pinHash.hash);
+      return Boolean(state.pin) && pin === state.pin;
+    }
+    async function setPin(pin) {
+      if (!pinCryptoAvailable()) { state.pin = pin; state.pinHash = null; return; } // very old browsers keep the previous behaviour
+      state.pinHash = await createPinRecord(pin); state.pin = "";
+    }
+    // Remove PIN material from a copy of the data before it leaves the main record.
+    function withoutSecrets(data) {
+      const copy = JSON.parse(JSON.stringify(data || {}));
+      delete copy.pin; delete copy.pinHash; delete copy.deviceId; delete copy.deviceFingerprint;
+      return copy;
+    }
+    function scrubStoredCopies() {
+      [SAFETY_BACKUP_KEY, PRE_V10_KEY, "pesapilot_safety_backup_v8", "pesapilot_safety_backup_v7", "pesapilot_safety_backup_v6", "pesapilot_safety_backup_v5"].forEach(key => {
+        try {
+          const text = localStorage.getItem(key); if (!text) return;
+          const payload = JSON.parse(text), data = payload && payload.data ? payload.data : null;
+          if (data && ("pin" in data || "pinHash" in data)) { delete data.pin; delete data.pinHash; localStorage.setItem(key, JSON.stringify(payload)); }
+        } catch {}
+      });
+    }
+    // Existing plain-text PINs are converted the first time the new version loads.
+    async function upgradeStoredPin() {
+      if (!state.pin || state.pinHash || storageReadOnly || !pinCryptoAvailable()) { scrubStoredCopies(); return; }
+      try { const plain = state.pin; state.pinHash = await createPinRecord(plain); state.pin = ""; persist(); } catch {}
+      scrubStoredCopies();
+    }
+    function pinAttempts() { try { return JSON.parse(localStorage.getItem(PIN_ATTEMPTS_KEY) || "null") || { failures:0, until:0 }; } catch { return { failures:0, until:0 }; } }
+    function pinLockSeconds() { return Math.max(0, Math.ceil((pinAttempts().until - Date.now()) / 1000)); }
+    function recordPinFailure() {
+      const attempts = pinAttempts(); attempts.failures += 1;
+      if (attempts.failures % 5 === 0) attempts.until = Date.now() + Math.min(900, 30 * 2 ** (attempts.failures / 5 - 1)) * 1000;
+      try { localStorage.setItem(PIN_ATTEMPTS_KEY, JSON.stringify(attempts)); } catch {}
+    }
+    function clearPinFailures() { try { localStorage.removeItem(PIN_ATTEMPTS_KEY); } catch {} }
     const blankState = () => ({
       schemaVersion: SCHEMA_VERSION,
         profile: { name:"", avatar:"P", paydayDay:1, monthlyIncome:0, plannedExpenses:0, emergencyFundMonths:3, theme:"system", currency:"KSh", incomePattern:"fixed", planningDays:14, minimumBuffer:0 },
       transactions: [], goals: [], bills: [], debts: [], categories: defaultCategories.map(name => ({ id: name.toLowerCase(), name })),
       accounts: [newAccount("mpesa","M-Pesa","mpesa"), newAccount("cash","Cash","cash")], allocations: [], expectedIncome: [],
       budgets: { monthlySpending:0, categoryBudgets:{} },
-      nextId: 1, pin:"", deviceId:uid(), deviceFingerprint:fingerprint()
+      nextId: 1, pin:"", pinHash:null, deviceId:uid(), deviceFingerprint:fingerprint()
     });
     function newAccount(id,name,kind,openingBalance=0,openingDate="") {
       return { id, name, kind, openingBalance, openingDate, archived:false, createdAt:new Date().toISOString() };
@@ -660,6 +723,8 @@
        next.profile.planningDays = [7,14,30].includes(Number(next.profile.planningDays)) ? Number(next.profile.planningDays) : 14;
        next.profile.minimumBuffer = safeNumber(next.profile.minimumBuffer);
       next.pin = typeof old.pin === "string" ? old.pin : "";
+      next.pinHash = validPinRecord(old.pinHash) ? { ...old.pinHash } : null;
+      if (next.pinHash) next.pin = "";
       next.deviceId = old.deviceId || uid();
       next.deviceFingerprint = old.deviceFingerprint || fingerprint();
       next.nextId = Number.isFinite(Number(old.nextId)) ? Math.max(1,Number(old.nextId)) : 1;
@@ -775,7 +840,7 @@
          const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
          if (stored && Number(stored.schemaVersion || 1) < SCHEMA_VERSION) {
            try {
-             const sourceSchema=Number(stored.schemaVersion||1), legacyPayload=JSON.stringify({app:"PesaPilot",backupVersion:sourceSchema<=9?3:BACKUP_VERSION,sourceSchemaVersion:sourceSchema,createdAt:new Date().toISOString(),data:stored});
+             const sourceSchema=Number(stored.schemaVersion||1), legacyPayload=JSON.stringify({app:"PesaPilot",backupVersion:sourceSchema<=9?3:BACKUP_VERSION,sourceSchemaVersion:sourceSchema,createdAt:new Date().toISOString(),data:withoutSecrets(stored)});
              if (sourceSchema < 10 && !localStorage.getItem(PRE_V10_KEY)) localStorage.setItem(PRE_V10_KEY,legacyPayload);
              localStorage.setItem(SAFETY_BACKUP_KEY,legacyPayload);
            } catch {}
@@ -800,13 +865,14 @@
        }
     }
     function backupPayload(data=state) {
-      return { app:"PesaPilot", backupVersion:BACKUP_VERSION, schemaVersion:SCHEMA_VERSION, exportedAt:new Date().toISOString(), data:JSON.parse(JSON.stringify(data)) };
+      return { app:"PesaPilot", backupVersion:BACKUP_VERSION, schemaVersion:SCHEMA_VERSION, exportedAt:new Date().toISOString(), data:withoutSecrets(data) };
     }
     function downloadBackup(label="backup") {
        try {
          const payload=JSON.stringify(backupPayload(),null,2), blob=new Blob([payload],{type:"application/json"});
          const link=document.createElement("a"), url=URL.createObjectURL(blob);
          link.href=url; link.download=`pesapilot-${label}-${todayISO()}.json`; document.body.appendChild(link); link.click(); link.remove();
+         state.profile.lastBackupAt=new Date().toISOString(); persist();
          setTimeout(()=>URL.revokeObjectURL(url),500);
          return true;
        } catch {
@@ -831,13 +897,20 @@
      }
      state = loadState();
      syncDerived();
+     upgradeStoredPin();
+     // If PesaPilot is open in another tab or window and that copy saves, reload instead of
+     // later saving this tab's out-of-date copy over it.
+     window.addEventListener("storage", event => {
+       if (event.key === STORAGE_KEY && event.newValue !== null && event.newValue !== JSON.stringify(state)) location.reload();
+     });
      applyTheme();
      function hasSafetyBackup() { return Boolean(safetyBackupText()); }
      function preUpgradeSnapshotText() { try { return localStorage.getItem(PRE_V10_KEY) || ""; } catch { return ""; } }
      // The untouched data from before the accounts upgrade, as a file the previous version can import.
      function downloadPreUpgradeSnapshot() {
-       const text=preUpgradeSnapshotText();
+       let text=preUpgradeSnapshotText();
        if (!text) { toast("There is no pre-accounts copy on this device."); return; }
+       try { const payload=JSON.parse(text); payload.data=withoutSecrets(payload.data); text=JSON.stringify(payload); } catch {}
        try {
          const blob=new Blob([text],{type:"application/json"}), link=document.createElement("a"), url=URL.createObjectURL(blob);
          link.href=url; link.download=`pesapilot-before-accounts-${todayISO()}.json`; document.body.appendChild(link); link.click(); link.remove();
@@ -861,8 +934,8 @@
         const incoming=validateBackup(await file.text());
         if (!confirm("Import this backup? Your current data will be saved as a safety backup first, then replaced.")) return;
          if (!storageReadOnly && !createSafetyBackup("before-import")) return;
-        const device=state.deviceId, fingerprintValue=state.deviceFingerprint, pin=state.pin;
-         state={...incoming,deviceId:device,deviceFingerprint:fingerprintValue,pin,profile:{...incoming.profile,theme:incoming.profile.theme||"system"}};
+        const device=state.deviceId, fingerprintValue=state.deviceFingerprint, pin=state.pin, pinHash=state.pinHash;
+         state={...incoming,deviceId:device,deviceFingerprint:fingerprintValue,pin,pinHash,profile:{...incoming.profile,theme:incoming.profile.theme||"system"}};
           storageReadOnly = false;
           if (!persist()) throw new Error("The browser could not save the imported data.");
           storageWarning = "";
@@ -874,8 +947,8 @@
          const incoming=validateBackup(safetyBackupText());
          if (!confirm("Restore the last local safety backup? Current data will be saved first, then replaced.")) return;
          if (!storageReadOnly && !createSafetyBackup("before-safety-restore")) return;
-         const device=state.deviceId, fingerprintValue=state.deviceFingerprint, pin=state.pin;
-         state={...incoming,deviceId:device,deviceFingerprint:fingerprintValue,pin,profile:{...incoming.profile,theme:incoming.profile.theme||"system"}};
+         const device=state.deviceId, fingerprintValue=state.deviceFingerprint, pin=state.pin, pinHash=state.pinHash;
+         state={...incoming,deviceId:device,deviceFingerprint:fingerprintValue,pin,pinHash,profile:{...incoming.profile,theme:incoming.profile.theme||"system"}};
          storageReadOnly=false;
          if (!persist()) throw new Error("The browser could not save the restored data.");
          storageWarning="";
@@ -887,26 +960,29 @@
        $("resetForm").onsubmit=event=>{event.preventDefault();const error=$("resetError");if($("resetPhrase").value.trim()!=="DELETE"){error.textContent="The confirmation text must be exactly DELETE.";error.classList.add("show");$("resetPhrase").focus();return;}error.classList.remove("show");if(!storageReadOnly&&!createSafetyBackup("before-reset"))return;try{localStorage.removeItem(STORAGE_KEY);localStorage.removeItem(ONBOARDING_KEY);localStorage.removeItem(SAFETY_BACKUP_KEY);localStorage.removeItem(DEVICE_KEY); localStorage.removeItem(PRE_V10_KEY);}catch{}location.reload();};
     }
      function pinForm() {
-       const changing=Boolean(state.pin);
-       openModal(changing?"Change PIN":"Set a PIN",`<p class="subtle">${changing?"Confirm your current PIN, then choose a new 4–8 digit PIN.":"Protect this device with a 4–8 digit PIN. The PIN is saved locally on this device."}</p><form id="pinForm">${changing?inputField("Current PIN","currentPin","password","","inputmode=\"numeric\" autocomplete=\"current-password\" required"): ""}${inputField("New PIN","newPin","password","","inputmode=\"numeric\" autocomplete=\"new-password\" required")}${inputField("Confirm new PIN","confirmPin","password","","inputmode=\"numeric\" autocomplete=\"new-password\" required")}<div class="form-actions"><button type="button" class="btn" data-action="close-modal">Cancel</button><button class="btn primary">${changing?"Change PIN":"Save PIN"}</button></div></form>`);
-       $("pinForm").onsubmit=event=>{
+       const changing=hasPin();
+       openModal(changing?"Change PIN":"Set a PIN",`<p class="subtle">${changing?"Confirm your current PIN, then choose a new 4–8 digit PIN.":"Protect this device with a 4–8 digit PIN."} The PIN locks PesaPilot on this device only. It is stored in a protected (hashed) form and is never included in backups. It does not encrypt your records.</p><form id="pinForm">${changing?inputField("Current PIN","currentPin","password","","inputmode=\"numeric\" autocomplete=\"current-password\" required"): ""}${inputField("New PIN","newPin","password","","inputmode=\"numeric\" autocomplete=\"new-password\" required")}${inputField("Confirm new PIN","confirmPin","password","","inputmode=\"numeric\" autocomplete=\"new-password\" required")}<div class="form-actions"><button type="button" class="btn" data-action="close-modal">Cancel</button><button class="btn primary">${changing?"Change PIN":"Set PIN"}</button></div></form>`);
+       $("pinForm").onsubmit=async event=>{
          event.preventDefault();
          const current=changing ? $("currentPin").value.trim() : "", next=$("newPin").value.trim(), confirmValue=$("confirmPin").value.trim();
-         if (changing && current!==state.pin) { toast("The current PIN is incorrect."); return; }
          if (!/^\d{4,8}$/.test(next)) { toast("Use 4 to 8 digits for your PIN."); return; }
          if (next!==confirmValue) { toast("The new PINs do not match."); return; }
-         state.pin=next; unlocked=true; closeModal(); commit(changing?"PIN changed":"PIN enabled");
+         try {
+           if (changing && !(await verifyPin(current))) { toast("The current PIN is incorrect."); return; }
+           await setPin(next);
+         } catch { toast("The PIN could not be saved. Please try again."); return; }
+         unlocked=true; clearPinFailures(); closeModal(); commit(changing?"PIN changed":"PIN enabled");
        };
      }
       function forgotPin() {
-        if (!state.pin) return;
+        if (!hasPin()) return;
         openModal("Forgotten PIN recovery",`<p class="subtle">Because PesaPilot keeps your records only in this browser, there is no online password reset and the original PIN cannot be revealed.</p><div class="callout warn"><span class="callout-icon">1</span><span><strong>Back up first.</strong> A JSON backup will be downloaded automatically before anything is cleared.</span></div><div class="callout"><span class="callout-icon">2</span><span><strong>Reset this device.</strong> The forgotten PIN and local records will be removed from this browser.</span></div><div class="callout"><span class="callout-icon">3</span><span><strong>Start again.</strong> Create a new PIN. If you have a backup, open Settings and import it, then set a new PIN.</span></div><p class="subtle">Keep the downloaded backup somewhere safe. Anyone with that file may be able to read the money records inside it.</p><div class="form-actions"><button type="button" class="btn" data-action="close-modal">Cancel</button><button type="button" class="btn danger" data-action="confirm-pin-reset">Download backup & reset</button></div>`);
       }
       function resetForgottenPin() {
         if (!confirm("Download a backup and permanently clear this device?")) return;
         if (!storageReadOnly && !createSafetyBackup("before-pin-reset")) return;
         const device=state.deviceId, fingerprintValue=state.deviceFingerprint;
-        state=blankState(); state.deviceId=device; state.deviceFingerprint=fingerprintValue; state.pin="";
+        state=blankState(); state.deviceId=device; state.deviceFingerprint=fingerprintValue; state.pin=""; state.pinHash=null; clearPinFailures();
         storageReadOnly=false; unlocked=true; pinInput="";
          try { localStorage.removeItem(STORAGE_KEY); localStorage.removeItem(ONBOARDING_KEY); localStorage.removeItem(SAFETY_BACKUP_KEY); localStorage.removeItem(DEVICE_KEY); localStorage.removeItem(PRE_V10_KEY); } catch { toast("The reset could not be saved. Your data was not cleared."); return; }
         location.reload();
@@ -920,15 +996,17 @@
          if (!/^\d{4,8}$/.test(pin)) { toast("Use 4 to 8 digits for your PIN."); return; }
          if (pin!==confirmValue) { toast("The PINs do not match."); return; }
           state.profile={...state.profile,name,avatar:name.slice(0,2).toUpperCase()};
-         state.pin=pin; unlocked=true;
-         try { localStorage.setItem(ONBOARDING_KEY,"done"); } catch {}
-         closeModal(); commit("Your PesaPilot space is ready");
+         setPin(pin).then(()=>{
+           unlocked=true;
+           try { localStorage.setItem(ONBOARDING_KEY,"done"); } catch {}
+           closeModal(); commit("Your PesaPilot space is ready");
+         }).catch(()=>toast("The PIN could not be saved. Please try again."));
        };
      }
      function maybeShowOnboarding() {
        let completed="";
        try { completed=localStorage.getItem(ONBOARDING_KEY)||""; } catch {}
-       const empty=!state.profile.name && !state.pin && !state.transactions.length && !state.goals.length && !state.bills.length && !state.debts.length;
+       const empty=!state.profile.name && !hasPin() && !state.transactions.length && !state.goals.length && !state.bills.length && !state.debts.length;
        if (!completed && empty) setTimeout(welcomeSetup,250);
      }
      function dismissSplash() {
@@ -1353,7 +1431,7 @@
        updateConnectionPill();
        updateBillReminderPill();
        const lock=$("lockScreen");
-       if (state.pin && !unlocked) { lock.classList.remove("hidden"); lock.setAttribute("aria-hidden","false"); }
+       if (hasPin() && !unlocked) { lock.classList.remove("hidden"); lock.setAttribute("aria-hidden","false"); }
        else { lock.classList.add("hidden"); lock.setAttribute("aria-hidden","true"); }
     }
      function renderNotice() {
@@ -1402,7 +1480,7 @@
             <div class="progress-meta"><span>Protected commitments</span><strong>${money(p.commitments)}</strong></div>
           </div>
          </div>
-         ${reminders.length ? `<div class="card bill-reminders"><div class="section-title"><div><h2>Bill reminders</h2><span class="subtle">Only unpaid bills due in 5, 4, 3, 2 or 1 days.</span></div><button class="btn-link" data-action="view-bills">See bills</button></div><div class="list">${reminders.slice(0,4).map(({bill,info})=>`<div class="bill-reminder-row"><div class="row-icon">▣</div><div class="reminder-copy"><strong>${escapeHtml(bill.name)}</strong><span>Due in ${info.days} day${info.days===1?"":"s"} · ${dateText(info.date)}</span></div><span class="countdown-badge" title="${info.days} days remaining">D−${info.days}</span><div class="row-amount">${money(billOutstanding(bill,info.date))}</div></div>`).join("")}</div>${reminders.length>4?`<small class="subtle">Showing 4 of ${reminders.length} reminders.</small>`:""}</div>` : ""}
+         ${renderBackupReminder()}${reminders.length ? `<div class="card bill-reminders"><div class="section-title"><div><h2>Bill reminders</h2><span class="subtle">Only unpaid bills due in 5, 4, 3, 2 or 1 days.</span></div><button class="btn-link" data-action="view-bills">See bills</button></div><div class="list">${reminders.slice(0,4).map(({bill,info})=>`<div class="bill-reminder-row"><div class="row-icon">▣</div><div class="reminder-copy"><strong>${escapeHtml(bill.name)}</strong><span>Due in ${info.days} day${info.days===1?"":"s"} · ${dateText(info.date)}</span></div><span class="countdown-badge" title="${info.days} days remaining">D−${info.days}</span><div class="row-amount">${money(billOutstanding(bill,info.date))}</div></div>`).join("")}</div>${reminders.length>4?`<small class="subtle">Showing 4 of ${reminders.length} reminders.</small>`:""}</div>` : ""}
          <div class="grid grid-4" style="margin-bottom:15px">
           <div class="card metric"><div class="metric-label"><span>This month in</span><span class="dot"></span></div><strong class="metric-value green">${money(m.income)}</strong><small>${activeTransactions().filter(x=>x.type==="income"&&monthKey(x.date)===currentMonth()).length} income entries</small></div>
           <div class="card metric"><div class="metric-label"><span>This month out</span><span class="dot red"></span></div><strong class="metric-value red">${money(m.expense)}</strong><small>${activeTransactions().filter(x=>x.type==="expense"&&monthKey(x.date)===currentMonth()).length} expense entries</small></div>
@@ -1437,6 +1515,16 @@
     }
     function transactionAccountText(item) {
       return item.type === "transfer" ? `${accountName(item.accountId)} → ${accountName(item.toAccountId)}` : accountName(item.accountId);
+    }
+    function backupStatus() {
+      const last=state.profile.lastBackupAt, time=last?new Date(last).getTime():NaN;
+      const days=Number.isNaN(time)?null:Math.max(0,Math.floor((Date.now()-time)/86400000));
+      return { last:days===null?"":last, days, due:days===null||days>30 };
+    }
+    function renderBackupReminder() {
+      const hasRecords=state.transactions.length||state.goals.length||state.debts.length||state.bills.length, status=backupStatus();
+      if(!hasRecords||!status.due)return "";
+      return `<div class="callout warn" style="margin-bottom:15px"><span class="callout-icon">!</span><span><strong>${status.last?`Your last backup was ${status.days} days ago.`:"You haven't backed up yet."}</strong> Your records live only on this phone. If it is lost or the browser data is cleared, a backup file is the only way to get them back. <button class="btn-link" data-action="export-backup">Download backup</button> and keep a copy somewhere safe, such as Google Drive or your email.</span></div>`;
     }
     function transactionActions(item) {
       if (item.reversesId) return `<span class="badge neutral">Reversal</span>`;
@@ -1657,7 +1745,7 @@
     }
      function renderSettings() {
        const safetyAvailable=hasSafetyBackup();
-       $("settingsView").innerHTML = `<div class="page-head"><div><p class="eyebrow">Settings</p><h1>Keep your plan yours.</h1><p class="subtle">Your data stays in this browser on this protected device.</p></div></div><div class="grid grid-2"><div class="card"><div class="section-title"><h2>Profile & payday</h2></div><form id="profileForm" class="form-grid"><div class="field"><label for="profileName">Name</label><input id="profileName" value="${escapeHtml(state.profile.name)}" placeholder="Your name" /></div><div class="field"><label for="profileAvatar">Initial</label><input id="profileAvatar" maxlength="2" value="${escapeHtml(state.profile.avatar||"P")}" /></div><div class="field"><label for="profileIncome">Monthly income</label><input id="profileIncome" type="number" min="0" value="${state.profile.monthlyIncome}" /></div><div class="field"><label for="profilePayday">Payday day of month</label><input id="profilePayday" type="number" min="1" max="31" value="${state.profile.paydayDay}" /></div><div class="field"><label for="profileEmergencyMonths">Emergency fund months</label><input id="profileEmergencyMonths" type="number" min="1" max="12" value="${state.profile.emergencyFundMonths||3}" /></div><div class="field"><label for="profileTheme">Theme</label><select id="profileTheme"><option value="system" ${state.profile.theme==="system"?"selected":""}>Use device setting</option><option value="light" ${state.profile.theme==="light"?"selected":""}>Light</option><option value="dark" ${state.profile.theme==="dark"?"selected":""}>Dark</option></select></div><div class="field"><label for="profileCurrency">Currency</label><select id="profileCurrency"><option value="KSh" ${state.profile.currency==="KSh"?"selected":""}>KSh — Kenyan shilling</option><option value="USD" ${state.profile.currency==="USD"?"selected":""}>$ — US dollar</option><option value="UGX" ${state.profile.currency==="UGX"?"selected":""}>UGX — Ugandan shilling</option><option value="TZS" ${state.profile.currency==="TZS"?"selected":""}>TSh — Tanzanian shilling</option></select></div><div class="field full"><label for="profilePlanned">Other planned expenses before payday</label><input id="profilePlanned" type="number" min="0" value="${state.profile.plannedExpenses}" /><small class="subtle">Use this for school fees, travel or one-off commitments not entered as bills.</small></div><div class="field full form-actions"><button class="btn primary">Save profile</button></div></form></div><div class="card"><div class="section-title"><h2>Categories</h2><button class="btn small" data-action="add-category">＋ Add</button></div><p class="subtle">Existing transactions keep their category when you rename or remove one.</p><div class="list">${state.categories.map(cat=>`<div class="list-row"><div class="row-icon">${escapeHtml(cat.name.slice(0,1).toUpperCase())}</div><div class="row-main"><strong>${escapeHtml(cat.name)}</strong><span>${state.transactions.filter(x=>x.category===cat.name).length} transactions</span></div><div class="actions"><button class="btn small" data-action="edit-category" data-id="${escapeHtml(cat.id)}">Rename</button>${!defaultCategories.includes(cat.name)?`<button class="btn small danger" data-action="delete-category" data-id="${escapeHtml(cat.id)}">Delete</button>`:""}</div></div>`).join("")}</div></div><div class="card"><div class="section-title"><h2>Backups & data safety</h2>${statusBadge("Local only","good")}</div><p class="subtle">Export a portable JSON backup whenever you want. Imports are validated and your current data is automatically backed up before replacement.</p><div class="page-actions" style="justify-content:flex-start"><button class="btn primary" data-action="export-backup">Download backup</button><label class="btn">Import backup<input id="importFile" type="file" accept="application/json,.json" class="sr-only" /></label>${safetyAvailable?`<button class="btn" data-action="restore-safety-backup">Restore last safety backup</button>`:""}${preUpgradeSnapshotText()?`<button class="btn" data-action="download-pre-upgrade">Download pre-accounts copy</button>`:""}<button class="btn" data-action="install-app">Install app</button></div><small class="subtle">${safetyAvailable?"A local safety backup is available for recovery. ":""}The install option appears when this file is hosted over HTTPS and your browser supports installation.</small></div><div class="card"><div class="section-title"><h2>Privacy & protection</h2><div>${statusBadge(state.pin?"PIN enabled":"No PIN set",state.pin?"good":"neutral")} <button class="btn small" data-action="change-pin">${state.pin?"Change PIN":"Set PIN"}</button></div></div><p class="subtle">PesaPilot does not sell, upload or share your records from this standalone file. Your records stay in this browser; you control backups and deletion.</p><div class="privacy-consent"><span aria-hidden="true">✓</span><span>Privacy acknowledgement: ${state.profile.privacyConsent?"accepted during setup":"not recorded yet"}. This acknowledgement is stored locally and is not sent anywhere.</span></div><div class="callout"><span class="callout-icon">✓</span><span>The PIN protects this browser on this device. Anyone who can access this browser profile or an exported backup may be able to read the records.</span></div><div class="form-actions"><button class="btn danger" data-action="reset-data">Delete all data</button></div></div></div>`;
+       $("settingsView").innerHTML = `<div class="page-head"><div><p class="eyebrow">Settings</p><h1>Keep your plan yours.</h1><p class="subtle">Your data stays in this browser on this protected device.</p></div></div><div class="grid grid-2"><div class="card"><div class="section-title"><h2>Profile & payday</h2></div><form id="profileForm" class="form-grid"><div class="field"><label for="profileName">Name</label><input id="profileName" value="${escapeHtml(state.profile.name)}" placeholder="Your name" /></div><div class="field"><label for="profileAvatar">Initial</label><input id="profileAvatar" maxlength="2" value="${escapeHtml(state.profile.avatar||"P")}" /></div><div class="field"><label for="profileIncome">Monthly income</label><input id="profileIncome" type="number" min="0" value="${state.profile.monthlyIncome}" /></div><div class="field"><label for="profilePayday">Payday day of month</label><input id="profilePayday" type="number" min="1" max="31" value="${state.profile.paydayDay}" /></div><div class="field"><label for="profileEmergencyMonths">Emergency fund months</label><input id="profileEmergencyMonths" type="number" min="1" max="12" value="${state.profile.emergencyFundMonths||3}" /></div><div class="field"><label for="profileTheme">Theme</label><select id="profileTheme"><option value="system" ${state.profile.theme==="system"?"selected":""}>Use device setting</option><option value="light" ${state.profile.theme==="light"?"selected":""}>Light</option><option value="dark" ${state.profile.theme==="dark"?"selected":""}>Dark</option></select></div><div class="field"><label for="profileCurrency">Currency</label><select id="profileCurrency"><option value="KSh" ${state.profile.currency==="KSh"?"selected":""}>KSh — Kenyan shilling</option><option value="USD" ${state.profile.currency==="USD"?"selected":""}>$ — US dollar</option><option value="UGX" ${state.profile.currency==="UGX"?"selected":""}>UGX — Ugandan shilling</option><option value="TZS" ${state.profile.currency==="TZS"?"selected":""}>TSh — Tanzanian shilling</option></select></div><div class="field full"><label for="profilePlanned">Other planned expenses before payday</label><input id="profilePlanned" type="number" min="0" value="${state.profile.plannedExpenses}" /><small class="subtle">Use this for school fees, travel or one-off commitments not entered as bills.</small></div><div class="field full form-actions"><button class="btn primary">Save profile</button></div></form></div><div class="card"><div class="section-title"><h2>Categories</h2><button class="btn small" data-action="add-category">＋ Add</button></div><p class="subtle">Existing transactions keep their category when you rename or remove one.</p><div class="list">${state.categories.map(cat=>`<div class="list-row"><div class="row-icon">${escapeHtml(cat.name.slice(0,1).toUpperCase())}</div><div class="row-main"><strong>${escapeHtml(cat.name)}</strong><span>${state.transactions.filter(x=>x.category===cat.name).length} transactions</span></div><div class="actions"><button class="btn small" data-action="edit-category" data-id="${escapeHtml(cat.id)}">Rename</button>${!defaultCategories.includes(cat.name)?`<button class="btn small danger" data-action="delete-category" data-id="${escapeHtml(cat.id)}">Delete</button>`:""}</div></div>`).join("")}</div></div><div class="card"><div class="section-title"><h2>Backups & data safety</h2>${statusBadge("Local only","good")}</div><p class="subtle">Your records are stored only on this device. Download a backup at least monthly and keep a copy off this phone (for example Google Drive or email). To move to a new phone, import that file there. Backups never contain your PIN and are not encrypted, so store them like a bank statement.</p><p class="subtle"><strong>Last backup:</strong> ${backupStatus().last?`${dateText(localISO(new Date(backupStatus().last)))} (${backupStatus().days} day${backupStatus().days===1?"":"s"} ago)`:"never"}</p><div class="page-actions" style="justify-content:flex-start"><button class="btn primary" data-action="export-backup">Download backup</button><label class="btn">Import backup<input id="importFile" type="file" accept="application/json,.json" class="sr-only" /></label>${safetyAvailable?`<button class="btn" data-action="restore-safety-backup">Restore last safety backup</button>`:""}${preUpgradeSnapshotText()?`<button class="btn" data-action="download-pre-upgrade">Download pre-accounts copy</button>`:""}<button class="btn" data-action="install-app">Install app</button></div><small class="subtle">${safetyAvailable?"A local safety backup is available for recovery. ":""}The install option appears when this file is hosted over HTTPS and your browser supports installation.</small></div><div class="card"><div class="section-title"><h2>Privacy & protection</h2><div>${statusBadge(hasPin()?"PIN enabled":"No PIN set",hasPin()?"good":"neutral")} <button class="btn small" data-action="change-pin">${hasPin()?"Change PIN":"Set PIN"}</button></div></div><p class="subtle">PesaPilot does not sell, upload or share your records from this standalone file. Your records stay in this browser; you control backups and deletion.</p><div class="privacy-consent"><span aria-hidden="true">✓</span><span>Privacy acknowledgement: ${state.profile.privacyConsent?"accepted during setup":"not recorded yet"}. This acknowledgement is stored locally and is not sent anywhere.</span></div><div class="callout"><span class="callout-icon">✓</span><span>The PIN locks PesaPilot on this device. It is stored in a protected (hashed) form and never included in backups. It does not encrypt your records: anyone with full access to this browser or to a backup file can read them.</span></div><div class="form-actions"><button class="btn danger" data-action="reset-data">Delete all data</button></div></div></div>`;
        const protectionCard=$("settingsView").querySelector(".grid > .card:last-child");
        if(protectionCard){protectionCard.querySelector("h2").textContent="Device protection";const copy=protectionCard.querySelector("p");if(copy)copy.textContent="Use a PIN to protect access on this device. You can permanently delete all app data below.";protectionCard.querySelector(".privacy-consent")?.remove();}
        $("profileForm").onsubmit = event => { event.preventDefault(); state.profile={...state.profile,name:$("profileName").value.trim(),avatar:$("profileAvatar").value.trim().slice(0,2)||"P",monthlyIncome:safeNumber($("profileIncome").value),paydayDay:Math.min(31,Math.max(1,Number($("profilePayday").value)||1)),emergencyFundMonths:Math.min(12,Math.max(1,Number($("profileEmergencyMonths").value)||3)),plannedExpenses:safeNumber($("profilePlanned").value),theme:$("profileTheme").value,currency:$("profileCurrency").value}; applyTheme(); commit("Profile saved"); };
@@ -1958,7 +2046,7 @@
            if(action==="add-category"){const name=prompt("New category name")?.trim();if(name&&!state.categories.some(x=>x.name.toLowerCase()===name.toLowerCase())){state.categories.push({id:name.toLowerCase(),name});commit("Category added");}else if(name){toast("That category already exists.");}}
            if(action==="edit-category"){const cat=state.categories.find(x=>x.id===itemId);if(!cat)return;const name=prompt("Rename category",cat.name)?.trim();if(name&&name!==cat.name){if(state.categories.some(x=>x.id!==cat.id&&x.name.toLowerCase()===name.toLowerCase())){toast("That category already exists.");return;}const oldName=cat.name;state.transactions.forEach(x=>{if(x.category===oldName)x.category=name;});state.budgets.categoryBudgets[name]=state.budgets.categoryBudgets[oldName]||0;delete state.budgets.categoryBudgets[oldName];cat.id=name.toLowerCase();cat.name=name;commit("Category renamed");}}
            if(action==="delete-category"){const cat=state.categories.find(x=>x.id===itemId);if(!cat)return;if(confirm(`Delete ${cat.name}? Existing transactions will move to Other.`)){state.transactions.forEach(x=>{if(x.category===cat.name)x.category="Other";});state.categories=state.categories.filter(x=>x.id!==itemId);delete state.budgets.categoryBudgets[cat.name];commit("Category deleted");}}
-           if(action==="export-backup") return downloadBackup();
+           if(action==="export-backup"){downloadBackup();render();return;}
            if(action==="restore-safety-backup") return restoreSafetyBackup();
            if(action==="download-pre-upgrade") return downloadPreUpgradeSnapshot();
            if(action==="reset-data") return protectedReset();
@@ -1981,8 +2069,24 @@
      window.addEventListener("appinstalled",()=>{deferredInstallPrompt=null;toast("PesaPilot was installed.");});
      const colorScheme=window.matchMedia?.("(prefers-color-scheme: dark)");
      colorScheme?.addEventListener?.("change",()=>{if(state.profile.theme==="system")applyTheme();});
-    document.querySelectorAll("[data-pin]").forEach(button=>button.onclick=()=>{const key=button.dataset.pin;if(key==="clear")pinInput="";else if(key==="back")pinInput=pinInput.slice(0,-1);else if(pinInput.length<8)pinInput+=key;updatePin();if(state.pin&&pinInput===state.pin){unlocked=true;pinInput="";$("lockScreen").classList.add("hidden");}});
-    function updatePin(){ $("pinDots").innerHTML=Array.from({length:state.pin.length},(_,i)=>`<span class="pin-dot ${i<pinInput.length?"filled":""}"></span>`).join("");$("pinNote").textContent=pinInput.length===state.pin.length&&pinInput!==state.pin?"Incorrect PIN":""; }
+    let pinChecking=false, pinMessage="";
+    document.querySelectorAll("[data-pin]").forEach(button=>button.onclick=()=>{
+      if(pinChecking)return;
+      if(pinLockSeconds()>0){updatePin();return;}
+      const key=button.dataset.pin; pinMessage="";
+      if(key==="clear")pinInput="";else if(key==="back")pinInput=pinInput.slice(0,-1);else if(pinInput.length<8)pinInput+=key;
+      updatePin();
+      if(hasPin()&&pinInput.length===pinLength())checkPinEntry();
+    });
+    async function checkPinEntry(){
+      pinChecking=true; let ok=false;
+      try { ok=await verifyPin(pinInput); } catch { ok=false; }
+      pinChecking=false; pinInput="";
+      if(ok){ clearPinFailures(); unlocked=true; $("lockScreen").classList.add("hidden"); if(state.pin&&!state.pinHash)upgradeStoredPin(); }
+      else { recordPinFailure(); pinMessage="Incorrect PIN"; }
+      updatePin();
+    }
+    function updatePin(){ const wait=pinLockSeconds(); $("pinDots").innerHTML=Array.from({length:hasPin()?pinLength():4},(_,i)=>`<span class="pin-dot ${i<pinInput.length?"filled":""}"></span>`).join("");$("pinNote").textContent=wait>0?`Too many attempts. Try again in ${wait} seconds.`:pinMessage; if(wait>0)setTimeout(updatePin,1000); }
     render();
      maybeShowOnboarding();
      dismissSplash();

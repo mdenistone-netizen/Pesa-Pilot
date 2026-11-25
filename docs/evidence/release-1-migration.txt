@@ -1,0 +1,8 @@
+# Release 1 migration verification (original live app 8e33d44 vs new version; safe rollback build 8370097)
+
+PASS  earliest          4 entries · 4 accounts · old total KSh 11,250 → new total KSh 11,250 (difference = savings no longer counted as spent) · rollback identical · safe-rollback build keeps data · original build would damage it
+PASS  schema5           5 entries · 5 accounts · old total KSh 29,600 → new total KSh 31,600 (difference = savings no longer counted as spent) · rollback identical · safe-rollback build keeps data · original build would damage it
+PASS  heavySchema9   1498 entries · 5 accounts · old total KSh 68,851 → new total KSh 109,810 (difference = savings no longer counted as spent) · rollback identical · safe-rollback build keeps data · original build would damage it
+PASS  messy             6 entries · 3 accounts · old total KSh 350 → new total KSh 650 (difference = savings no longer counted as spent) · rollback identical · safe-rollback build keeps data · original build would damage it
+
+4 of 4 representative data sets upgraded and rolled back correctly

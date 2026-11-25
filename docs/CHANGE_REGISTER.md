@@ -152,3 +152,45 @@ Entries made *after* upgrading would need re-entering, so a rollback should happ
 - Debt instalments are reserved per calendar month. A planning period that crosses a month end reserves only the current month's instalment.
 - The weekly guardrail still uses 7 × the daily amount, which is fine but simple.
 - Balance adjustments are per account. There is no bulk "reconcile everything" step.
+
+---
+
+## CR-004 · Release 1 preparation · PIN protection, recovery strategy, release verification
+
+| | |
+|---|---|
+| Date | 2026-11-25 |
+| Status | **Implemented + Tested.** Not independently verified. **Not deployed:** waiting for the owner's preview review and approval (DEC-018) |
+| Approved by owner | DEC-018 (release conditions), DEC-019 (PIN requirements), DEC-020 (recovery strategy) |
+| Data change | `pin` → `pinHash` (PBKDF2-SHA-256, 150,000 iterations, 16-byte random salt, PIN length). Backups and downloadable copies no longer contain `pin`, `pinHash`, `deviceId` or `deviceFingerprint`. New `profile.lastBackupAt`. |
+
+### What changed
+- **PIN (DEC-019):**
+  - Salted, hashed storage via Web Crypto.
+  - Existing PINs are converted on load, and plain-text copies are scrubbed from the safety backup and snapshot keys.
+  - Constant-time comparison.
+  - Pause after every 5 wrong attempts (30 s, doubling, max 15 min).
+  - Importing keeps the device's PIN.
+  - The PIN form and Settings explain that this is PIN-storage protection, not encryption.
+- **Recovery (DEC-020):**
+  - Last backup date shown in Settings, with clearer backup guidance.
+  - A Home reminder until a backup exists or when it is more than 30 days old.
+  - Full strategy in `DATA_RECOVERY.md`.
+- **Cross-tab protection:** if PesaPilot saves in another tab, this tab reloads instead of overwriting.
+- **Release verification:**
+  - `tests/migration.js` compares the original live app and the new version on 4 representative data sets, with an independent balance oracle, the rollback into the original app, and the emergency-rollback build.
+  - `tests/legacy-fixtures.js` holds the representative data.
+  - `docs/demo/pesapilot-demo-schema9.json` is made-up demo data for the owner's preview review.
+- `RELEASE_1_CHECKLIST.md`: gate, preview guide, blocker assessment, deployment steps, verification and recovery.
+
+### Findings during preparation
+- **The original build destroys upgraded data** if it is ever redeployed (proven). The emergency rollback target is therefore `8370097`, which is proven safe.
+- **A capitalised type ("Income")** would be read as an expense by the live app but as income by the new version. No release ever wrote such a value, and the live app rewrites types on save, so it is not realistic. Documented and not part of the representative data.
+
+### Evidence
+| Check | Result |
+|---|---|
+| Regression | **53 passed, 0 failed.** New: PIN conversion and scrubbing, salts, lockout, change PIN, import keeps the PIN, forgotten-PIN journey, backup reminder, two tabs, timezones. Output: `evidence/release-1-tests.txt` |
+| Migration | **4 of 4** data sets upgraded correctly, rolled back identically, and safe under the emergency build (`evidence/release-1-migration.txt`) |
+| UI snapshots | 76/76 stable |
+| Known defects open | D3, D9 (not release-blocking: checklist §4) |
