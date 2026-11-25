@@ -1,7 +1,7 @@
 # Development Log
 
 Short, dated entries so any new session (Claude, ChatGPT or a person) can continue the work.
-**To resume:** read this file first, then `docs/ROADMAP.md`, then the latest entry in `docs/CHANGE_REGISTER.md`.
+**To resume:** read `docs/MASTER_PROJECT_STATE.md` first. This log is the detailed history.
 
 ## How to run the checks
 ```
@@ -26,3 +26,8 @@ These need Node and Playwright, which are pre-installed in Claude Code cloud ses
 - Fixed phone sideways scrolling, which predated this work on 4 screens.
 - 33/33 tests pass, including an end-to-end rollback test. Not deployed. Rules documented in `FINANCIAL_RULES.md`.
 - **Next:** owner review (ideally an independent ChatGPT review of `FINANCIAL_RULES.md` + `CHANGE_REGISTER.md` CR-002), then Phase 2 (safe-to-spend for irregular income + reconcile). Deployment decision after that.
+
+### 2026-11-25 · Working arrangement
+- The owner set the collaboration model (DEC-014).
+- Added `docs/MASTER_PROJECT_STATE.md` as the single living record, and `CLAUDE.md` so future sessions load the rules automatically.
+- Raised Phase 2 Decisions A (safe-to-spend model) and B (reconcile) for the owner.
