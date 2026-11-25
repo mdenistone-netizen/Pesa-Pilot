@@ -1,4 +1,8 @@
-# P2 · M-Pesa Message Capture (paste/share): research & specification
+> ## ⛔ DECLINED BY THE PRODUCT OWNER (DEC-024, 25 Nov 2026)
+> PesaPilot will **not** have M-Pesa message pasting, sharing, parsing or importing. It will not request SMS permissions or access to M-Pesa accounts, and no real messages will be collected. **DB-1 is closed as declined.**
+> This document is kept **for historical reference only**. It is not a plan, not a specification to build from, and not an outstanding approval.
+
+# P2 · M-Pesa Message Capture (paste/share): research & specification *(historical, declined)*
 
 **Status:** research and design only (DEC-023). Building it needs **DB-1 approval** (§9), and the Fuliza parts also need **DB-3**. No code is written.
 

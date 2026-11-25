@@ -274,3 +274,9 @@ These need **financial-rule decisions** (FINANCIAL_RULES changes):
 4. **Backup (DB-4):** needs a separate architecture and privacy assessment (P5) before any decision. **Local-first remains the default.** No cloud storage or new infrastructure without a decision brief and owner approval.
 5. **Pricing:** KSh 99–199/month and a one-off unlock remain **hypotheses**. Interviews and willingness-to-pay experiments come before any payment infrastructure (P4, then DB-2).
 6. **Release 1:** this strategy is **not** deployment approval. The owner reviews the preview first, including the savings behaviour corrected in CR-007.
+
+## 12. Owner decision after review: M-Pesa capture declined (DEC-024)
+- DB-1 (§8) is **closed as declined**. PesaPilot will not paste, share, parse or import M-Pesa messages, will not request SMS permission, and will not access M-Pesa accounts. Manual recording is the supported approach.
+- **Strategic consequence:**
+  - **Speed of manual entry and balance-based checking become retention priorities** (see `MASTER_PROJECT_STATE.md` §13).
+  - **Privacy becomes an even clearer differentiator:** "PesaPilot never needs your messages."

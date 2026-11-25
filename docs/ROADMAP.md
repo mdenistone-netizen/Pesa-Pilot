@@ -19,11 +19,11 @@
 | # | Work | Output | Leads to |
 |---|---|---|---|
 | P1 | **Onboarding design:** a progressive, optional first-time setup covering accounts and real balances, how you're paid, income sources, commitments, savings, debts. Every step skippable; "finish later" prompts. | Screen-by-screen spec + clickable mock in the preview (behind a dev flag, not live) | Stage A (UI only, existing features) |
-| P2 | **M-Pesa message research:** a catalogue of confirmation-SMS formats (sent, received, paybill, till, withdrawal, deposit, Fuliza, charges, reversals, M-Shwari, airtime). Synthetic test corpus (no real messages in the repo). Classification and duplicate-detection spec. | `docs/specs/MPESA_CAPTURE.md` + test corpus | DB-1 → Stage D |
+| P2 | ~~M-Pesa message research~~ **Declined by owner (DEC-024)**; kept as history only. Original scope: a catalogue of confirmation-SMS formats (sent, received, paybill, till, withdrawal, deposit, Fuliza, charges, reversals, M-Shwari, airtime). Synthetic test corpus (no real messages in the repo). Classification and duplicate-detection spec. | `docs/specs/MPESA_CAPTURE.md` + test corpus | DB-1 → Stage D |
 | P3 | **"Will I make it to my next income?" + Before You Spend:** the calculation, the wording, and how assumptions are shown | DB-5 (needs approval: new financial rule) | Stage B |
 | P4 | **Customer validation design:** interview guide (20 interviews), prototype task script, willingness-to-pay experiments (price-sensitivity survey, fake door, manual till pre-orders), success criteria set in advance | `docs/strategy/VALIDATION_PLAN.md` | Owner-run interviews; evidence for DB-2 |
 | P5 | **Backup architecture & privacy assessment** (Google Drive or other): threat model, Kenya Data Protection Act considerations, encryption design, failure modes, cost | `docs/specs/BACKUP_ASSESSMENT.md` | DB-4 (needs approval) |
-| P6 | **PWA (D9) assessment:** install, offline, update strategy so users can't get stuck on old versions, share target for M-Pesa capture | DB-6 (needs approval: architecture) | Stage C |
+| P6 | **PWA (D9) assessment:** install, offline, update strategy so users can't get stuck on old versions | DB-6 (needs approval: architecture) | Stage C |
 
 ## Then: build stages (one at a time, after Release 1 is live and stable)
 
@@ -33,10 +33,12 @@
 | B | "Will I make it?" + Before You Spend | DB-5 approved | New read-only calculation; no change to stored data |
 | C0 | **D13 schema guard** (never lower the schema version; read-only if data is newer) | Owner approval | Small storage-safety fix; full tests |
 | C | PWA install/offline | DB-6 approved, C0 done | Delivery architecture, not money rules |
-| D | Paste/Share M-Pesa capture with duplicate detection | DB-1 approved, Stage C | New input path; entries go through existing forms and rules |
+| ~~D~~ | ~~Paste/Share M-Pesa capture~~ **Declined (DEC-024).** Manual recording is the supported approach; quick manual entry is improved instead (see below). | — | — |
 | E | Weekly check-in | Stage B | Read-only |
 | F | Receivables, family support, Fuliza & chama rules | DB-3 approved | Financial-rule change: migration + full verification |
 | Later | Encrypted user-owned backup; paid tier | DB-4, then DB-2 **with customer evidence** | Infrastructure: separate approvals |
+
+**Never (owner decision DEC-024):** SMS access, M-Pesa message capture or import, direct access to users' M-Pesa accounts.
 
 **Deliberately avoid for now:** bank integrations; selling or advising on investments or loans; credit scoring; an AI adviser; cloud accounts by default; bookkeeping; crypto.
 

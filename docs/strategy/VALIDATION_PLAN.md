@@ -12,7 +12,7 @@
 | H1 | People regularly don't know how much of their money is free, and run out before the next money comes | They describe a *specific recent* time they ran out, Fuliza'd or borrowed to bridge a gap | They can't recall a recent shortfall, or say it's rare and minor |
 | H2 | Current coping methods are costly or stressful | Real costs: Fuliza fees, late penalties, borrowing from family, skipped needs | Existing methods (notebook, M-Pesa app, discipline) work fine for them |
 | H3 | Seeing "truly free money" and "Will I make it?" changes decisions | In the prototype, they change a spending choice, or ask to keep using it | Polite interest only; no change in what they'd do |
-| H4 | Entering transactions is the main barrier | They abandon manual entry; they ask "can it read my M-Pesa?" | They're happy to type a few entries a day |
+| H4 | People will keep recording manually if it is quick (DEC-024: no M-Pesa capture) | They keep entering during the beta; they use quick entry (repeat, favourites); daily balance check-ins | They stop recording within a week despite quick entry |
 | H5 | Some will pay KSh 99–199 a month, or a one-off unlock | They **commit something of value**: time, introductions, a refundable pre-payment | Praise without commitment ("I'd definitely pay…" but no action) |
 
 ---
@@ -168,7 +168,7 @@ A "PesaPilot Plus" card listing the paid features and the price, with "Notify me
 | Problem confirmed (H1): specific recent shortfall | ≥ 60% of interviewees | Rethink the core problem |
 | Changed a decision in the prototype (H3) | ≥ 40% | Rework the explanation and UX |
 | Week 4 still using (self-reported ≥ 3 days/week) | ≥ 40% of beta | Fix onboarding and capture first |
-| Asked "can it read M-Pesa?" or abandoned typing (H4) | Recorded, not a target | Informs DB-1 priority |
+| Still recording manually in week 2 (H4) | ≥ 50% of beta | Prioritise quick-entry design (no message capture: DEC-024) |
 | Refundable pre-orders | ≥ 10% of active beta | Prices stay unvalidated |
 
 ---
@@ -216,4 +216,4 @@ A "PesaPilot Plus" card listing the paid features and the price, with "Notify me
 | 1–3 | Recruit and run 24 interviews (about 8 a week) | Owner (or a hired interviewer); Claude prepares materials and synthesis |
 | 2–3 | Prototype sessions within interviews | Owner, using the preview |
 | 3–8 | Beta, weekly surveys | Owner runs the group; Claude analyses anonymised results |
-| 8 | Findings and decisions (pricing, DB-1 priority, DB-2) | Owner + Claude |
+| 8 | Findings and decisions (pricing, quick-entry priorities, DB-2) | Owner + Claude |

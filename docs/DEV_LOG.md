@@ -94,3 +94,8 @@ These need Node and Playwright, which are pre-installed in Claude Code cloud ses
 - **P5:** backup assessment (encrypted file + share sheet recommended).
 - **P6:** DB-6 PWA (network-first updates, kill switch).
 - Found **D13** while preparing P6 (an older app saving newer-schema data lowers the schema label). Tested; no effect on Release 1.
+
+### 2026-11-25 · M-Pesa capture declined
+- The owner declined M-Pesa message capture (DEC-024). DB-1 closed.
+- `specs/MPESA_CAPTURE.md` marked as historical. Removed from the roadmap and from DB-6 (no share target). The validation plan's H4 is re-aimed at manual-entry tolerance.
+- Priorities set: P4 pack → P1 mock → DB-5 → DB-4 / DB-6 briefs → D13 proposal.

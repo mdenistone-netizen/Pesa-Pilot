@@ -75,5 +75,5 @@
    - Today it is mandatory. Making it optional is a **security policy change** (DEC-019 area), so it is your decision.
    - Alternative: keep it mandatory.
 2. **Default planning period for "it varies":** 1 week (recommended for daily earners) or 2 weeks.
-3. **Opening balances only, no history import at setup.** Recommended; M-Pesa history arrives later through capture (P2).
+3. **Opening balances only, no history import at setup.** Recommended. Past history isn't needed: users start from today's real balances and record manually from then on (DEC-024: no M-Pesa import).
 4. **Mock review:** I'd build a clickable mock **in the preview only, behind a developer flag that real users can't see**, before Stage A. This needs your go-ahead, since it touches code even though nothing goes live.

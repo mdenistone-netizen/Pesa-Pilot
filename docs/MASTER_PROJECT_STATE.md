@@ -11,7 +11,7 @@ Read this first. Other documents hold the detail:
 | `DEV_LOG.md` | Session-by-session history |
 | `ROADMAP.md` | Phase plan |
 
-_Last updated: 2026-11-25 · Product direction approved (DEC-023); staged roadmap set. Release 1 waiting for the owner's preview review and explicit deploy approval._
+_Last updated: 2026-11-25 · M-Pesa capture declined (DEC-024). Next deliverable: the P4 interview pack. Release 1 waiting for the owner's preview review._
 
 ---
 
@@ -133,7 +133,7 @@ Full detail: `FINANCIAL_RULES.md`.
 | 1 | **Release 1 deployment**, including confirming the corrected savings behaviour (CR-007) in the preview | Waiting for preview review |
 | 2 | DEC-021/022 UX choices (bottom bar with More, "Savings" naming, available-to-spend headline) | Owner sees them in the preview |
 | 3 | **DB-5** "Will I make it to my next income?" + Before You Spend rules | Brief to be written (P3) |
-| 4 | **DB-1** M-Pesa paste/share capture: approve the build after the spec (P2) | Investigation approved; build not yet |
+| 4 | ~~DB-1 M-Pesa capture~~ | **Closed: declined by owner (DEC-024)** |
 | 5 | **DB-6** PWA install/offline and update strategy (D9) | Brief to be written (P6) |
 | 6 | **DB-3** Fuliza, chama and family-support rules | Brief exists (strategy §8) |
 | 7 | **DB-4** Backup to the user's own cloud | Waits for the assessment (P5) |
@@ -141,7 +141,7 @@ Full detail: `FINANCIAL_RULES.md`.
 | 9 | Onboarding design (P1) | Owner reviews the spec; decides PIN-at-first-run and the mock go-ahead |
 | 10 | **D13 schema guard**: approve as a small separate fix before Stage C | Raised in P6 |
 
-**Planning P1–P6: all done** (§12). Next independent work, needing no approval: collect anonymised real M-Pesa message samples (privately, with the owner) to verify P2; prepare the interview materials pack from P4 when the owner is ready to recruit.
+**Planning P1–P6: done** (§12). **Next work, in order (§13):** (1) P4 interview pack · (2) P1 onboarding mock *(document/prototype only, not in the app)* · (3) DB-5 decision brief · (4) P5/DB-4 backup brief and DB-6 offline brief · (5) D13 fix proposal.
 
 ## 8. Risks
 - **Real users, data only on their devices:** a faulty release could damage data we can't see or restore centrally. Mitigations: on-device snapshot, proven rollback, deployment checklist, and owner approval (DEC-017).
@@ -170,7 +170,7 @@ Full report: `strategy/PRODUCT_STRATEGY_2026-11.md` (with the owner's refinement
 - **Owned problem:** "I don't know how much of my money is actually free, so I run out before the next money comes."
 - **Positioning:** *PesaPilot tells you how much you can safely spend today, after rent, loans, chama and savings are covered, even when your income isn't the same every month. Your money stays on your phone.*
 - **Signature (approved direction):** true available balance + irregular-income plan + bills and commitments + savings allocation, experienced through **Before You Spend** and **"Will I make it to my next income?"** (actual money, commitments and expected income kept separate, assumptions explained). The weekly check-in is the retention habit. Kenyan specifics (chama, Fuliza, family support) are essential localisation.
-- **Biggest weakness:** manual entry (DB-1).
+- **Biggest weakness:** manual entry. Message capture was **declined** (DEC-024), so quick manual entry and balance check-ins are the mitigation (§13).
 - **Initial target [assumption]:** urban 22–35, Android, M-Pesa-first, salary plus side income or irregular income, regular commitments, occasional Fuliza.
 - **Commercial (hypotheses, not validated):** core stays free. "Plus" at KSh 99–199/month, or a ~KSh 1,500 lifetime unlock. Validate with 20 interviews, a 30–50 user beta and real M-Pesa till pre-orders.
 - **Roadmap:** Release 1 scope frozen. Then planning P1–P6, then build stages A–F one at a time (see `ROADMAP.md`).
@@ -182,9 +182,31 @@ None of these approves implementation, rule changes, infrastructure, merging or 
 | # | Deliverable | Status | Key decisions it raises |
 |---|---|---|---|
 | P4 | `strategy/VALIDATION_PLAN.md`: 24 interviews with quotas (casual, freelance, small business, salaried, young families; overlaps for family support, borrowers, chama/SACCO, ≥12 non-trackers); behaviour-over-opinion evidence log; willingness-to-pay ladder; pre-registered success criteria | **Done** | Owner: whether to run refundable till pre-orders (§6.4); who interviews |
-| P2 | `specs/MPESA_CAPTURE.md`: message catalogue (16 types), classification rules (own-account transfers, withdraw/deposit as M-Pesa⇄Cash, charges as linked "M-Pesa charges" expenses, Fuliza as borrowing + fees), reversals, 4-layer duplicate detection (code, batch, probable manual duplicate, balance hint), verification plan | **Done** | DB-1: approve paste parser, `externalRef` field, own-account mapping, linked charges, reversal pairs for captured entries; Fuliza waits for DB-3. **Fuliza and reversal wording is unverified** and needs real samples (kept private) |
+| P2 | **⛔ Declined by owner (DEC-024)**; kept as history only. `specs/MPESA_CAPTURE.md`: message catalogue (16 types), classification rules (own-account transfers, withdraw/deposit as M-Pesa⇄Cash, charges as linked "M-Pesa charges" expenses, Fuliza as borrowing + fees), reversals, 4-layer duplicate detection (code, batch, probable manual duplicate, balance hint), verification plan | Declined | None. DB-1 closed. No samples collected. |
 | P3 | `specs/DB-5_WILL_I_MAKE_IT.md`: three separate inputs (actual free money, commitments, expected income) + a labelled usual-spending estimate; expected income **never** counted (only an "if it arrives" line); verdicts On track / Tight / Short / Already short; day-by-day low point; Before You Spend preview that never blocks or records by itself; worked examples; assumptions and limits | **Done** | DB-5: approve the rule and 5 choices (irregular horizon, spending estimate, tight cushion, actions, 2 optional fields) |
 | P1 | `specs/ONBOARDING.md`: 3 short steps (welcome, "what do you have now" as opening balances, "when does your next money come") → an immediate answer ("KSh X free, about KSh Y a day"), then an optional Home checklist (bills, loans, savings, buffer, income sources, backup); existing users never forced; existing features only | **Done** | Owner: PIN mandatory vs "Set PIN / Later" (security policy); default period for irregular income; go-ahead for a preview-only mock before Stage A |
 | P5 | `specs/BACKUP_ASSESSMENT.md`: threats; 4 options compared on privacy, security, user control, cost, data-protection exposure and failure modes. Recommended next: **encrypted backup file + phone share sheet** (zero infrastructure, KSh 0, user keeps control); user-owned Drive automation only later with evidence; no PesaPilot cloud | **Done** | DB-4: approve Option 1 as a future stage; recovery approach (recovery code + optional unencrypted export); defer Options 2 and 3 |
-| P6 | `specs/DB-6_PWA_ASSESSMENT.md`: manifest + service worker that caches app files only (never data); network-first updates, versioned caches, reload prompt, kill switch; privacy, security, user control, update reliability, cost (KSh 0) assessed | **Done** | DB-6: approve a full PWA for Stage C; fix **D13** (schema guard) first; share target only with DB-1 |
+| P6 | `specs/DB-6_PWA_ASSESSMENT.md`: manifest + service worker that caches app files only (never data); network-first updates, versioned caches, reload prompt, kill switch; privacy, security, user control, update reliability, cost (KSh 0) assessed | **Done** | DB-6: approve a full PWA for Stage C; fix **D13** (schema guard) first; no share target (DEC-024) |
+
+## 13. Work status and next deliverables (after DEC-024)
+Status words: **Proposed → Designed → Approved → Implemented → Verified → Deployed.**
+
+| Item | Status | Next step |
+|---|---|---|
+| Release 1 (incl. CR-007 savings fix) | Implemented + verified on the branch; **not approved for deployment** | Owner's preview review |
+| M-Pesa capture (DB-1) | **Declined** (DEC-024) | None |
+| P4 interview pack | Designed (plan); pack **in preparation** | **Next deliverable** |
+| P1 onboarding | Designed | Preview-only mock *as a stand-alone prototype file, not built into the app*, for review; PIN question presented separately |
+| P3 / DB-5 Will I make it? + Before You Spend | Designed (brief draft) | Detailed decision brief for the owner |
+| P5 / DB-4 encrypted user-controlled backup | Assessed | Decision brief explaining encryption, password recovery, loss of password, restore |
+| P6 / DB-6 installable and offline | Assessed | Decision brief |
+| D13 schema guard | Defect recorded | Separate, clearly scoped fix proposal |
+
+**Adviser note: the main risk after declining capture.**
+- Manual entry fatigue is the most common reason people abandon money apps [assumption, consistent with competitor positioning].
+- **Privacy-preserving mitigations to explore,** as designs only, each needing approval before building:
+  1. **Quick entry:** repeat last, favourites (e.g. "Matatu 100"), amount presets, a one-screen keypad, a home-screen shortcut once installable (DB-6).
+  2. **Balance check-ins:** "What's your M-Pesa balance now?" in 10 seconds. The difference becomes a labelled, reversible unrecorded-spending adjustment, using the existing reconcile rules (DEC-016), so the totals stay right even when people don't record every small expense.
+  3. **Recurring entries** for salary, rent and chama, proposed on their due date for one-tap confirmation.
+- **The P4 interviews will test** how much manual recording people will actually do.
 
