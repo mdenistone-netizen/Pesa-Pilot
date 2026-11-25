@@ -319,7 +319,7 @@ test("moving money for a goal that was not set aside first earmarks it on arriva
   await context.close();
 });
 
-test("partial release and spend-from-goal: progress, balance and spending all correct", async () => {
+test("partial release and use-from-goal: progress, balance and spending all correct", async () => {
   const { page, context, errors } = await h.openApp({ seed: wallet() });
   await setAside(page, 50, "mpesa", 5000);
   await h.goView(page, "goals");
@@ -328,8 +328,8 @@ test("partial release and spend-from-goal: progress, balance and spending all co
   assert.equal(await goalSavedOf(page, 50), 4000);
   assert.deepEqual(await accountCard(page, "M-Pesa"), { balance: "KSh 10,000", setAside: "KSh 4,000", available: "KSh 6,000" });
   await h.goView(page, "goals");
-  await h.clickAction(page, "release-goal", 50);
-  await h.submitForm(page, "releaseForm", { releaseAccount: "mpesa", releaseAmount: "500", releaseSpent: true, releaseCategory: "Health" });
+  await h.clickAction(page, "use-goal", 50);
+  await h.submitForm(page, "useGoalForm", { useAmount: "500", useAccount: "mpesa", useHolding: "mpesa", useCategory: "Health" });
   assert.equal(await goalSavedOf(page, 50), 3500);
   assert.deepEqual(await accountCard(page, "M-Pesa"), { balance: "KSh 9,500", setAside: "KSh 3,500", available: "KSh 6,000" });
   await h.goView(page, "home");
@@ -494,6 +494,198 @@ test("rollback: the pre-accounts copy downloads and imports into the original sc
   assert.deepEqual(restored.transactions.map(t => [t.id, t.type, t.amount]), seed.transactions.map(t => [t.id, t.type, t.amount]));
   assert.equal(restored.goals[0].current, 3000);
   await browser.close();
+});
+
+// ------------------------------------- Savings behaviour (owner brief, CR-007)
+// Expected values are worked out from first principles in each test:
+//   available = actual balance - money set aside in that account
+//   saved now = everything set aside - everything used/released (net)
+function savingsWallet(extra = {}) {
+  return wallet({ transactions: [tx(1, "income", 30000, "Income", "2026-11-20", { accountId: "mpesa" })], ...extra });
+}
+const goalFigure = (page, goalId, name) => page.evaluate(({ goalId, name }) => {
+  const card = [...document.querySelectorAll("#goalsView .card")].find(c => c.querySelector(`[data-id="${goalId}"]`));
+  const el = card && card.querySelector(`[data-figure="${name}"]`);
+  return el ? el.textContent.trim() : null;
+}, { goalId, name });
+const useFromGoal = async (page, goalId, values) => {
+  await h.goView(page, "goals"); await h.clickAction(page, "use-goal", goalId);
+  await h.submitForm(page, "useGoalForm", values);
+};
+const fmt = n => (n < 0 ? "−" : "") + "KSh " + Math.abs(n).toLocaleString("en-KE");
+
+test("savings 1-3: setting aside 5,000 of 30,000 keeps the balance, cuts available to 25,000 everywhere, immediately", async () => {
+  const { page, context, errors } = await h.openApp({ seed: savingsWallet() });
+  const balance = 30000, setAsideAmount = 5000, available = balance - setAsideAmount;
+  await setAside(page, 50, "mpesa", setAsideAmount);                 // no reload anywhere below
+  assert.deepEqual(await accountCard(page, "M-Pesa"), { balance: fmt(balance), setAside: fmt(setAsideAmount), available: fmt(available) });
+  assert.equal(await h.figure(page, "money-spendable"), fmt(available));
+  assert.equal(await h.figure(page, "money-total"), fmt(balance), "total money owned does not drop");
+  assert.equal(await home(page, "home-free"), fmt(available), "Home headline = available to spend");
+  assert.equal(await home(page, "spending-balance"), fmt(balance));
+  assert.equal(await home(page, "home-set-aside"), fmt(setAsideAmount));
+  assert.equal(await home(page, "total-held"), fmt(balance));
+  assert.equal(await planFigure(page, "plan-spendable"), fmt(available));
+  await h.goView(page, "goals");
+  assert.equal(await goalFigure(page, 50, "goal-saved"), fmt(5000));
+  assert.equal(await goalFigure(page, 50, "goal-remaining"), fmt(20000 - 5000));
+  assert.equal(await goalFigure(page, 50, "goal-in-spending"), fmt(5000));
+  assert.equal(await goalFigure(page, 50, "goal-in-savings"), fmt(0));
+  noErrors(errors); await context.close();
+});
+
+test("savings 4-6: several goals share an account; the same money can't be set aside twice or beyond what is free", async () => {
+  const { page, context } = await h.openApp({ seed: savingsWallet() });
+  await setAside(page, 50, "mpesa", 5000);
+  await setAside(page, 51, "mpesa", 7000);
+  assert.deepEqual(await accountCard(page, "M-Pesa"), { balance: fmt(30000), setAside: fmt(12000), available: fmt(30000 - 12000) });
+  await setAside(page, 51, "mpesa", 18001);                           // 1 more than is free
+  assert.match(await h.toastText(page), /Only KSh 18,000 in M-Pesa is not already set aside/);
+  await h.clickAction(page, "close-modal");
+  await setAside(page, 51, "mpesa", 18000);
+  assert.deepEqual(await accountCard(page, "M-Pesa"), { balance: fmt(30000), setAside: fmt(30000), available: fmt(0) });
+  await h.clickAction(page, "close-modal").catch(() => {});
+  await setAside(page, 50, "mpesa", 1);
+  assert.match(await h.toastText(page), /Nothing in M-Pesa is free to set aside/);
+  const s = await h.storedState(page);
+  assert.equal(s.goals.find(g => g.id === 50).current + s.goals.find(g => g.id === 51).current, 30000, "goals together never exceed the balance");
+  await context.close();
+});
+
+test("savings 7-8: using 1,500 from a 5,000 allocation records one expense and keeps every figure consistent", async () => {
+  const { page, context, errors } = await h.openApp({ seed: savingsWallet() });
+  await setAside(page, 50, "mpesa", 5000);
+  await useFromGoal(page, 50, { useAmount: "1500", useAccount: "mpesa", useHolding: "mpesa", useCategory: "Health", useNote: "Clinic" });
+  const balance = 30000 - 1500, setAsideNow = 5000 - 1500, available = balance - setAsideNow;   // 28,500 / 3,500 / 25,000
+  assert.deepEqual(await accountCard(page, "M-Pesa"), { balance: fmt(balance), setAside: fmt(setAsideNow), available: fmt(available) });
+  assert.equal(await home(page, "home-free"), fmt(available));
+  assert.equal(await home(page, "month-out"), fmt(1500), "counted as spending once");
+  await h.goView(page, "goals");
+  assert.equal(await goalFigure(page, 50, "goal-saved"), fmt(3500));
+  assert.equal(await goalFigure(page, 50, "goal-used"), fmt(1500));
+  assert.equal(await goalFigure(page, 50, "goal-remaining"), fmt(20000 - 3500));
+  const s = await h.storedState(page);
+  const expenses = s.transactions.filter(t => t.type === "expense");
+  assert.equal(expenses.length, 1); assert.equal(expenses[0].amount, 1500);
+  assert.deepEqual([expenses[0].accountId, expenses[0].category, expenses[0].notes], ["mpesa", "Health", "Clinic"]);
+  await h.goView(page, "reports");
+  assert.equal(await h.figure(page, "report-spending"), fmt(1500));
+  noErrors(errors); await context.close();
+});
+
+test("savings 7b: savings kept in M-Shwari but paid from M-Pesa: the right accounts change", async () => {
+  const { page, context } = await h.openApp({ seed: savingsWallet() });
+  await h.goView(page, "goals"); await h.clickAction(page, "move-goal", 50);
+  await h.submitForm(page, "transferForm", { trAmount: "5000", trFrom: "mpesa", trTo: "mshwari" });
+  await useFromGoal(page, 50, { useAmount: "1500", useAccount: "mpesa", useHolding: "mshwari", useCategory: "Health" });
+  assert.deepEqual(await accountCard(page, "M-Pesa"), { balance: fmt(30000 - 5000 - 1500), setAside: fmt(0), available: fmt(23500) });
+  assert.deepEqual(await accountCard(page, "M-Shwari"), { balance: fmt(5000), setAside: fmt(5000 - 1500), available: fmt(1500) });
+  assert.equal(await home(page, "total-held"), fmt(30000 - 1500));
+  await h.goView(page, "goals");
+  assert.equal(await goalFigure(page, 50, "goal-saved"), fmt(3500));
+  await context.close();
+});
+
+test("savings 9: releasing money makes it available again without spending or moving it", async () => {
+  const { page, context } = await h.openApp({ seed: savingsWallet() });
+  await setAside(page, 50, "mpesa", 5000);
+  await h.goView(page, "goals"); await h.clickAction(page, "release-goal", 50);
+  await h.submitForm(page, "releaseForm", { releaseAccount: "mpesa", releaseAmount: "2000" });
+  assert.deepEqual(await accountCard(page, "M-Pesa"), { balance: fmt(30000), setAside: fmt(3000), available: fmt(27000) });
+  assert.equal(await home(page, "month-out"), fmt(0));
+  assert.equal((await h.storedState(page)).transactions.length, 1, "no transaction created");
+  await context.close();
+});
+
+test("savings 10: correcting 5,000 to 3,000, then reversing it, keeps the history and creates no income or spending", async () => {
+  const { page, context, errors } = await h.openApp({ seed: savingsWallet() });
+  await setAside(page, 50, "mpesa", 5000);
+  const original = (await h.storedState(page)).allocations[0];
+  await h.goView(page, "goals"); await h.clickAction(page, "goal-history", 50);
+  await h.clickAction(page, "correct-allocation", original.id);
+  await h.submitForm(page, "correctForm", { correctAmount: "3000" });
+  assert.deepEqual(await accountCard(page, "M-Pesa"), { balance: fmt(30000), setAside: fmt(3000), available: fmt(27000) });
+  let s = await h.storedState(page);
+  assert.equal(s.goals[0].current, 3000);
+  assert.deepEqual(s.allocations.map(a => [a.amount, a.reference]), [[5000, ""], [-2000, `correction:${original.id}`]], "original kept, correction added");
+  await h.goView(page, "goals"); await h.clickAction(page, "goal-history", 50);
+  await h.clickAction(page, "reverse-allocation", original.id);
+  s = await h.storedState(page);
+  assert.equal(s.goals[0].current, 0);
+  assert.equal(s.allocations.length, 3);
+  assert.deepEqual(await accountCard(page, "M-Pesa"), { balance: fmt(30000), setAside: fmt(0), available: fmt(30000) });
+  assert.equal(s.transactions.length, 1, "corrections never create income or spending");
+  assert.equal(await home(page, "month-in"), fmt(30000));
+  assert.equal(await home(page, "month-out"), fmt(0));
+  noErrors(errors); await context.close();
+});
+
+test("savings 11-12: moving 5,000 to M-Shwari for the goal: balances move, total unchanged, not spending, goal kept", async () => {
+  const { page, context } = await h.openApp({ seed: savingsWallet() });
+  await h.goView(page, "goals"); await h.clickAction(page, "move-goal", 50);
+  await h.submitForm(page, "transferForm", { trAmount: "5000", trFrom: "mpesa", trTo: "mshwari" });
+  assert.deepEqual(await accountCard(page, "M-Pesa"), { balance: fmt(25000), setAside: fmt(0), available: fmt(25000) });
+  assert.deepEqual(await accountCard(page, "M-Shwari"), { balance: fmt(5000), setAside: fmt(5000), available: fmt(0) });
+  assert.equal(await home(page, "total-held"), fmt(30000));
+  assert.equal(await home(page, "month-out"), fmt(0));
+  assert.equal(await home(page, "month-in"), fmt(30000));
+  await h.goView(page, "goals");
+  assert.equal(await goalFigure(page, 50, "goal-saved"), fmt(5000));
+  assert.equal(await goalFigure(page, 50, "goal-in-savings"), fmt(5000));
+  assert.equal(await goalFigure(page, 50, "goal-in-spending"), fmt(0));
+  await context.close();
+});
+
+test("savings 13: goal progress and reports stay accurate through set aside, use and release", async () => {
+  const { page, context } = await h.openApp({ seed: savingsWallet() });
+  await setAside(page, 50, "mpesa", 8000);
+  await useFromGoal(page, 50, { useAmount: "1500", useAccount: "mpesa", useHolding: "mpesa", useCategory: "Health" });
+  await h.goView(page, "goals"); await h.clickAction(page, "release-goal", 50);
+  await h.submitForm(page, "releaseForm", { releaseAccount: "mpesa", releaseAmount: "500" });
+  const saved = 8000 - 1500 - 500;
+  await h.goView(page, "goals");
+  assert.equal(await goalFigure(page, 50, "goal-saved"), fmt(saved));
+  assert.equal(await goalFigure(page, 50, "goal-remaining"), fmt(20000 - saved));
+  await h.goView(page, "reports");
+  assert.equal(await h.figure(page, "report-spending"), fmt(1500), "only the money actually used is spending");
+  assert.equal(await h.figure(page, "report-set-aside"), fmt(saved), "net set aside this month");
+  await context.close();
+});
+
+test("savings 14: setting aside this month's savings target does not reduce safe to spend a second time", async () => {
+  const seed = savingsWallet(); seed.goals[0].requiredMonthly = 5000;
+  const { page, context } = await h.openApp({ seed });
+  // Before: free 30,000 - goal plan 5,000 = 25,000 left. After setting aside 5,000:
+  // free 25,000 - goal plan 0 = 25,000 left (NOT 20,000).
+  assert.equal(await planFigure(page, "plan-spendable"), fmt(30000));
+  assert.equal(await planFigure(page, "plan-goals"), "−" + fmt(5000));
+  assert.equal(await planFigure(page, "plan-reserve"), fmt(25000));
+  await setAside(page, 50, "mpesa", 5000);
+  assert.equal(await planFigure(page, "plan-spendable"), fmt(25000));
+  assert.equal(await planFigure(page, "plan-goals"), "−" + fmt(0));
+  assert.equal(await planFigure(page, "plan-reserve"), fmt(25000));
+  await context.close();
+});
+
+test("savings 15: editing, deleting (restoring) a use-from-goal expense keeps account and goal in step", async () => {
+  const { page, context } = await h.openApp({ seed: savingsWallet() });
+  await setAside(page, 50, "mpesa", 5000);
+  await useFromGoal(page, 50, { useAmount: "1500", useAccount: "mpesa", useHolding: "mpesa", useCategory: "Health" });
+  const expenseId = (await h.storedState(page)).transactions.find(t => t.type === "expense").id;
+  await h.goView(page, "money"); await h.clickAction(page, "edit-transaction", expenseId);
+  await h.submitForm(page, "transactionForm", { txAmount: "2000" });
+  assert.deepEqual(await accountCard(page, "M-Pesa"), { balance: fmt(28000), setAside: fmt(3000), available: fmt(25000) });
+  assert.equal((await h.storedState(page)).goals[0].current, 3000);
+  await h.clickAction(page, "edit-transaction", expenseId);
+  await h.submitForm(page, "transactionForm", { txAmount: "6000" });             // more than the goal holds
+  assert.match(await h.toastText(page), /Only KSh 5,000 is saved in Emergency fund/);
+  await h.clickAction(page, "close-modal");
+  await h.clickAction(page, "delete-transaction", expenseId);                   // restore
+  assert.deepEqual(await accountCard(page, "M-Pesa"), { balance: fmt(30000), setAside: fmt(5000), available: fmt(25000) });
+  const s = await h.storedState(page);
+  assert.equal(s.goals[0].current, 5000, "goal restored");
+  assert.equal(s.allocations.length, 1, "the linked reduction was removed with the expense");
+  await context.close();
 });
 
 // ------------------------------------- Phase 2: safe to spend (DEC-015), reconcile (DEC-016)

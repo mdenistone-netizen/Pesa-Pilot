@@ -4,7 +4,7 @@ const fs = require("fs"), path = require("path");
 const h = require("./harness");
 const demo = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "docs", "demo", "pesapilot-demo-schema9.json"), "utf8")).data;
 const VIEWS = ["home", "money", "plan", "goals", "bills", "debts", "reports", "settings"];
-const FORMS = [["money", "add-expense"], ["money", "add-transfer"], ["goals", "contribute-goal"], ["money", "reconcile-account"], ["home", "open-more"]];
+const FORMS = [["money", "add-expense"], ["money", "add-transfer"], ["goals", "contribute-goal"], ["money", "reconcile-account"], ["goals", "use-goal"], ["goals", "goal-history"], ["home", "open-more"]];
 
 function audit() { // runs in the page
   const W = window.innerWidth, mobile = W <= 760, problems = [];

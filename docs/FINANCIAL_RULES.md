@@ -40,12 +40,40 @@ Definitions:
 ### The no-double-counting rule
 You can set aside at most the account's **available** amount. Once a shilling is set aside for one goal it is no longer available, so a second goal cannot claim it.
 
-### When reality changes
-- **Spending or moving money that is set aside** is allowed, because real life happens, but the app asks first.
-- Afterwards the account shows available below zero, and the goal shows the shortfall until you release or replace the money.
-- **Release** a goal's money: it becomes available again in the same account. Nothing moves.
-- **Use** a goal's money: release it *and* record the expense in one step.
+### The three amounts (DEC-022)
+For every account:
+
+| Amount | Meaning | Formula |
+|---|---|---|
+| **Actual balance** | What the account really holds | opening + money in − money out |
+| **Set aside** | Money reserved for savings goals in that account | sum of that account's goal allocations |
+| **Available to spend** | What is free to use | **actual balance − set aside** |
+
+- **Example:** M-Pesa holds 30,000 and 5,000 is set aside for the Emergency fund. Balance 30,000 · set aside 5,000 · **available 25,000**.
+- **Total money owned stays 30,000.** Setting money aside never reduces what you own; it only reduces what is available to spend.
+- **Home** leads with *available to spend* across spending accounts. Totals including savings accounts are shown separately.
+- **Savings-type accounts** (M-Shwari, SACCO) are not spending money. Their unreserved money is shown as "not set aside", never as "available to spend".
+
+### Using, releasing and correcting goal money (DEC-022)
+- **Use money from a savings goal:** the user chooses the goal, the amount, the account that **actually paid**, which goal holding to reduce, the category, the date and a description.
+  - It records **one** expense from the paying account (counted as spending once).
+  - It reduces the goal by the same amount.
+  - The two are linked: editing the expense adjusts the goal, and deleting it restores the goal.
+- *Example:* 5,000 set aside in M-Pesa (balance 30,000), then 1,500 used, paid from M-Pesa. Balance 28,500 · set aside 3,500 · available **25,000**. The goal shows 3,500 saved and 1,500 used.
+- *If the savings were in M-Shwari but you paid from M-Pesa:* M-Pesa falls by 1,500. M-Shwari keeps its 5,000, of which 3,500 is still reserved and 1,500 is no longer reserved.
+- **Release:** the money is no longer reserved. It stays in the same account and becomes available again. Nothing is spent or moved.
+- **Correct / reverse a set-aside:** this adds a correction entry for the difference (e.g. 5,000 → 3,000 adds −2,000). The original entry stays in the history. **No income or spending is ever created.**
+- **Spending money that is set aside without using "Use money"** is still allowed after a warning. Available then shows below zero, and the goal shows the shortfall until it is replaced or released.
 - **Deleting a goal** frees its set-aside money. Transfers it made stay recorded, because the money really moved.
+
+### Goal figures
+- **Saved now** = net of all set-asides, moves, uses, releases and corrections. It reflects money still saved, not historical contributions.
+- **Still needed** = target − saved now.
+- **Held in savings accounts** + **Set aside in spending accounts** = saved now.
+- **Used so far** and **Released** are shown separately. Every entry is listed in History.
+
+### Safe to spend and savings
+Money already set aside is excluded from "money free to use". This month's savings target is reduced by what was set aside this month. So setting aside your monthly target does **not** reduce safe to spend a second time (tested).
 
 ## 4. Debts
 - **Repaid** = repaid before tracking started + the sum of recorded repayments. It is calculated.

@@ -1,0 +1,12 @@
+# UI audit after CR-007
+
+OK     light  320px  0 issues
+OK     light  360px  0 issues
+OK     light  390px  0 issues
+OK     light 1280px  0 issues
+OK     dark   320px  0 issues
+OK     dark   360px  0 issues
+OK     dark   390px  0 issues
+OK     dark  1280px  0 issues
+
+0 issues found

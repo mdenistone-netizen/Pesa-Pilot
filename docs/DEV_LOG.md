@@ -58,3 +58,13 @@ These need Node and Playwright, which are pre-installed in Claude Code cloud ses
 - Found and fixed (CR-006) a live-app bug: in Kenyan time, the month pickers and trend chart skipped the current month (D12).
 - Evidence: 54/54 regression, 4/4 migration, engine unchanged, UI audit 0 issues.
 - Waiting for the owner's preview review.
+
+### 2026-11-25 · Savings behaviour (owner brief)
+- Investigated "set aside doesn't reduce the subtotal". The engine was already correct (30,000 − 5,000 = 25,000 available everywhere, immediately). The cause was Home's headline showing the gross balance, plus a Money summary that mixed savings-account money into "Available".
+- Built CR-007:
+  - "Available to spend" as the Home headline;
+  - a linked "Use money from savings goal";
+  - release as un-reserve only;
+  - correct and reverse for set-asides;
+  - a full goal breakdown.
+- 10 new tests cover all 15 of the owner's scenarios. 64/64 regression, 4/4 migration, UI audit 0 issues.

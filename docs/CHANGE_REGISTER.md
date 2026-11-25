@@ -260,3 +260,43 @@ D12: the Reports month picker and trend chart skip the current month in Kenyan t
 **Fix.** `monthOptions`, `billMonthOptions` and the Reports trend now build months from the local date at midday (`localISO`), like the engine functions already did.
 
 **Evidence.** A new test checks the pickers and the trend in Nairobi and New York time zones: it passes. Full suite: 54 passed, 0 failed (`evidence/redesign-tests.txt`).
+
+---
+
+## CR-007 · Savings: available to spend, use money from a goal, corrections
+
+| | |
+|---|---|
+| Date | 2026-11-25 |
+| Status | **Implemented + Tested.** Not deployed |
+| Decision | DEC-022 (owner brief) |
+| Data change | None to existing records. New optional fields on new entries only: allocation `kind` (`use` / `release` / `correction`); references `goaluse:<goal>` (expense) and `expense:<tx>` / `correction:<allocation>` (allocations) |
+
+### Investigation: why the subtotal "did not reduce"
+- **The calculation was already correct.** Reproduced: 30,000 in M-Pesa with 5,000 set aside gave available 25,000 on the account card, the Money summary and Plan, updated immediately.
+- **The presentation was the problem:**
+  1. **Home's headline showed the gross balance** ("Money in your spending accounts: 30,000"), with the 25,000 only in small print.
+  2. The Money summary's "Available" included unreserved **savings-account** money, mixing savings with spending money.
+- **Missing features:**
+  - Using goal money was a checkbox inside "release". You couldn't choose the paying account, and the expense wasn't linked to the goal, so deleting it didn't restore the goal.
+  - Allocations couldn't be corrected.
+  - Goals didn't show where the money is held or how much was used.
+
+### Changes
+- **Home:** the headline is **Available to spend**, with "In your spending accounts" and "Set aside for goals" as its breakdown and "Total money in all accounts" separate.
+- **Money:**
+  - The summary separates *Available to spend (spending accounts)* from *In savings accounts, not set aside*.
+  - Account cards say "Available to spend", or "Not set aside" for savings accounts.
+- **Use money from savings goal:** a new form and a linked expense plus goal reduction (rules: FINANCIAL_RULES §3).
+- **Release:** now un-reserves only. Spending uses "Use money".
+- **Correct amount / Reverse:** for set-aside entries, in goal History. Correction entries are added; nothing is deleted.
+- **Goal card:** target, saved now, still needed, held in savings accounts, set aside in spending accounts, used so far, released.
+- **Engine:** only the linked-record functions changed (`linkedRecord`, `syncLinkedFromTransaction`, `removeLinkedForTransaction`, `isLinkedReference`), to link goal-use expenses. Balance, allocation, available and safe-to-spend functions are unchanged (`evidence/savings-engine-fingerprint.txt`). The fingerprint baseline is re-saved after this intended change.
+
+### Evidence
+| Check | Result |
+|---|---|
+| Regression | **64 passed, 0 failed.** 10 new savings tests covering all 15 of the owner's scenarios, with expected values worked out independently (`evidence/savings-tests.txt`) |
+| Migration (4 data sets, rollback) | 4/4 (`evidence/savings-migration.txt`) |
+| UI audit (incl. the new forms) | 0 issues (`evidence/savings-ui-audit.txt`) |
+| UI snapshots | New baseline (78) after the intended changes |
