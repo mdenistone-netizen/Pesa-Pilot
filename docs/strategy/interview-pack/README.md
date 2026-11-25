@@ -24,6 +24,7 @@
 | `06_SCORING_SHEET.md` | Per-participant sheet: behaviour vs opinion, timings, stop reasons | 10 min after each session |
 | `07_SYNTHESIS_TEMPLATE.md` | Combine findings after each batch of 6 | 1 hour per batch |
 | `08_BUDGET_FOR_REVIEW.md` | Equal-compensation rules and budget options (**amounts not final**) | — |
+| `09_FIRST_RUN_TEST.md` | Unassisted first-time setup: onboarding prototype A vs B, counterbalanced, with an understanding check | 10 min |
 
 ## Boundaries (non-negotiable)
 - **No payments, pre-orders or price commitments.** Price questions are asked only as opinions, to choose test prices later (VALIDATION_PLAN §6.1).
@@ -43,7 +44,7 @@
 - [ ] The owner approves the budget and the equal thank-you amounts (`08_BUDGET_FOR_REVIEW.md`)
 - [ ] The research data notice is approved and the private storage set up (`00`)
 - [ ] A fluent Kiswahili speaker checks that both consent scripts give the **same protections** (`02`)
-- [ ] A test phone is ready with the preview and the demo data loaded (see the test script)
+- [ ] A test phone is ready with the preview and the demo data loaded (see the test script), and both onboarding prototypes open (`09`)
 - [ ] A **fixed-version link** chosen for the 7-day trial, so the app doesn't change mid-trial (`05_RECORDING_TRIAL.md`)
 - [ ] A private notes location exists outside GitHub (for example a private Google Drive folder)
 - [ ] A pilot interview with one friendly person, to check timing and wording; its results are discarded

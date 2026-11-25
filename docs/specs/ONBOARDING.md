@@ -1,6 +1,6 @@
 # P1 · Progressive First-Time Setup: design
 
-**Status:** design only (DEC-023). Building it is **Stage A** and needs the owner's review of this design (and of a mock). It uses **existing features only** (opening balances, plan settings, bills, debts, goals, expected income) and changes **no financial rules**.
+**Status:** design only (DEC-023). **Update:** a simpler alternative (prototype B: one total, next money incl. "not sure", urgent payments before the answer) is compared with this design in `ONBOARDING_COMPARISON.md`, and B is recommended, subject to the first-run test (`../strategy/interview-pack/09_FIRST_RUN_TEST.md`). Building it is **Stage A** and needs the owner's review of this design (and of a mock). It uses **existing features only** (opening balances, plan settings, bills, debts, goals, expected income) and changes **no financial rules**.
 
 ## 1. Goal and principles
 - **Value in under 2 minutes:** two questions, then a real answer: *"You have KSh X free to use: about KSh Y a day until your next income."*

@@ -121,3 +121,17 @@ These need Node and Playwright, which are pre-installed in Claude Code cloud ses
 - Found and fixed a stuck-button bug in the prototype (payday input).
 - Corrected weekday labels in the DB-5 and onboarding docs (25 Nov 2026 is a Wednesday).
 - Added a release-checklist item about keeping `docs/` off the live site.
+
+### 2026-11-25 · P1 simpler onboarding (prototype B) + comparison
+- The owner asked for a substantially simpler first run in everyday Kenyan language.
+- Built `docs/prototypes/onboarding-simple/index.html` (stand-alone, memory only):
+  - one total;
+  - next money: a date / every day / not sure;
+  - urgent payments as chips, skippable;
+  - an immediate "about KSh Y a day until <date>" with a plain sum;
+  - Home next steps;
+  - EN + draft Kiswahili, and a PIN required/optional switch.
+- Measured against A on the same scenario: 5 vs 9 taps, 100 vs 174 words, no jargon, reading ease 85 vs 77. Same final figure (1,333/day), but B's first answer already includes the rent.
+- Walkthrough fixes in B: past dates and today refused; a payment chip with no amount is refused instead of counting as 0.
+- Wrote `specs/ONBOARDING_COMPARISON.md` (metrics, accuracy mapping to existing rules, walkthrough, recommendation) and `interview-pack/09_FIRST_RUN_TEST.md` (unassisted, counterbalanced A vs B, pre-registered criteria). Waiting for owner approval; no real-user test done yet.
+- No app code or financial rules changed.
