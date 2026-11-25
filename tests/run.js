@@ -15,6 +15,9 @@ const test = (name, fn) => tests.push({ name, fn, known: false });
 const knownDefect = (id, name, fn) => tests.push({ name: `[${id}] ${name}`, fn, known: true });
 
 const kes = n => "KSh " + n.toLocaleString("en-KE");
+// Read money figures by their data-figure marker, so wording/layout changes can't weaken the checks.
+const home = async (page, name) => { await h.goView(page, "home"); return h.figure(page, name); };
+const planFigure = async (page, name) => { await h.goView(page, "plan"); return h.figure(page, name); };
 const noErrors = errors => assert.deepEqual(errors, [], "page raised errors: " + errors.join(" | "));
 
 // ---------------------------------------------------------------- baseline
@@ -39,7 +42,11 @@ test("home balance is the total held across all accounts", async () => {
   // income 53,000 - spending 25,100 - debt repayment 2,000 = 25,900. The 3,000 goal
   // contribution is still the user's money (now in a savings account), not spending.
   // Schema 9 showed 22,900 because it counted that saving as an expense (defect D2).
-  assert.match(await h.bodyText(page), /recorded money KSh 25,900 KSh 3,000 set aside for goals · KSh 22,900 available/);
+  assert.equal(await home(page, "total-held"), "KSh 25,900");
+  assert.equal(await home(page, "spending-balance"), "KSh 22,900");   // the 3,000 sits in the savings account
+  assert.equal(await home(page, "home-free"), "KSh 22,900");
+  await h.goView(page, "money");
+  assert.match(await h.bodyText(page), /Set aside for goals KSh 3,000/);
   noErrors(errors); await context.close();
 });
 
@@ -51,7 +58,7 @@ test("adding an expense through the form reduces the balance", async () => {
   await page.evaluate(() => document.getElementById("transactionForm").requestSubmit());
   await page.waitForTimeout(200);
   await h.goView(page, "home");
-  assert.match(await h.bodyText(page), /recorded money KSh 25,000/);
+  assert.equal(await home(page, "total-held"), "KSh 25,000");
   const saved = await h.storedState(page);
   assert.equal(saved.transactions.length, 9);
   noErrors(errors); await context.close();
@@ -151,7 +158,7 @@ test("migration keeps transaction types it does not recognise (e.g. transfer)", 
   assert.equal(t.toAccount, "bank");
   // it has no valid destination account, so it moves nothing: total unchanged at 25,900
   await h.goView(page, "home");
-  assert.match(await h.bodyText(page), /recorded money KSh 25,900/);
+  assert.equal(await home(page, "total-held"), "KSh 25,900");
   noErrors(errors); await context.close();
 });
 
@@ -174,7 +181,7 @@ test("migration normalises legacy types: missing -> expense, 'Income' -> income"
   assert.equal(d.transactions.find(t => t.id === 3).type, "expense");
   assert.equal(d.transactions.find(t => t.id === 2).type, "income");
   await h.goView(page, "home");
-  assert.match(await h.bodyText(page), /recorded money KSh 25,900/);
+  assert.equal(await home(page, "total-held"), "KSh 25,900");
   await context.close();
 });
 
@@ -210,10 +217,15 @@ function wallet(extra = {}) {
 }
 const accountCard = async (page, name) => {
   await h.goView(page, "money");
-  const text = await h.bodyText(page);
-  const m = text.match(new RegExp(`${name} [A-Za-z /-]*? ?(−?KSh [0-9,]+) Set aside (KSh [0-9,]+) · Available (−?KSh [0-9,]+)`));
-  assert.ok(m, `no account card for ${name}`);
-  return { balance: m[1], setAside: m[2], available: m[3] };
+  const label = name.replace(/\\/g, "");
+  const card = await page.evaluate(label => {
+    const el = [...document.querySelectorAll("#moneyView .account-card")].find(c => c.querySelector(".account-head strong").textContent.replace(" (hidden)", "").trim() === label);
+    if (!el) return null;
+    const read = f => el.querySelector(`[data-figure="${f}"]`).textContent.trim();
+    return { balance: read("balance"), setAside: read("set-aside"), available: read("available") };
+  }, label);
+  assert.ok(card, `no account card for ${label}`);
+  return card;
 };
 const setAside = async (page, goalId, accountId, amount) => {
   await h.goView(page, "goals");
@@ -249,7 +261,9 @@ test("setting money aside inside M-Pesa keeps the balance and lowers what is ava
   assert.deepEqual(await accountCard(page, "M-Pesa"), { balance: "KSh 10,000", setAside: "KSh 2,000", available: "KSh 8,000" });
   assert.equal(await goalSavedOf(page, 50), 2000);
   await h.goView(page, "home");
-  assert.match(await h.bodyText(page), /recorded money KSh 10,000 KSh 2,000 set aside for goals · KSh 8,000 available/);
+  assert.equal(await home(page, "total-held"), "KSh 10,000");
+  assert.equal(await home(page, "home-set-aside"), "KSh 2,000");
+  assert.equal(await home(page, "home-free"), "KSh 8,000");
   noErrors(errors); await context.close();
 });
 
@@ -277,10 +291,9 @@ test("a transfer moves money between accounts without changing income, spending 
   assert.equal((await accountCard(page, "M-Pesa")).balance, "KSh 7,000");
   assert.equal((await accountCard(page, "M-Shwari")).balance, "KSh 3,000");
   await h.goView(page, "home");
-  const text = await h.bodyText(page);
-  assert.match(text, /recorded money KSh 10,000/);
-  assert.match(text, /This month in KSh 10,000/);
-  assert.match(text, /This month out KSh 0/);
+  assert.equal(await home(page, "total-held"), "KSh 10,000");
+  assert.equal(await home(page, "month-in"), "KSh 10,000");
+  assert.equal(await home(page, "month-out"), "KSh 0");
   noErrors(errors); await context.close();
 });
 
@@ -320,7 +333,7 @@ test("partial release and spend-from-goal: progress, balance and spending all co
   assert.equal(await goalSavedOf(page, 50), 3500);
   assert.deepEqual(await accountCard(page, "M-Pesa"), { balance: "KSh 9,500", setAside: "KSh 3,500", available: "KSh 6,000" });
   await h.goView(page, "home");
-  assert.match(await h.bodyText(page), /This month out KSh 500/);
+  assert.equal(await home(page, "month-out"), "KSh 500");
   await h.goView(page, "goals");
   await h.clickAction(page, "release-goal", 50);
   await h.submitForm(page, "releaseForm", { releaseAccount: "mpesa", releaseAmount: "9000" });
@@ -348,14 +361,14 @@ test("borrowed money increases the account but is not income; repayments are not
   await h.submitForm(page, "debtForm", { debtName: "Loan from Otieno", debtTotal: "5000", debtReceived: "mpesa" });
   assert.equal((await accountCard(page, "M-Pesa")).balance, "KSh 15,000");
   await h.goView(page, "home");
-  assert.match(await h.bodyText(page), /This month in KSh 10,000/);
+  assert.equal(await home(page, "month-in"), "KSh 10,000");
   const debtId = (await h.storedState(page)).debts[0].id;
   await h.goView(page, "debts");
   await h.clickAction(page, "repay-debt", debtId);
   await h.submitForm(page, "repaymentForm", { repaymentAmount: "1000", repaymentAccount: "mpesa" });
   assert.equal((await accountCard(page, "M-Pesa")).balance, "KSh 14,000");
   await h.goView(page, "home");
-  assert.match(await h.bodyText(page), /This month out KSh 0/);
+  assert.equal(await home(page, "month-out"), "KSh 0");
   const s = await h.storedState(page);
   assert.equal(s.debts[0].repaid, 1000);
   noErrors(errors); await context.close();
@@ -415,7 +428,7 @@ test("adding an account through the form and money totals stay exact to the cent
   const seed = wallet({ transactions: [tx(1, "income", 0.3, "Income", "2026-11-20", { accountId: "mpesa" }), tx(2, "expense", 0.1, "Food", "2026-11-20", { accountId: "mpesa" }), tx(3, "expense", 0.2, "Food", "2026-11-20", { accountId: "mpesa" })] });
   const { page, context, errors } = await h.openApp({ seed });
   // 0.3 - 0.1 - 0.2 is -0.0000000000000000277 in plain floating point; it must be exactly 0
-  assert.match(await h.bodyText(page), /recorded money KSh 0 /);
+  assert.equal(await home(page, "total-held"), "KSh 0");
   await h.goView(page, "money");
   await h.clickAction(page, "add-account");
   await h.submitForm(page, "accountForm", { accName: "KCB M-Pesa", accKind: "savings", accOpening: "2500", accOpeningDate: "" });
@@ -509,15 +522,16 @@ function irregularWallet() {
 test("safe to spend, fixed payday: only spending accounts, bills in period, nothing guessed", async () => {
   const { page, context, errors } = await h.openApp({ seed: realisticMonth() });
   const text = await planText(page);
+  const f = name => h.figure(page, name);
   // Period 25-27 Nov (payday 28th) = 3 days. Spending money = M-Pesa 35,600 + Cash -7,700 +
   // Other -5,000 = 22,900 (the savings account and its 3,000 goal money are not counted).
   // Bills: KPLC 1,500 due 27 Nov. Fuliza: 2,000 already repaid this month > 1,000 plan -> 0.
-  assert.match(text, /Planning until payday on 28 Nov 2026 · 3 days/);
-  assert.match(text, /Spending money available KSh 22,900/);
-  assert.match(text, /Less bills due −KSh 1,500/);
-  assert.match(text, /Less debt instalments −KSh 0/);
-  assert.match(text, /Protected reserve left KSh 21,400/);
-  assert.match(text, /KSh 7,133 per day/);
+  assert.equal(await f("plan-period"), "Until payday on 28 Nov 2026 · 3 days");
+  assert.equal(await f("plan-spendable"), "KSh 22,900");
+  assert.equal(await f("plan-bills"), "−KSh 1,500");
+  assert.equal(await f("plan-debt"), "−KSh 0");
+  assert.equal(await f("plan-reserve"), "KSh 21,400");
+  assert.equal(await f("plan-daily"), "KSh 7,133");
   assert.match(text, /Not counted: Savings \(before accounts\) KSh 3,000 \(savings\)/);
   noErrors(errors); await context.close();
 });
@@ -528,19 +542,20 @@ test("safe to spend, irregular income: chosen period, buffer, and no double coun
   await h.clickAction(page, "edit-plan");
   await h.submitForm(page, "plannerForm", { planPattern: "irregular", planDays: "7", planBuffer: "1000" });
   const text = await planText(page);
+  const f = name => h.figure(page, name);
   // Period 25 Nov - 1 Dec (7 days). Spending money = 10,000 - 500 set aside = 9,500.
   // Bills: Water 800 (30 Nov); the school trip (5 Dec) is outside the period.
   // Debts: Chama plan 1,500; Achieng has no plan -> not guessed, flagged.
   // Goal: 2,000 monthly target - 500 already set aside this month = 1,500 (the 500 is NOT deducted twice).
   // Reserve = 9,500 - 800 - 1,500 - 1,500 - 1,000 buffer = 4,700 -> 671/day.
-  assert.match(text, /Planning the next 7 days · 7 days/);
-  assert.match(text, /Spending money available KSh 9,500/);
-  assert.match(text, /Less bills due −KSh 800/);
-  assert.match(text, /Less debt instalments −KSh 1,500/);
-  assert.match(text, /Less goal plans not yet set aside −KSh 1,500/);
-  assert.match(text, /Less minimum buffer −KSh 1,000/);
-  assert.match(text, /Protected reserve left KSh 4,700/);
-  assert.match(text, /KSh 671 per day/);
+  assert.equal(await f("plan-period"), "For the next 7 days");
+  assert.equal(await f("plan-spendable"), "KSh 9,500");
+  assert.equal(await f("plan-bills"), "−KSh 800");
+  assert.equal(await f("plan-debt"), "−KSh 1,500");
+  assert.equal(await f("plan-goals"), "−KSh 1,500");
+  assert.equal(await f("plan-buffer"), "−KSh 1,000");
+  assert.equal(await f("plan-reserve"), "KSh 4,700");
+  assert.equal(await f("plan-daily"), "KSh 671");
   assert.match(text, /1 debt has no repayment plan and is not included/);
   // Expected income: only the 5,000 due in the period, and never in the main number.
   assert.match(text, /If the KSh 5,000 expected in this period arrives, safe to spend would be KSh 1,386 a day instead of KSh 671/);
@@ -572,11 +587,11 @@ test("expected income: counted only when received; deleting the income puts it b
 test("a savings account counts towards safe to spend only when marked as spending money", async () => {
   const seed = wallet(); seed.accounts[2].openingBalance = 4000;   // M-Shwari holds 4,000
   const { page, context } = await h.openApp({ seed });
-  assert.match(await planText(page), /Spending money available KSh 10,000/);
+  assert.equal(await planFigure(page, "plan-spendable"), "KSh 10,000");
   await h.goView(page, "money");
   await h.clickAction(page, "edit-account", "mshwari");
   await h.submitForm(page, "accountForm", { accSpending: true });
-  assert.match(await planText(page), /Spending money available KSh 14,000/);
+  assert.equal(await planFigure(page, "plan-spendable"), "KSh 14,000");
   await context.close();
 });
 
@@ -590,7 +605,7 @@ test("reconcile down: labelled adjustment, not spending; full audit details reco
   assert.deepEqual([adj.direction, adj.amount, adj.date, adj.notes], ["out", 800, "2026-11-25", "Small M-Pesa payments not recorded"]);
   assert.deepEqual([adj.reconciliation.recordedBalance, adj.reconciliation.actualBalance, adj.reconciliation.difference], [10000, 9200, -800]);
   await h.goView(page, "home");
-  assert.match(await h.bodyText(page), /This month out KSh 0/);
+  assert.equal(await home(page, "month-out"), "KSh 0");
   await h.goView(page, "money");
   await h.clickAction(page, "reconcile-history", "mpesa");
   const history = await page.evaluate(() => document.querySelector(".modal").innerText.replace(/\s+/g, " "));
@@ -607,7 +622,7 @@ test("reconcile with 'unrecorded spending': the shortfall counts as spending", a
   const entry = s.transactions.find(t => t.reconciliation);
   assert.deepEqual([entry.type, entry.category, entry.amount], ["expense", "Unrecorded spending", 1000]);
   await h.goView(page, "home");
-  assert.match(await h.bodyText(page), /This month out KSh 1,000/);
+  assert.equal(await home(page, "month-out"), "KSh 1,000");
   await context.close();
 });
 
@@ -621,7 +636,7 @@ test("reconcile up and as of a past date: entries after that date are not part o
   assert.deepEqual([adj.direction, adj.amount, adj.reconciliation.recordedBalance], ["in", 500, 0]);
   assert.equal((await accountCard(page, "M-Pesa")).balance, "KSh 10,500");
   await h.goView(page, "home");
-  assert.match(await h.bodyText(page), /This month in KSh 10,000/);   // an adjustment is not income
+  assert.equal(await home(page, "month-in"), "KSh 10,000");   // an adjustment is not income
   await context.close();
 });
 
@@ -640,7 +655,7 @@ test("adjustments cannot be edited or deleted, only reversed; both entries stay 
   assert.equal(original.reversedBy, reversal.id);
   assert.equal((await accountCard(page, "M-Pesa")).balance, "KSh 10,000");
   await h.goView(page, "home");
-  assert.match(await h.bodyText(page), /This month out KSh 0/);
+  assert.equal(await home(page, "month-out"), "KSh 0");
   await h.goView(page, "money");
   const text = await h.bodyText(page);
   assert.match(text, /Reversed/); assert.match(text, /Reversal/);
@@ -656,7 +671,7 @@ test("reconcile fixes an upgraded account that showed below zero", async () => {
   await h.submitForm(page, "reconcileForm", { recActual: "1200", recReason: "Counted my wallet" });
   assert.equal((await accountCard(page, "Cash")).balance, "KSh 1,200");
   await h.goView(page, "reports");
-  assert.match(await h.bodyText(page), /Expenses KSh 23,900/);   // reports unchanged by the correction
+  assert.equal(await h.figure(page, "report-spending"), "KSh 23,900");   // reports unchanged by the correction
   await context.close();
 });
 
@@ -696,8 +711,9 @@ test("[D2 fixed] savings and debt repayments are not counted as spending", async
   // November spending = food 6,500 + transport 2,400 + rent 15,000 = 23,900.
   // Schema 9 showed 28,900 (it added the 3,000 saving and the 2,000 debt repayment).
   const text = await h.bodyText(page);
-  assert.match(text, /Expenses KSh 23,900/);
-  assert.match(text, /Set aside for goals KSh 3,000 not counted as spending/);
+  assert.equal(await h.figure(page, "report-spending"), "KSh 23,900");
+  assert.equal(await h.figure(page, "report-set-aside"), "KSh 3,000");
+  assert.match(text, /not counted as spending/);
   assert.doesNotMatch(text, new RegExp(kes(28900)));
   await context.close();
 });
@@ -767,7 +783,7 @@ test("[D6 fixed] an existing plain-text PIN is converted to a salted hash and re
   assert.ok(await locked(page), "still locked after conversion");
   await typePin(page, "4821");
   assert.equal(await locked(page), false, "the original PIN still unlocks");
-  assert.match(await h.bodyText(page), /recorded money KSh 25,900/, "records intact after conversion");
+  assert.equal(await home(page, "total-held"), "KSh 25,900", "records intact after conversion");
   const backup = await h.exportBackup(page);
   const text = JSON.stringify(backup);
   assert.ok(!text.includes("4821") && !("pin" in backup.data) && !("pinHash" in backup.data) && !text.includes(s.pinHash.hash) && !text.includes(s.pinHash.salt), "backup has no PIN or PIN hash");
@@ -891,7 +907,7 @@ test("backup reminder: shown until the user downloads a backup, then the date is
 knownDefect("D3", "the app can record money other people owe me", async () => {
   const { page, context } = await h.openApp({ seed: realisticMonth() });
   await h.goView(page, "debts");
-  assert.match(await h.bodyText(page), /owed to me|owe me|lent/i);
+  assert.ok(await page.$('[data-action="add-receivable"]'), "no way to record money lent");
   await context.close();
 });
 

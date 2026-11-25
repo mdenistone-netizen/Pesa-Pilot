@@ -124,9 +124,8 @@ async function verify(name, seed, browser) {
   const balances = oracleAccountBalances(B), totalNew = Object.values(balances).reduce((s, v) => s + v, 0);
   assert.equal(totalNew, oldBalanceCents(A) + goalLinkedCents(A), `${name}: total held`);
   await h.goView(page, "money");
-  const text = await h.bodyText(page);
   for (const acc of B.accounts) {
-    const shown = (text.match(new RegExp(`${acc.name.replace(/[()/]/g, m => "\\" + m)} [A-Za-z /-]*? ?(−?KSh [0-9,]+) Set aside`)) || [])[1];
+    const shown = await h.figure(page, "balance", `#moneyView [data-account="${acc.id}"]`);
     assert.equal(shown, (balances[acc.id] < 0 ? "−" : "") + kes(balances[acc.id]), `${name}: account card ${acc.name} matches oracle`);
   }
   // -- PIN converted, never exported

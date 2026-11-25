@@ -194,3 +194,50 @@ Entries made *after* upgrading would need re-entering, so a rollback should happ
 | Migration | **4 of 4** data sets upgraded correctly, rolled back identically, and safe under the emergency build (`evidence/release-1-migration.txt`) |
 | UI snapshots | 76/76 stable |
 | Known defects open | D3, D9 (not release-blocking: checklist §4) |
+
+---
+
+## CR-005 · Complete UI/UX redesign (presentation only)
+
+| | |
+|---|---|
+| Date | 2026-11-25 |
+| Status | **Implemented + Tested.** Not deployed: waiting for the owner's preview review |
+| Requested by | Owner (UI/UX redesign brief) · DEC-021 |
+| Engine / data change | **None.** `tests/engine-fingerprint.js`: 106/106 engine functions and constants byte-identical to before the redesign |
+
+### What changed (index.html styles and templates; new `fonts/`)
+- **New design system:** tokens for colour, type, spacing, radius and shadow; light and dark themes; Inter self-hosted.
+- **Navigation:** icon tabs on desktop. On phones, a bottom bar with Home, Money, Plan, Savings and More; the More menu holds Bills, Debts, Reports and Settings.
+- **Home:** money in spending accounts (set aside / free to use / total including savings), safe to spend today with its explanation, quick actions, this month (in/out and budget), coming up (bill status badges), savings progress, accounts, recent activity.
+- **Money:**
+  - Account cards clearly separate **Balance / Set aside / Available**, with type icons.
+  - Transactions are a clean list. Search and filters are tucked away. The latest 30 show, with "Show more" for older ones.
+- **Plan:** plain-language breakdown ("Money free to use", "Bills due", "Left to spend"). The weekly guardrail and next-move card moved here from Home. "How this works" is collapsible.
+- **Savings** (was Goals): saved / target / still needed; holdings labelled "In M-Shwari" (moved to a savings account) vs "Set aside in M-Pesa" (reserved in place).
+- **Debts:** "Money I owe" section; "Money others owe me" shown as coming later (D3 stays open, and its test now checks for a real way to record lending, not just the words).
+- **Bills:** Overdue / Due today / In N days / Part paid / Upcoming badges.
+- **Reports:** cleaner summary figures ("Spending").
+- **Settings:** regrouped as Backups & recovery (3 simple steps, last backup, recovery copies), Security, Profile & preferences, Categories, App, Delete all data.
+  - This **also fixes** an old patch that overwrote the honest PIN wording (DEC-019) right after the screen was drawn.
+- **Phones:** bottom-sheet dialogs; compact figure rows; badges move under names on narrow screens; nothing clips at 320 px.
+
+### Functionality
+Nothing was removed. Every action, form and field is kept. Removed from Home but still available elsewhere: the weekly guardrail (now on Plan), the next-move card (Plan), the week's spending figure (Plan → Cash flow), and the separate bill-reminder card (merged into "Coming up"; the top reminder pill stays).
+
+### Tests
+- **Tests now read money figures through `data-figure` markers** instead of wording. Expected amounts are unchanged.
+- New tools:
+  - `tests/engine-fingerprint.js` proves the engine is untouched;
+  - `tests/ui-audit.js` checks sideways scrolling, touch targets and WCAG AA contrast on 8 screens and 5 dialogs, at 320/360/390/1280 px, in light and dark mode.
+
+| Check | Result |
+|---|---|
+| Regression | 53 passed, 0 failed |
+| Migration (4 representative data sets, rollback) | 4/4 |
+| Engine fingerprint | 106/106 unchanged |
+| UI audit | **0 issues** (light and dark, 4 widths) |
+| UI snapshots | New baseline after intended changes; stable |
+
+### Found while redesigning (fixed separately as CR-006)
+D12: the Reports month picker and trend chart skip the current month in Kenyan time. This exists in the live app today.

@@ -108,4 +108,13 @@ async function submitForm(page, formId, values = {}) {
   await page.waitForTimeout(150);
 }
 
-module.exports = { toastText, submitForm, openApp, closeBrowser, settle, goView, exportBackup, importBackup, storedState, bodyText, clickAction, FIXED_NOW, STORAGE_KEY };
+/** Text of a figure marked data-figure="name" on the current screen (optionally inside a container). */
+async function figure(page, name, scope = "") {
+  return page.evaluate(({ name, scope }) => {
+    const root = scope ? document.querySelector(scope) : document.querySelector(".view.active");
+    const el = root && root.querySelector(`[data-figure="${name}"]`);
+    return el ? el.textContent.replace(/\s+/g, " ").trim() : null;
+  }, { name, scope });
+}
+
+module.exports = { figure, toastText, submitForm, openApp, closeBrowser, settle, goView, exportBackup, importBackup, storedState, bodyText, clickAction, FIXED_NOW, STORAGE_KEY };

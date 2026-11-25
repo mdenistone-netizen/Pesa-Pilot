@@ -11,12 +11,12 @@ s.categories.push({ id: "airtime", name: "Airtime" }, { id: "chama", name: "Cham
 s.budgets = { monthlySpending: 32000, categoryBudgets: { Food: 9000, Transport: 5000, Airtime: 800 } };
 let id = 1;
 const day = (m, d) => `2026-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-const spend = [["Food", 150, 900, ["Lunch", "Sokoni", "Unga & sukari", "Chips mayai"]], ["Transport", 80, 400, ["Matatu", "Boda", "Fare to town"]], ["Airtime", 50, 250, ["Data bundles", "Airtime"]], ["Shopping", 300, 2500, ["Naivas", "Shoes"]], ["Family", 500, 2000, ["Sent to mum"]], ["Entertainment", 200, 1200, ["Movie", "Outing"]]];
+const spend = [["Food", 120, 700, ["Lunch", "Sokoni", "Unga & sukari", "Chips mayai"]], ["Transport", 80, 400, ["Matatu", "Boda", "Fare to town"]], ["Airtime", 50, 250, ["Data bundles", "Airtime"]], ["Shopping", 300, 1500, ["Naivas", "Shoes"]], ["Family", 500, 1500, ["Sent to mum"]], ["Entertainment", 200, 800, ["Movie", "Outing"]]];
 for (const m of [9, 10, 11]) {
-  s.transactions.push(tx(id++, "income", 48000, "Income", day(m - 1, 28), { paymentMethod: "Bank", notes: "Salary" }));   // paid on the 28th of the previous month
+  s.transactions.push(tx(id++, "income", 48000, "Income", day(m - 1, 28), { paymentMethod: "M-Pesa", notes: "Salary" }));   // paid on the 28th of the previous month
   s.transactions.push(tx(id++, "income", Math.round(r() * 6000 + 2000), "Income", day(m, 12), { paymentMethod: "M-Pesa", notes: "Freelance design job" }));
   const lastDay = m === 11 ? 24 : 28;
-  for (let k = 0; k < 45; k++) {
+  for (let k = 0; k < 28; k++) {
     const [cat, lo, hi, notes] = spend[Math.floor(r() * spend.length)];
     s.transactions.push(tx(id++, "expense", Math.round(r() * (hi - lo) + lo), cat, day(m, 1 + Math.floor(r() * lastDay)), { paymentMethod: r() < 0.7 ? "M-Pesa" : "Cash", notes: notes[Math.floor(r() * notes.length)] }));
   }
