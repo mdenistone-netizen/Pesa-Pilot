@@ -1,6 +1,6 @@
 # P3 · DB-5: "Will I make it to my next income?" + "Before You Spend"
 
-**Status:** decision brief and design (planning only, DEC-023). Building it needs **owner approval of the rules in §4 and the choices in §9**. It is a new *read-only* calculation: it would change no stored balances, transactions or existing rules.
+**Status:** first design, **superseded where they differ by `DB-5_DECISION_BRIEF.md`** (irregular horizon, timing view, cushion, late income; see the brief's §10). Planning only (DEC-023). Building it needs **owner approval of the rules in §4 and the choices in §9**. It is a new *read-only* calculation: it would change no stored balances, transactions or existing rules.
 
 ## 1. The decision
 How should PesaPilot answer two everyday questions?

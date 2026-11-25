@@ -135,3 +135,23 @@ These need Node and Playwright, which are pre-installed in Claude Code cloud ses
 - Walkthrough fixes in B: past dates and today refused; a payment chip with no amount is refused instead of counting as 0.
 - Wrote `specs/ONBOARDING_COMPARISON.md` (metrics, accuracy mapping to existing rules, walkthrough, recommendation) and `interview-pack/09_FIRST_RUN_TEST.md` (unassisted, counterbalanced A vs B, pre-registered criteria). Waiting for owner approval; no real-user test done yet.
 - No app code or financial rules changed.
+
+### 2026-11-25 · DEC-026 + DB-5 decision brief
+- The owner decided (DEC-026):
+  - B is the preferred onboarding direction, subject to real-user testing; A kept for comparison; neither implemented;
+  - the first-run test design is approved (running it isn't);
+  - the PIN stays required at first run;
+  - the daily figure is a planning guide, not an allowance.
+- Prototypes:
+  - removed the PIN-optional switch and the owner-decision banner from both;
+  - B's answer now reads "To make your money last until …, plan on about KSh Y a day", with "a planning guide, not a fixed daily allowance";
+  - B's Home leads with the amount left until the next money.
+- Re-measured, fixing the script's text split: words before the answer 100 vs 152; words on the answer screen 53 vs 92. A's 9 taps include 4 PIN digits.
+- `09_FIRST_RUN_TEST.md`: understanding checks U1–U5 (money now, must-pay, what remains, the daily figure as a guide, expected income not counted), red flags and pre-registered criteria.
+- Wrote `specs/DB-5_DECISION_BRIEF.md` (12 choices) and `prototypes/will-i-make-it/model.js`, a reference model that computes and asserts every example.
+- The model exposed and corrected:
+  - an unsafe irregular horizon (ending at an expected payment assumes it arrives);
+  - a meaningless lowest-point view (with no income counted, money only falls), replaced by runway and first payment at risk;
+  - cushion double-counting of the buffer;
+  - a second daily figure (now one: DEC-015 safe to spend per day).
+- No app code or financial rules changed.
