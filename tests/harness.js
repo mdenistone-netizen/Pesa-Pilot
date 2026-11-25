@@ -5,7 +5,8 @@ const path = require("path");
 const fs = require("fs");
 const { chromium } = require("playwright");
 
-const APP_URL = "file://" + path.resolve(__dirname, "..", "index.html");
+// PESAPILOT_APP lets a tool point the harness at another build (e.g. an older version for comparisons).
+const APP_URL = "file://" + (process.env.PESAPILOT_APP || path.resolve(__dirname, "..", "index.html"));
 const STORAGE_KEY = "pesapilot_v2";
 const ONBOARDING_KEY = "pesapilot_onboarding_v1";
 // Fixed "now" so results are reproducible: 25 Nov 2026, 10:00 Nairobi time.
