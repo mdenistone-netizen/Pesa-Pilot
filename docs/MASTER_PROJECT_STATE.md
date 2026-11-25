@@ -180,8 +180,8 @@ None of these approves implementation, rule changes, infrastructure, merging or 
 | # | Deliverable | Status | Key decisions it raises |
 |---|---|---|---|
 | P4 | `strategy/VALIDATION_PLAN.md`: 24 interviews with quotas (casual, freelance, small business, salaried, young families; overlaps for family support, borrowers, chama/SACCO, ≥12 non-trackers); behaviour-over-opinion evidence log; willingness-to-pay ladder; pre-registered success criteria | **Done** | Owner: whether to run refundable till pre-orders (§6.4); who interviews |
-| P2 | M-Pesa capture spec | In progress | |
-| P3 | DB-5 "Will I make it?" + Before You Spend | Planned | |
+| P2 | `specs/MPESA_CAPTURE.md`: message catalogue (16 types), classification rules (own-account transfers, withdraw/deposit as M-Pesa⇄Cash, charges as linked "M-Pesa charges" expenses, Fuliza as borrowing + fees), reversals, 4-layer duplicate detection (code, batch, probable manual duplicate, balance hint), verification plan | **Done** | DB-1: approve paste parser, `externalRef` field, own-account mapping, linked charges, reversal pairs for captured entries; Fuliza waits for DB-3. **Fuliza and reversal wording is unverified** and needs real samples (kept private) |
+| P3 | DB-5 "Will I make it?" + Before You Spend | In progress | |
 | P1 | Onboarding design | Planned | |
 | P5 | Backup assessment | Planned | |
 | P6 | PWA assessment (DB-6) | Planned | |
