@@ -174,3 +174,15 @@ Full report: `strategy/PRODUCT_STRATEGY_2026-11.md` (with the owner's refinement
 - **Roadmap:** Release 1 scope frozen. Then planning P1–P6, then build stages A–F one at a time (see `ROADMAP.md`).
   - **Avoid for now:** bank integrations, selling investments or loans, credit scoring, an AI adviser, default cloud accounts, bookkeeping, crypto.
 
+## 12. Planning deliverables (P1–P6, approved as research and design only)
+None of these approves implementation, rule changes, infrastructure, merging or deployment.
+
+| # | Deliverable | Status | Key decisions it raises |
+|---|---|---|---|
+| P4 | `strategy/VALIDATION_PLAN.md`: 24 interviews with quotas (casual, freelance, small business, salaried, young families; overlaps for family support, borrowers, chama/SACCO, ≥12 non-trackers); behaviour-over-opinion evidence log; willingness-to-pay ladder; pre-registered success criteria | **Done** | Owner: whether to run refundable till pre-orders (§6.4); who interviews |
+| P2 | M-Pesa capture spec | In progress | |
+| P3 | DB-5 "Will I make it?" + Before You Spend | Planned | |
+| P1 | Onboarding design | Planned | |
+| P5 | Backup assessment | Planned | |
+| P6 | PWA assessment (DB-6) | Planned | |
+
