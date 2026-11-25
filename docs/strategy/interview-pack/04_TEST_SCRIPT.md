@@ -25,8 +25,14 @@ Hand the cards one at a time, in this order. **Don't demonstrate first.**
 | A1 | "You just paid **KSh 100 matatu fare in cash**. Record it." | Expense · KSh 100 · Transport · Cash | Finding "Expense"; choosing the Cash account; category |
 | A2 | "You **received KSh 2,500** on M-Pesa from a customer. Record it." | Income · KSh 2,500 · M-Pesa | Income vs expense; account |
 | A3 | "You bought **airtime for KSh 50** with M-Pesa. Record it." | Expense · KSh 50 · M-Pesa | Speed on the second expense (learning effect) |
-| A4 | "You **withdrew KSh 1,000** from M-Pesa at an agent, and the **charge was KSh 29**. Record what happened." | Transfer M-Pesa → Cash 1,000 **and** expense 29 (charges) | **Key classification test:** do they record the withdrawal as spending? Do they remember the charge? |
+| A4 | "You **took KSh 1,000 cash out at an M-Pesa agent**. The agent's **charge was KSh 29**. Record what happened." *(Don't use the words "transfer" or "expense".)* | **Two records:** (a) **transfer** of KSh 1,000 **from M-Pesa to Cash**, not spending and not income; (b) **expense** of KSh 29 from M-Pesa, category M-Pesa charges (or similar) | See **A4 check** below |
 | A5 | "You **sent KSh 500 to your mother**. Record it." | Expense · 500 · M-Pesa (e.g. Family) | Category choice; time |
+
+**A4 check (record each part separately on the scoring sheet):**
+- **A4a, the withdrawal:** recorded as a *transfer* M-Pesa → Cash? Or wrongly as an *expense* (counted as spending), as *income* to Cash, or only one side?
+- **A4b, the charge:** recorded as a *separate expense* of KSh 29 from M-Pesa? Or forgotten, or added into the 1,000 (KSh 1,029 transferred), or recorded as part of the transfer?
+- **Result check** (look at the account cards after A4): M-Pesa down by 1,029; Cash up by 1,000; spending up by **only 29**.
+- **Afterwards, ask:** "How did you decide how to record the KSh 1,000? And the KSh 29?" [SAYS]. This tells us whether wording or design caused any error.
 
 **After A5:**
 - "How did that feel? Which was hardest?" [SAYS]

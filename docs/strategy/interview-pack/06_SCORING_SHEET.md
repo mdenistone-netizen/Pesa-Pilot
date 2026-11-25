@@ -32,7 +32,9 @@
 | A1 cash expense | | | | | |
 | A2 M-Pesa income | | | | | |
 | A3 airtime | | | | | |
-| A4 withdrawal + charge | | Recorded as spending? ☐ Forgot charge? ☐ | | | |
+| A4a withdrawal 1,000 | | Transfer M-Pesa→Cash ☐ · wrongly expense ☐ · wrongly income ☐ · one side only ☐ | | | |
+| A4b charge 29 | | Separate expense from M-Pesa ☐ · forgotten ☐ · merged into 1,029 ☐ · other ☐ | | | |
+| A4 result | — | M-Pesa −1,029 ☐ · Cash +1,000 ☐ · spending +29 only ☐ | | | |
 | A5 money to mother | | | | | |
 | B1 free to spend | — | Read total instead? ☐ | | | |
 | B2 M-Pesa balance | | | | | |
@@ -52,7 +54,7 @@
 ## 4. Commitments (behaviour, not opinion)
 - ☐ Joined the 7-day trial
 - ☐ Recorded on ≥ 5 of 7 days *(fill after the trial)*
-- ☐ Still recording at 14 days *(fill after the follow-up)*
+- ☐ Recorded in the 3 days before the 14-day check *(separate short-term observation; not proof of long-term retention)*
 - ☐ Introduced someone else to the study (referral)
 
 ## 5. Trial results (from `05_RECORDING_TRIAL.md`)

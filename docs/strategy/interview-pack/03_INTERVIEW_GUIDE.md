@@ -35,7 +35,7 @@
 
 ## D · Keeping track and forgotten transactions (10 min) → questions 1–3
 10. "Have you **ever** tried to write down or record what you spend: notebook, phone notes, Excel, an app?" [DID]
-    - **If yes:** "Show me, if you're comfortable." [OBS] "When did you last add something?" [DID] "How long did you keep it going?" [DID] "**What made you stop**, or what makes you skip days?" [DID]
+    - **If yes:** "Can you describe how you do it?" *(Never ask to see bank, M-Pesa or other financial records; a paper notebook may be described, not photographed.)* [DID] "When did you last add something?" [DID] "How long did you keep it going?" [DID] "**What made you stop**, or what makes you skip days?" [DID]
     - **If no:** "What do you do instead to know where money went?" [DID] "What has stopped you from writing things down?" [SAYS, mark as opinion]
 11. "Think of **yesterday**. What did you spend money on? Can you list them?" [DID]
     - *Observe:* how many they recall, and whether small items (fare, airtime, snacks, M-Pesa charges) are forgotten. [OBS]

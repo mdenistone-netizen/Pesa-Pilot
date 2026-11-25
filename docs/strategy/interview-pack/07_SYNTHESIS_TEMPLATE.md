@@ -22,13 +22,14 @@ Fill from scoring sheets only. **Count behaviours; quote opinions; never mix the
 | Measure | Result | Target / note |
 |---|---|---|
 | Median time per entry (A1–A5) | __ s | Lower is better; compare across groups |
-| A4 withdrawal recorded **correctly as a transfer** | __ / __ | A low result means the wording or design needs work |
-| A4 charge remembered | __ / __ | |
+| A4a withdrawal recorded **as a transfer M-Pesa→Cash** (not spending) | __ / __ | A low result means the wording or design needs work |
+| A4b charge recorded **as a separate KSh 29 expense** | __ / __ | |
+| A4 both correct (M-Pesa −1,029, Cash +1,000, spending +29) | __ / __ | |
 | Needed help on ≥ 1 task | __ / __ | |
 | 7-day trial: consistent (≥ 5/7 days) | __ / __ joined | |
 | Median coverage | __% | |
 | Typical first-zero day | Day __ | |
-| 14-day continuation | __ / __ | **Strongest retention signal** |
+| 14-day observation (recorded in the last 3 days) | __ / __ | **Short-term indication only, not long-term retention** |
 
 **Stop reasons (counted from trial check-ins):**
 

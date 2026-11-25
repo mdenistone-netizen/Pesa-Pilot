@@ -15,6 +15,7 @@
 
 | File | Use | Time |
 |---|---|---|
+| `00_RESEARCH_DATA_NOTICE.md` | What the team collects, who can see it, storage, deletion; financial records stay on phones | read once |
 | `01_SCREENER.md` | Choose participants and track quotas | 3 min per person |
 | `02_CONSENT.md` | Consent script (English + Kiswahili draft) | 2 min |
 | `03_INTERVIEW_GUIDE.md` | Main interview: past behaviour only | 40 min |
@@ -22,11 +23,15 @@
 | `05_RECORDING_TRIAL.md` | Optional 7-day recording trial on the preview, with a daily 30-second check-in | 7 days |
 | `06_SCORING_SHEET.md` | Per-participant sheet: behaviour vs opinion, timings, stop reasons | 10 min after each session |
 | `07_SYNTHESIS_TEMPLATE.md` | Combine findings after each batch of 6 | 1 hour per batch |
+| `08_BUDGET_FOR_REVIEW.md` | Equal-compensation rules and budget options (**amounts not final**) | — |
 
 ## Boundaries (non-negotiable)
 - **No payments, pre-orders or price commitments.** Price questions are asked only as opinions, to choose test prices later (VALIDATION_PLAN §6.1).
 - **Nothing is collected about M-Pesa messages,** and participants are never asked to share them (DEC-024).
-- **Participants' preview data never leaves their phone.** We learn only what they *tell us* or *choose to show on screen*.
+- **Participants' financial records in the app never leave their phones.** **WhatsApp replies, notes and screener answers are research information collected by the team**, protected as in `00_RESEARCH_DATA_NOTICE.md`.
+- **No screenshots** of anything (M-Pesa messages, bank or mobile-money accounts, PINs, IDs, balances) are requested or accepted. On day 7 the participant may *read out* a number of entries.
+- **The 7-day trial is voluntary;** participants can withdraw any time without penalty. **The 14-day check is a separate short-term observation**, not proof of long-term retention.
+- **Compensation is equal for everyone,** regardless of feedback or completion. **Amounts are not final** until the owner reviews the budget (`08`).
 - **No PINs, ID numbers, statements or exact balances are written down.**
 - **Notes use participant codes** (P01…) and are stored outside the public GitHub repository. Only an anonymised summary is added to the repo.
 - **Quick entry, balance check-ins and recurring entries are not in the app.** In this research they appear only as **ideas described in words or on paper** (test script part D), never as working features.
@@ -34,8 +39,10 @@
 
 ## Before the first interview
 - [ ] The owner approves this pack (and any changes)
-- [ ] The owner decides who interviews (themselves or a hired interviewer) and the thank-you amount (suggested KSh 300–500, the same for everyone)
-- [ ] A Kiswahili speaker reviews the consent and guide translations
+- [ ] The owner decides who interviews (themselves or a hired interviewer)
+- [ ] The owner approves the budget and the equal thank-you amounts (`08_BUDGET_FOR_REVIEW.md`)
+- [ ] The research data notice is approved and the private storage set up (`00`)
+- [ ] A fluent Kiswahili speaker checks that both consent scripts give the **same protections** (`02`)
 - [ ] A test phone is ready with the preview and the demo data loaded (see the test script)
 - [ ] A **fixed-version link** chosen for the 7-day trial, so the app doesn't change mid-trial (`05_RECORDING_TRIAL.md`)
 - [ ] A private notes location exists outside GitHub (for example a private Google Drive folder)

@@ -107,3 +107,10 @@ These need Node and Playwright, which are pre-installed in Claude Code cloud ses
 ### 2026-11-25 · D13 fix proposal (not implemented)
 - `specs/D13_FIX_PROPOSAL.md`: read-only when stored data is newer, and never lower the schema label; reuses the existing read-only mechanism; tests listed.
 - Release vehicle options A/B/C; standalone release B recommended.
+
+### 2026-11-25 · P4 pack refined (owner's 7 points) + DEC-025
+- Added `00_RESEARCH_DATA_NOTICE.md` (on-phone financial records vs research information collected by the team; who can access it; storage; a deletion schedule; withdrawal) and `08_BUDGET_FOR_REVIEW.md` (equal compensation; amounts not final).
+- Consent rewritten as 9 matching English/Kiswahili points, plus 7 trial points.
+- No screenshots of anything; the trial is voluntary with no penalty; the 14-day check is a short-term observation only.
+- A4 split into A4a (transfer M-Pesa→Cash) and A4b (KSh 29 charge as an expense), with a result check.
+- Recorded DEC-025: D13 scope + Option B approved in principle; still open, not implemented.

@@ -1,4 +1,4 @@
-# 05 · Seven-Day Recording Trial (optional, for interviewees who agree)
+# 05 · Seven-Day Recording Trial (**voluntary**; for interviewees who agree)
 
 **Why:** it answers "will people consistently record manually?" with **behaviour over time**. One interview can't.
 
@@ -6,6 +6,9 @@
 - Participants use the preview on **their own phone**. **Everything they enter stays on their phone, and we never see it.**
 - We learn only what they reply to one evening question, plus what they *choose* to show at the end.
 - They may use real or rough numbers as they wish. We never ask for exact amounts.
+- **WhatsApp replies are research information collected by the team**, handled as in `00_RESEARCH_DATA_NOTICE.md`.
+- **No screenshots** are requested or accepted. If someone sends one, delete it immediately and remind them it isn't needed.
+- **Voluntary:** participants can leave at any time, without a reason and without penalty. Everyone who starts receives the **same trial thank-you**, even if they leave early or record little.
 
 ## Version freeze (important)
 - The usual preview address (`deploy-preview-1--…`) **changes code whenever the branch is updated**. During a trial that could change the app under a participant mid-week.
@@ -35,11 +38,12 @@ Sent by the interviewer from a dedicated study number. The same 3 questions ever
 **Day 4 only, extra:** "Did you check how much money was free to spend today? Did it change anything you did?"
 
 ## Day 7 call (10 minutes)
-1. "Show me the Money screen, if you're comfortable: **how many entries** do you see for this week?" Record the count only, never the details. [OBS]
+1. *(Only if they're comfortable:)* "On your Money screen, **how many entries** are there for this week? Just the number." They **read it out**; we never ask to see the screen or for a screenshot, and we record the number only. [DID]
 2. "Which days did you record most and least? What was different about those days?" [DID]
 3. "**When did you first skip?** What happened?" [DID]
 4. "What did you do when you forgot something: add it later, reconcile, or ignore it?" [DID]
-5. "Will you keep using it after today?" [SAYS]. Follow up after 14 days: "Are you still recording?" [DID]
+5. "Will you keep using it after today?" [SAYS]
+   - **14-day follow-up (separate, optional):** one WhatsApp question a week later: "Did you record anything in PesaPilot in the last 3 days?" It's a **short-term retention observation only, not proof of long-term retention.** No extra payment, and no reminder if they don't reply.
 6. Remind them how to delete everything (Settings → Delete all data) if they wish.
 
 ## What we measure
@@ -51,6 +55,6 @@ Sent by the interviewer from a dedicated study number. The same 3 questions ever
 | **Drop-off day** | First day with 0 recorded | When habits break |
 | **Stop reasons** | Q3 letters, counted | What to fix first |
 | **Recovery behaviour** | Day-7 Q4 | Do people reconcile? (Tests whether the balance check-in idea fits real behaviour) |
-| **14-day continuation** | Follow-up | Real retention signal |
+| **14-day observation** | Separate follow-up | **Short-term indication only, not proof of long-term retention** (small sample, self-reported, prompted) |
 
-**Thank-you for completing the trial:** a suggested additional KSh 300–500 (owner decides), paid **whether or not they recorded much**, so behaviour isn't distorted.
+**Trial thank-you:** the **same amount for everyone who starts the trial**, paid even if they withdraw early or record little. The amount is set by the owner (`08_BUDGET_FOR_REVIEW.md`).

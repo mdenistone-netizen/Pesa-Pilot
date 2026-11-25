@@ -54,7 +54,7 @@ Quotas make sure we hear from **ordinary Kenyans**, not only salaried profession
   - chama/SACCO membership;
   - how they keep track of money today;
   - family support.
-- **Thank-you:** KSh 300–500 airtime or M-Pesa, the same for everyone, paid **regardless of what they say**. It's paid for their time, never conditional on liking the product.
+- **Thank-you:** the same for everyone, paid **regardless of feedback or completion**. Amount to be set by the owner (`interview-pack/08_BUDGET_FOR_REVIEW.md`).
 - **Budget estimate:** 24 × KSh 400 ≈ **KSh 9,600**, plus transport for in-person sessions.
 
 ---
@@ -159,7 +159,7 @@ A "PesaPilot Plus" card listing the paid features and the price, with "Notify me
 - **Support:** a WhatsApp group (no money talk in the group; one-to-one for private questions).
 - **Measurement stays local-first:** no analytics in the app. Data comes from:
   - a **weekly 2-minute survey**: days used, whether they checked safe to spend, "did you run out this week?", Fuliza days;
-  - optional voluntary screenshots;
+  - ~~optional screenshots~~ (removed: no screenshots are ever requested, see `interview-pack/00_RESEARCH_DATA_NOTICE.md`);
   - week 4 and week 8 calls with 10 participants.
 - **Pre-registered success criteria** (decided now, before seeing results):
 
