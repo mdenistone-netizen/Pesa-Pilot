@@ -85,3 +85,12 @@ These need Node and Playwright, which are pre-installed in Claude Code cloud ses
   - no deployment without the preview review.
 - Roadmap rewritten as staged work: planning P1–P6 (independent), then build stages A–F, one at a time, each with its own approval.
 - Clarified that the owner's savings issue was corrected in CR-007 and awaits the owner's confirmation in the preview.
+
+### 2026-11-25 · Planning P1–P6 completed (no code)
+- **P4:** validation plan (quotas across income patterns, behaviour-over-opinion evidence, willingness-to-pay ladder).
+- **P2:** M-Pesa capture spec (16 message types, own-account transfers, charges, Fuliza, reversals, 4-layer duplicate detection). Fuliza and reversal wording unverified.
+- **P3:** DB-5 (expected income never counted; verdicts; Before You Spend).
+- **P1:** onboarding (2 questions to value, then a checklist).
+- **P5:** backup assessment (encrypted file + share sheet recommended).
+- **P6:** DB-6 PWA (network-first updates, kill switch).
+- Found **D13** while preparing P6 (an older app saving newer-schema data lowers the schema label). Tested; no effect on Release 1.

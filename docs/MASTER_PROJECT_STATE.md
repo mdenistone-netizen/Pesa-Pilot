@@ -99,6 +99,7 @@ Full detail: `FINANCIAL_RULES.md`.
 |---|---|---|
 | D3 | No "money owed to me" (receivables) | Phase 3 |
 | D9 | No PWA manifest / service worker (install & offline don't work) | Phase 4 |
+| D13 | Opening data saved by a *newer* version keeps it intact but re-labels it as schema 10 when saving, so a future version could re-run its upgrade. Found in P6. No effect on Release 1. | Fix before PWA/any later release (DB-6 §3.4) |
 | D10 | Dates use the phone's clock and zone | Assessed: upgrade identical across timezones; not blocking (checklist §4) |
 | — | Fixed so far | D1, D2, D4, D5, D6, D7, D8, D11, D12 |
 
@@ -137,9 +138,10 @@ Full detail: `FINANCIAL_RULES.md`.
 | 6 | **DB-3** Fuliza, chama and family-support rules | Brief exists (strategy §8) |
 | 7 | **DB-4** Backup to the user's own cloud | Waits for the assessment (P5) |
 | 8 | **DB-2** Paid tier and measurement | Waits for customer evidence (P4) |
-| 9 | Onboarding design (P1) | Owner reviews the spec/mock before Stage A |
+| 9 | Onboarding design (P1) | Owner reviews the spec; decides PIN-at-first-run and the mock go-ahead |
+| 10 | **D13 schema guard**: approve as a small separate fix before Stage C | Raised in P6 |
 
-**Can proceed independently** (planning only, no code, no rule changes): P1 onboarding design · P2 M-Pesa message research and test corpus · P3 draft of DB-5 · P4 interview guide and willingness-to-pay experiments · P5 backup assessment · P6 PWA assessment. Order and outputs: `ROADMAP.md`.
+**Planning P1–P6: all done** (§12). Next independent work, needing no approval: collect anonymised real M-Pesa message samples (privately, with the owner) to verify P2; prepare the interview materials pack from P4 when the owner is ready to recruit.
 
 ## 8. Risks
 - **Real users, data only on their devices:** a faulty release could damage data we can't see or restore centrally. Mitigations: on-device snapshot, proven rollback, deployment checklist, and owner approval (DEC-017).
@@ -184,5 +186,5 @@ None of these approves implementation, rule changes, infrastructure, merging or 
 | P3 | `specs/DB-5_WILL_I_MAKE_IT.md`: three separate inputs (actual free money, commitments, expected income) + a labelled usual-spending estimate; expected income **never** counted (only an "if it arrives" line); verdicts On track / Tight / Short / Already short; day-by-day low point; Before You Spend preview that never blocks or records by itself; worked examples; assumptions and limits | **Done** | DB-5: approve the rule and 5 choices (irregular horizon, spending estimate, tight cushion, actions, 2 optional fields) |
 | P1 | `specs/ONBOARDING.md`: 3 short steps (welcome, "what do you have now" as opening balances, "when does your next money come") → an immediate answer ("KSh X free, about KSh Y a day"), then an optional Home checklist (bills, loans, savings, buffer, income sources, backup); existing users never forced; existing features only | **Done** | Owner: PIN mandatory vs "Set PIN / Later" (security policy); default period for irregular income; go-ahead for a preview-only mock before Stage A |
 | P5 | `specs/BACKUP_ASSESSMENT.md`: threats; 4 options compared on privacy, security, user control, cost, data-protection exposure and failure modes. Recommended next: **encrypted backup file + phone share sheet** (zero infrastructure, KSh 0, user keeps control); user-owned Drive automation only later with evidence; no PesaPilot cloud | **Done** | DB-4: approve Option 1 as a future stage; recovery approach (recovery code + optional unencrypted export); defer Options 2 and 3 |
-| P6 | PWA assessment (DB-6) | In progress | |
+| P6 | `specs/DB-6_PWA_ASSESSMENT.md`: manifest + service worker that caches app files only (never data); network-first updates, versioned caches, reload prompt, kill switch; privacy, security, user control, update reliability, cost (KSh 0) assessed | **Done** | DB-6: approve a full PWA for Stage C; fix **D13** (schema guard) first; share target only with DB-1 |
 

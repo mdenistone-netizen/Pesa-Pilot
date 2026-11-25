@@ -36,6 +36,7 @@ Evidence was produced by loading the real `index.html` in headless Chromium (Nai
 | D7 ✅ fixed CR-001 | Dead/duplicate code. | `renderGoals/Debts/Reports/Settings` defined twice (later wins), plus `renderSettingsLegacy`, `bindActionsLegacy`, `payBillOriginal`. | Medium (maintainability) |
 | D8 ✅ fixed CR-002 | No multi-account model, opening balances or transfers. | Not present. | Core gap |
 | D9 | No PWA manifest/service worker. | Not present. | Medium |
+| D13 | Older app saving newer-schema data re-labels it schema 10 (data kept, label lowered). | Found in P6 (tested). | Medium before PWA / future releases |
 | D12 ✅ fixed CR-006 | Reports/Bills month pickers and the trend chart skipped the current month in UTC+3 (local midnight converted to UTC). | Found during the redesign (CR-005). | Medium |
 | D10 | Dates use device-local time, not explicitly Africa/Nairobi. Works for phones set to Kenyan time; otherwise mostly safe (noon anchoring). | `todayISO()` uses local date. | Low |
 

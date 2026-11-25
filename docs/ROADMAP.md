@@ -14,7 +14,7 @@
 | S | Savings: available to spend, use/release/correct (CR-007). **The owner's savings issue: investigated and corrected; the owner confirms it in the preview** | Implemented + tested |
 | **Release 1** | Everything above, as one upgrade | **Waiting for the owner's preview review and explicit deploy approval.** Scope frozen. |
 
-## Next: planning work (no code; can proceed without approval)
+## Planning work (no code): **all six done** (see MASTER_PROJECT_STATE §12)
 
 | # | Work | Output | Leads to |
 |---|---|---|---|
@@ -31,7 +31,8 @@
 |---|---|---|---|
 | A | Guided onboarding | P1 reviewed by the owner | None: UI over existing features (opening balances, plan settings, bills, goals, debts) |
 | B | "Will I make it?" + Before You Spend | DB-5 approved | New read-only calculation; no change to stored data |
-| C | PWA install/offline | DB-6 approved | Delivery architecture, not money rules |
+| C0 | **D13 schema guard** (never lower the schema version; read-only if data is newer) | Owner approval | Small storage-safety fix; full tests |
+| C | PWA install/offline | DB-6 approved, C0 done | Delivery architecture, not money rules |
 | D | Paste/Share M-Pesa capture with duplicate detection | DB-1 approved, Stage C | New input path; entries go through existing forms and rules |
 | E | Weekly check-in | Stage B | Read-only |
 | F | Receivables, family support, Fuliza & chama rules | DB-3 approved | Financial-rule change: migration + full verification |
