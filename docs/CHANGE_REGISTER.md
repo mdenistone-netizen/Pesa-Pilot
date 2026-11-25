@@ -241,3 +241,22 @@ Nothing was removed. Every action, form and field is kept. Removed from Home but
 
 ### Found while redesigning (fixed separately as CR-006)
 D12: the Reports month picker and trend chart skip the current month in Kenyan time. This exists in the live app today.
+
+---
+
+## CR-006 · D12 fix: month pickers and trend chart skipped the current month (Kenyan time)
+
+| | |
+|---|---|
+| Date | 2026-11-25 |
+| Status | **Implemented + Tested.** Not deployed |
+| Type | Routine bug fix (DEC-014). Display helpers only; the engine fingerprint is unchanged (106/106) |
+
+**Problem (present in the live app today).** Three display helpers turned local midnight into UTC dates. In UTC+3 that slips into the previous day, so:
+- the Reports month picker started at **October** and offered no November;
+- the 6-month trend chart ended at October;
+- the Bills month picker was off by one month.
+
+**Fix.** `monthOptions`, `billMonthOptions` and the Reports trend now build months from the local date at midday (`localISO`), like the engine functions already did.
+
+**Evidence.** A new test checks the pickers and the trend in Nairobi and New York time zones: it passes. Full suite: 54 passed, 0 failed (`evidence/redesign-tests.txt`).

@@ -1,0 +1,12 @@
+# UI audit after redesign (overflow, touch targets, WCAG AA contrast; light+dark; 320/360/390/1280px)
+
+OK     light  320px  0 issues
+OK     light  360px  0 issues
+OK     light  390px  0 issues
+OK     light 1280px  0 issues
+OK     dark   320px  0 issues
+OK     dark   360px  0 issues
+OK     dark   390px  0 issues
+OK     dark  1280px  0 issues
+
+0 issues found

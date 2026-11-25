@@ -11,7 +11,7 @@ Read this first. Other documents hold the detail:
 | `DEV_LOG.md` | Session-by-session history |
 | `ROADMAP.md` | Phase plan |
 
-_Last updated: 2026-11-25 · Release 1 prepared and verified (CR-004). **Waiting for the owner's preview review and explicit deploy approval** (DEC-018)._
+_Last updated: 2026-11-25 · UI/UX redesign (CR-005) and D12 fix (CR-006) added to the Release 1 candidate. **Waiting for the owner's preview review and explicit deploy approval.**_
 
 ---
 
@@ -21,12 +21,13 @@ _Last updated: 2026-11-25 · Release 1 prepared and verified (CR-004). **Waiting
 |---|---|
 | Product | Kenyan personal finance app: accounts (M-Pesa, cash, bank, savings), budgets, goals, bills, debts |
 | Live app | https://pesa-pilot.netlify.app/ · runs `main` @ `8e33d44` (schema 9) · **holds real users' financial data** |
-| Work branch | `claude/pesapilot-master-handover-0z1xae` · schema 10 · **53/53 regression + 4/4 migration data sets pass** · not deployed · preview: `deploy-preview-1--pesa-pilot.netlify.app` |
-| Deployment plan | **Release 1** = Phases 0.5–2 + PIN protection (DEC-018). Gate and steps: `RELEASE_1_CHECKLIST.md`. Emergency rollback target is `8370097`; **never redeploy `8e33d44`** |
+| Work branch | `claude/pesapilot-master-handover-0z1xae` · schema 10 · **54/54 regression · 4/4 migration · engine unchanged · UI audit 0 issues** · not deployed · preview: `deploy-preview-1--pesa-pilot.netlify.app` |
+| Deployment plan | **Release 1** = Phases 0.5–2 + PIN protection (DEC-018) + redesign (DEC-021) + D12 fix. Gate and steps: `RELEASE_1_CHECKLIST.md`. Emergency rollback target is `8370097`; **never redeploy `8e33d44`** |
 | Firebase / cloud | **Not implemented**, and deliberately postponed (DEC-005) |
 
 ## 2. Architecture (current)
-- **Code:** one file, `index.html`: vanilla JavaScript in a single IIFE, no build step, no dependencies. Netlify serves it as a static site (DEC-002).
+- **Code:** `index.html` (vanilla JavaScript in a single IIFE, no build step, no dependencies) plus `fonts/` (self-hosted Inter, DEC-021). Netlify serves them as static files (DEC-002).
+- **Design:** tokens and components are documented in `DESIGN_SYSTEM.md`. The phone bottom bar is Home, Money, Plan, Savings and More.
 - **Storage:**
   - Browser `localStorage` key `pesapilot_v2`, holding one JSON document.
   - A safety backup under `pesapilot_safety_backup_v9`.
@@ -34,7 +35,7 @@ _Last updated: 2026-11-25 · Release 1 prepared and verified (CR-004). **Waiting
   - Data never leaves the device except through backups the user exports.
 - **Data model (schema 10):** `accounts` (with a `spending` flag), `transactions` (kinds: income, expense, transfer, borrow, debt_repayment, adjustment; reversal links), `allocations` (goal money per account), `expectedIncome`, `goals`, `bills`, `debts`, `budgets`, `categories`, `profile` (income pattern, planning days, buffer), `pin`.
 - **Upgrades:** `migrate()` runs on every load. It is non-destructive and idempotent (DEC-004, DEC-012).
-- **Tests:** `npm test` runs headless-browser tests with a fixed clock. `npm run test:ui-snapshot` proves screens are unchanged during refactors (DEC-003).
+- **Tests:** `npm test` runs the regression suite, the migration verification and the engine fingerprint. `npm run test:ui-audit` checks overflow, touch targets and contrast. `npm run test:ui-snapshot` proves screens are unchanged during refactors (DEC-003).
 
 ## 2a. Deployment & data facts (verified 2026-11-25 from GitHub)
 
@@ -73,6 +74,7 @@ _Last updated: 2026-11-25 · Release 1 prepared and verified (CR-004). **Waiting
 | 0.5 | Test suite, non-destructive migration, dead code removed (CR-001) | Implemented + tested |
 | 1 | Accounts, transfers, goal allocations, correct classification, reversible upgrade (CR-002) | Implemented + tested |
 | 2 | Safe to spend for irregular income (DEC-015), reconcile with reversible adjustments (DEC-016), expected income (CR-003) | Implemented + tested |
+| UI | Complete UI/UX redesign (DEC-021, CR-005) + D12 fix (CR-006). Presentation only; engine proven unchanged | Implemented + tested · **awaiting owner preview review** |
 | R1 | Release 1 preparation: PIN protection (DEC-019), recovery strategy (DEC-020), migration verification, checklist (CR-004) | Implemented + tested · **awaiting owner preview review + approval** |
 | 3 | Money owed to me, savings/debt refinements, daily opening/closing view, flexible budgets | Planned |
 | 4 | Security & reliability: hashed PIN, backup hardening, PWA/offline | Planned |
@@ -97,7 +99,7 @@ Full detail: `FINANCIAL_RULES.md`.
 | D3 | No "money owed to me" (receivables) | Phase 3 |
 | D9 | No PWA manifest / service worker (install & offline don't work) | Phase 4 |
 | D10 | Dates use the phone's clock and zone | Assessed: upgrade identical across timezones; not blocking (checklist §4) |
-| — | Fixed so far | D1, D2, D4, D5, D6, D7, D8, D11 |
+| — | Fixed so far | D1, D2, D4, D5, D6, D7, D8, D11, D12 |
 
 ## 6. Approved decisions (summary; detail in `DECISIONS.md`)
 - DEC-002: single-file architecture kept.
@@ -116,10 +118,12 @@ Full detail: `FINANCIAL_RULES.md`.
 - DEC-017: production protection (§2b).
 - DEC-018: Release 1 scope and conditions. Preparing ≠ deploying. **Owner-approved.**
 - DEC-019: PIN = PBKDF2 with a unique salt, never in backups; storage protection only, not encryption. **Owner-approved.**
+- DEC-021: UI/UX redesign: modern, calm, clean and welcoming; presentation only. **Owner-requested.**
 - DEC-020: data protection & recovery strategy (`DATA_RECOVERY.md`), with an in-app backup reminder. **Owner-required.**
 
 ## 7. Decisions waiting for the owner
-- **Release 1 deployment.** Waiting for (1) the owner's preview review (`RELEASE_1_CHECKLIST.md` §3) and (2) an explicit "deploy" instruction. Every other gate item is done, with evidence.
+- **Redesign review.** Do the new look and the UX choices in DEC-021 work for you? The main choices: the bottom bar with a "More" menu, "Goals" renamed "Savings", and Home leading with spending-account money plus safe to spend.
+- **Release 1 deployment** (now including the redesign). Needs (1) the owner's preview review (`RELEASE_1_CHECKLIST.md` §3) and (2) an explicit "deploy" instruction.
 
 ## 8. Risks
 - **Real users, data only on their devices:** a faulty release could damage data we can't see or restore centrally. Mitigations: on-device snapshot, proven rollback, deployment checklist, and owner approval (DEC-017).
@@ -130,9 +134,9 @@ Full detail: `FINANCIAL_RULES.md`.
 - **Single-file growth:** `index.html` is about 175 KB. That is acceptable now; I will propose splitting it if changes start to become risky.
 
 ## 9. Next steps
-1. **Owner:** review the preview with the demo data (`RELEASE_1_CHECKLIST.md` §3), report findings, then approve or hold the deployment.
-2. **Claude:** fix anything found in review, re-run everything, then follow checklist §5–§7 **only after** explicit approval.
-3. **After Release 1:** Phase 3. Recommended order: receivables (D3), then the daily opening/closing view, then flexible budgets. Then Phase 4 (PWA/offline D9, optional encrypted backups).
+1. **Owner:** review the redesigned preview on your phone with the demo data. Report anything confusing, then approve or hold Release 1.
+2. **Claude:** act on the feedback, re-run every check (regression, migration, engine fingerprint, UI audit), then follow checklist §5–§7 **only after** explicit approval.
+3. **After Release 1:** Phase 3. Recommended order: receivables (D3; the redesign already has its place in Debts), the daily opening/closing view, flexible budgets. Then Phase 4 (PWA/offline D9).
 4. **Owner (recommended):** enable branch protection on `main`.
 
 ## 10. Working arrangement (DEC-014)

@@ -1,0 +1,60 @@
+# Regression suite after redesign (CR-005) + D12 fix (CR-006), fixed clock 2026-11-25 10:00 Nairobi
+
+PASS          fresh install shows the welcome/onboarding form
+PASS          every screen renders without errors
+PASS          home balance is the total held across all accounts
+PASS          adding an expense through the form reduces the balance
+PASS          recording a debt repayment creates exactly one linked expense and updates the debt
+PASS          paying a bill creates exactly one linked expense for that occurrence
+PASS          backup export -> import round-trips every record unchanged
+PASS          legacy data: debt repayments without transactions are rebuilt once, not duplicated
+PASS          a safety backup is stored before an older schema is upgraded
+PASS          migration keeps fields it does not recognise on every record type
+PASS          migration keeps transaction types it does not recognise (e.g. transfer)
+PASS          migration is idempotent: loading migrated data again changes nothing
+PASS          migration normalises legacy types: missing -> expense, 'Income' -> income
+PASS          migration still repairs invalid values (negative amounts, unknown frequency)
+PASS          upgrade 9 -> 10: accounts created, nothing lost, saving becomes a transfer, reversible
+PASS          setting money aside inside M-Pesa keeps the balance and lowers what is available
+PASS          the same money cannot be set aside for two goals
+PASS          a transfer moves money between accounts without changing income, spending or the total
+PASS          moving goal money to M-Shwari keeps it set aside for the same goal
+PASS          moving money for a goal that was not set aside first earmarks it on arrival
+PASS          partial release and spend-from-goal: progress, balance and spending all correct
+PASS          spending money that is set aside asks first, then shows the goal shortfall
+PASS          borrowed money increases the account but is not income; repayments are not spending
+PASS          editing or deleting a debt repayment entry keeps the debt in step
+PASS          deleting a bill payment entry reopens that bill occurrence
+PASS          deleting one bill payment leaves the bill's other paid months untouched (legacy data)
+PASS          opening balance with an opening date: earlier entries are treated as already included
+PASS          adding an account through the form and money totals stay exact to the cent
+PASS          deleting a goal frees its money and keeps transfers it made
+PASS          a schema 9 safety backup restores into the new version and is upgraded
+PASS          rollback: the pre-accounts copy downloads and imports into the original schema 9 app
+PASS          safe to spend, fixed payday: only spending accounts, bills in period, nothing guessed
+PASS          safe to spend, irregular income: chosen period, buffer, and no double counting
+PASS          expected income: counted only when received; deleting the income puts it back
+PASS          a savings account counts towards safe to spend only when marked as spending money
+PASS          reconcile down: labelled adjustment, not spending; full audit details recorded
+PASS          reconcile with 'unrecorded spending': the shortfall counts as spending
+PASS          reconcile up and as of a past date: entries after that date are not part of it
+PASS          adjustments cannot be edited or deleted, only reversed; both entries stay in history
+PASS          reconcile fixes an upgraded account that showed below zero
+PASS          old 'Other / unassigned' entries can be moved to the right account
+PASS          no screen scrolls sideways on small phones (320 and 360 px)
+PASS          [D2 fixed] savings and debt repayments are not counted as spending
+PASS          [D4 fixed] deleting a goal's linked savings entry also reverses the goal progress
+PASS          two open tabs: a save in one makes the other reload instead of overwriting it
+PASS          timezone (D10): the upgrade gives identical records whatever timezone the phone uses
+PASS          [D12 fixed] month pickers and the trend chart include the current month in East African time
+PASS          [D6 fixed] an existing plain-text PIN is converted to a salted hash and removed everywhere
+PASS          PIN: wrong entries are rejected and slowed down after 5 attempts
+PASS          PIN: every PIN gets its own random salt (same PIN, different stored hash)
+PASS          PIN: change requires the current PIN; the new PIN works after reload, the old one does not
+PASS          PIN: importing a backup keeps this device's own PIN (or none)
+PASS          forgotten PIN: backup is downloaded (without PIN), device reset, records restored by import
+PASS          backup reminder: shown until the user downloads a backup, then the date is displayed
+KNOWN DEFECT  [D3] the app can record money other people owe me
+              (no way to record money lent)
+
+54 passed, 0 failed, 1 known defects open, 0 known defects now fixed

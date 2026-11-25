@@ -45,3 +45,16 @@ These need Node and Playwright, which are pre-installed in Claude Code cloud ses
 - Found that the original build destroys upgraded data, so the emergency rollback target is now `8370097`. Recorded in RELEASE_1_CHECKLIST.
 - 53/53 regression and 4/4 migration pass.
 - Waiting for the owner's preview review and deploy approval.
+
+### 2026-11-25 · UI/UX redesign
+- The owner asked for a complete redesign (modern, calm, clean, welcoming; their palette; Inter; mobile first; presentation only).
+- Before building: captured "before" screenshots and an engine fingerprint (106 functions and constants).
+- Built CR-005:
+  - design system and dark theme;
+  - bottom bar with More;
+  - new Home, Money, Plan, Savings, Debts, Bills, Reports and Settings layouts;
+  - tests switched to `data-figure` markers;
+  - a UI audit tool.
+- Found and fixed (CR-006) a live-app bug: in Kenyan time, the month pickers and trend chart skipped the current month (D12).
+- Evidence: 54/54 regression, 4/4 migration, engine unchanged, UI audit 0 issues.
+- Waiting for the owner's preview review.

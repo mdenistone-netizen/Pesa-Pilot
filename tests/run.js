@@ -763,6 +763,25 @@ test("timezone (D10): the upgrade gives identical records whatever timezone the 
   assert.equal(results[1], results[0]); assert.equal(results[2], results[0]);
 });
 
+test("[D12 fixed] month pickers and the trend chart include the current month in East African time", async () => {
+  for (const timezoneId of ["Africa/Nairobi", "America/New_York"]) {
+    const browser = await require("playwright").chromium.launch();
+    const p = await (await browser.newContext({ timezoneId })).newPage();
+    await p.clock.setFixedTime(h.FIXED_NOW);
+    await p.goto("file://" + require("path").resolve(__dirname, "..", "index.html"));
+    await p.evaluate(seed => { localStorage.setItem("pesapilot_onboarding_v1", "done"); localStorage.setItem("pesapilot_v2", JSON.stringify(seed)); }, realisticMonth());
+    await p.reload(); await h.settle(p);
+    await h.goView(p, "reports");
+    const report = await p.evaluate(() => ({ first: document.querySelector("#reportMonth option").value, selected: document.getElementById("reportMonth").value, trend: [...document.querySelectorAll(".trend-col span")].map(s => s.textContent) }));
+    assert.equal(report.first, "2026-11", `${timezoneId}: report picker starts at the current month`);
+    assert.equal(report.selected, "2026-11");
+    assert.match(report.trend[report.trend.length - 1], /^Nov/, `${timezoneId}: trend ends at the current month`);
+    await h.goView(p, "bills");
+    assert.equal(await p.evaluate(() => document.getElementById("billMonth").value), "2026-11", `${timezoneId}: bill month`);
+    await browser.close();
+  }
+});
+
 // ------------------------------------------------------------------ PIN protection (DEC-019)
 const allStorage = page => page.evaluate(() => Object.keys(localStorage).map(k => k + "=" + localStorage.getItem(k)).join("\n"));
 const typePin = async (page, digits) => { for (const d of digits) await page.evaluate(x => document.querySelector(`[data-pin="${x}"]`).click(), d); await page.waitForTimeout(700); };

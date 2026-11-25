@@ -1,6 +1,6 @@
 # Release 1: Deployment Checklist & Recovery Procedure
 
-**Scope:** Phases 0.5, 1, 2 and PIN protection (CR-001 to CR-004), released as one upgrade (DEC-018).
+**Scope:** Phases 0.5, 1, 2, PIN protection, the UI/UX redesign and the D12 fix (CR-001 to CR-006), released as one upgrade (DEC-018, DEC-021).
 **From:** live `main` @ `8e33d44` (schema 9).
 **To:** the work-branch head at approval time (schema 10).
 **Status: NOT DEPLOYED. Waiting for the owner's preview review and explicit approval.**
@@ -12,12 +12,14 @@
 | # | Condition | Status | Evidence |
 |---|---|---|---|
 | 1 | Owner reviews the preview on their phone with realistic made-up data | ⏳ **Owner** | §3 below |
-| 2 | Migration tested on representative copies of existing data | ✅ | `tests/migration.js` → `evidence/release-1-migration.txt`: 4 data sets (earliest/no-schema, schema 5, heavy 1,498-entry schema 9, messy values) |
+| 2 | Migration tested on representative copies of existing data | ✅ (re-run after the redesign: `evidence/redesign-migration.txt`) | `tests/migration.js` → `evidence/release-1-migration.txt`: 4 data sets (earliest/no-schema, schema 5, heavy 1,498-entry schema 9, messy values) |
 | 3 | Balances, transactions, goals, debts, bills and account histories correct after upgrade | ✅ | Same suite. Every record is compared with the original live app. Balances match an independent re-implementation, in total and for every account card. |
 | 4 | Successful rollback test | ✅ | The pre-accounts copy imports into the **original** live app with results identical to before the upgrade (4/4). Upgraded data survives the emergency rollback build unchanged (4/4). |
 | 5 | Deployment checklist and recovery procedure | ✅ | This document, §5–§8 |
 | 6 | D3 / D9 / D10 assessed as release blockers | ✅ | §4: none blocking |
-| — | Regression suite | ✅ | 53 passed, 0 failed (`evidence/release-1-tests.txt`); 76/76 UI snapshots stable |
+| — | Regression suite | ✅ | 54 passed, 0 failed after the redesign (`evidence/redesign-tests.txt`); 76/76 UI snapshots stable |
+| — | Redesign changed nothing in the engine | ✅ | `evidence/redesign-engine-fingerprint.txt`: 106/106 unchanged |
+| — | Accessibility (overflow, touch targets, WCAG AA contrast; light+dark; 320/360/390/1280px) | ✅ | `evidence/redesign-ui-audit.txt`: 0 issues |
 | — | **Owner's explicit approval to deploy** | ⏳ **Owner** | Must be a clear message, e.g. "Deploy Release 1" |
 
 ## 2. What changes for users (plain language)
@@ -25,6 +27,7 @@
 - **Their total goes up by the money they had saved towards goals.** The old app wrongly counted savings as spending.
 - Their spending figures go down by savings and debt repayments. Neither is spending.
 - **Accounts** appear (M-Pesa, Cash, Bank, …). Older entries are placed by payment method, so some accounts may show below zero until the user taps **Reconcile**. A banner explains this.
+- **The app looks new:** calmer colours, clearer screens, a bottom bar on phones. Nothing they could do before is removed.
 - Their **PIN keeps working**. It is now stored in a protected form and never put in backups.
 - A backup reminder appears until they download a backup.
 
@@ -34,10 +37,11 @@ The preview is **https://deploy-preview-1--pesa-pilot.netlify.app**. It is a sep
 1. Open the preview. Complete the welcome screen with any name and a test PIN, e.g. 1234.
 2. **Load the demo data.**
    - Download https://raw.githubusercontent.com/mdenistone-netizen/Pesa-Pilot/claude/pesapilot-master-handover-0z1xae/docs/demo/pesapilot-demo-schema9.json. In the browser menu choose Download, or long-press → Download link.
-   - In the preview: Settings → **Import backup** → choose that file.
+   - In the preview: Settings (under **More** on a phone) → **Import backup** → choose that file.
    - This is made-up data in the *old* format, so importing it also exercises the upgrade.
 3. **Check, and note anything confusing:**
    - **Home:** total, the "set aside for goals" line, safe to spend, and the backup reminder.
+   - **First impressions of the new design:** is it clear what each screen shows, with no explanation needed? Try the bottom bar and **More**.
    - **Money:** account cards. Reconcile *Cash* to an amount you choose. Then reverse that adjustment and see that both entries remain.
    - **Transfer:** move money M-Pesa → a new "M-Shwari" account (Money → ＋ Account, type Savings).
    - **Goals:** Set aside → Move money (to M-Shwari) → Use / release. Try to set aside more than is available; it must refuse.
