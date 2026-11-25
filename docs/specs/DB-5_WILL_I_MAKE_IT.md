@@ -40,7 +40,7 @@ How should PesaPilot answer two everyday questions?
 - **Irregular income:**
   - Recommended: until the **date of the next expected income the user marks as their "next income"**.
   - If they haven't marked one, until the end of their planning period (7, 14 or 30 days).
-- The screen **always states the horizon**: "Until Fri 28 Nov (3 days)".
+- The screen **always states the horizon**: "Until Sat 28 Nov (3 days)".
 
 ### 4.2 Will I make it?
 - **Free after commitments:** F = A − B. This equals today's "Left to spend".
@@ -92,7 +92,7 @@ How should PesaPilot answer two everyday questions?
    - **Optional:** "Save it as planned spending" adds X to planned spending.
 
 ## 5. Worked examples (these become tests)
-Clock: Tue 25 Nov 2026. Payday Fri 28 Nov, so 3 days.
+Clock: Wed 25 Nov 2026. Payday Sat 28 Nov, so 3 days.
 
 | Case | A free | B due | F | D/day | N | M | Verdict |
 |---|---|---|---|---|---|---|---|

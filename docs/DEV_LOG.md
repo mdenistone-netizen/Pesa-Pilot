@@ -114,3 +114,10 @@ These need Node and Playwright, which are pre-installed in Claude Code cloud ses
 - No screenshots of anything; the trial is voluntary with no penalty; the 14-day check is a short-term observation only.
 - A4 split into A4a (transfer M-Pesa→Cash) and A4b (KSh 29 charge as an expense), with a result check.
 - Recorded DEC-025: D13 scope + Option B approved in principle; still open, not implemented.
+
+### 2026-11-25 · P1 onboarding prototype (separate from the app)
+- `docs/prototypes/onboarding/index.html`: welcome → PIN (variant switch: required / optional, marked as an owner decision) → "what do you have now" → "when does your next money come" → the first answer with a timer → a Home checklist (bills, loans, savings set-aside, buffer, income sources, backup), updating live.
+- Tested at 360/390 px: no overflow, no errors, nothing stored (localStorage 0), maths checked.
+- Found and fixed a stuck-button bug in the prototype (payday input).
+- Corrected weekday labels in the DB-5 and onboarding docs (25 Nov 2026 is a Wednesday).
+- Added a release-checklist item about keeping `docs/` off the live site.

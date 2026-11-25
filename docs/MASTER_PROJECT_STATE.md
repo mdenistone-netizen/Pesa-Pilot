@@ -197,7 +197,7 @@ Status words: **Proposed → Designed → Approved → Implemented → Verified 
 | Release 1 (incl. CR-007 savings fix) | Implemented + verified on the branch; **not approved for deployment** | Owner's preview review |
 | M-Pesa capture (DB-1) | **Declined** (DEC-024) | None |
 | P4 interview pack | **Designed and refined (9 files incl. a research data notice and budget), waiting for owner approval.** No recruiting, pilot or data collection until approved. | Owner: approve the pack, the data notice and the budget; Kiswahili parity check |
-| P1 onboarding | Designed | Preview-only mock *as a stand-alone prototype file, not built into the app*, for review; PIN question presented separately |
+| P1 onboarding | **Designed + prototype ready for review:** `prototypes/onboarding/index.html`, served on the preview at `/docs/prototypes/onboarding/`. Stand-alone and **not part of the app**; saves nothing (memory only, verified); PIN shown as a separate owner decision with a variant switch; timer to first answer | Owner tries it on Android; decides the PIN policy; feedback before Stage A |
 | P3 / DB-5 Will I make it? + Before You Spend | Designed (brief draft) | Detailed decision brief for the owner |
 | P5 / DB-4 encrypted user-controlled backup | Assessed | Decision brief explaining encryption, password recovery, loss of password, restore |
 | P6 / DB-6 installable and offline | Assessed | Decision brief |

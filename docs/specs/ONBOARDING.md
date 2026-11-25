@@ -33,7 +33,7 @@
 - **Mechanics:** existing `incomePattern`, `paydayDay`, `planningDays` and expected income.
 
 ### The first answer (immediately)
-> **"You have KSh 6,200 free to use. That's about KSh 2,066 a day until Fri 28 Nov."**
+> **"You have KSh 6,200 free to use. That's about KSh 2,066 a day until Sat 28 Nov."**
 > "This doesn't yet include rent, loans or other bills. Add them so PesaPilot can protect that money." → [Add a bill] [Later]
 
 ### Then: the Home "Finish setting up" checklist (progressive, dismissible)
