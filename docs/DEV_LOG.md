@@ -68,3 +68,9 @@ These need Node and Playwright, which are pre-installed in Claude Code cloud ses
   - correct and reverse for set-asides;
   - a full goal breakdown.
 - 10 new tests cover all 15 of the owner's scenarios. 64/64 regression, 4/4 migration, UI audit 0 issues.
+
+### 2026-11-25 · Product strategy review (research only)
+- The owner asked for a Kenyan market-fit and differentiation review.
+- Researched FinAccess 2024 (via secondary summaries; the primary PDFs were unreachable from this environment), the Kenya Financial Diaries, digital-credit research, and Kenyan competitors.
+- Wrote `strategy/PRODUCT_STRATEGY_2026-11.md`: research, competitors, positioning, signature features, roadmap, pricing hypotheses, validation plan, and decision briefs DB-1 to DB-4.
+- No code or rule changes. Master state §7 and §11 updated.

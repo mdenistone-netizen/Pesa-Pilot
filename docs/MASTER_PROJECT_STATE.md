@@ -11,7 +11,7 @@ Read this first. Other documents hold the detail:
 | `DEV_LOG.md` | Session-by-session history |
 | `ROADMAP.md` | Phase plan |
 
-_Last updated: 2026-11-25 · Savings behaviour (DEC-022, CR-007) added to the Release 1 candidate. **Waiting for the owner's preview review and explicit deploy approval.**_
+_Last updated: 2026-11-25 · Product strategy review added (§11). Release 1 candidate unchanged and waiting for the owner's preview review and explicit deploy approval._
 
 ---
 
@@ -124,8 +124,13 @@ Full detail: `FINANCIAL_RULES.md`.
 - DEC-020: data protection & recovery strategy (`DATA_RECOVERY.md`), with an in-app backup reminder. **Owner-required.**
 
 ## 7. Decisions waiting for the owner
-- **Redesign review.** Do the new look and the UX choices in DEC-021 work for you? The main choices: the bottom bar with a "More" menu, "Goals" renamed "Savings", and Home leading with spending-account money plus safe to spend.
-- **Release 1 deployment** (now including the redesign). Needs (1) the owner's preview review (`RELEASE_1_CHECKLIST.md` §3) and (2) an explicit "deploy" instruction.
+- **Redesign and savings review.** DEC-021 and DEC-022 choices, in the preview.
+- **Release 1 deployment.** Needs the owner's preview review (`RELEASE_1_CHECKLIST.md` §3) and an explicit "deploy" instruction.
+- **Product strategy decision briefs.** None blocks Release 1. Full text in `strategy/PRODUCT_STRATEGY_2026-11.md` §8:
+  - **DB-1** How transactions get in: recommended local Paste/Share of M-Pesa SMS (needs D9 first).
+  - **DB-2** Charging and measuring without breaking local-first: recommended manual till pre-orders first, then offline signed unlock codes; opt-in measurement only.
+  - **DB-3** Kenyan money rules: Fuliza as borrowing, chama contributions as savings transfers, family support vs lending.
+  - **DB-4** Encrypted backup to the user's own cloud: later, revisits DEC-005.
 
 ## 8. Risks
 - **Real users, data only on their devices:** a faulty release could damage data we can't see or restore centrally. Mitigations: on-device snapshot, proven rollback, deployment checklist, and owner approval (DEC-017).
@@ -145,3 +150,20 @@ Full detail: `FINANCIAL_RULES.md`.
 - **Claude:** architect and builder. Makes routine engineering decisions alone. Brings **decision briefs** for financial rules, data structures, architecture, security, user data, costs and major features. Keeps working on unblocked tasks. Gives evidence-based checkpoints. Keeps these documents current. Never deploys or destroys data without approval.
 - **Owner:** vision, requirements, major decisions.
 - **ChatGPT:** independent adviser, consulted at the owner's discretion, usually with §7 or a single decision brief pasted in. **Not an approval gate.**
+
+## 11. Product strategy (November 2026 review)
+Full report: `strategy/PRODUCT_STRATEGY_2026-11.md`. Research and recommendations only; nothing implemented or approved.
+
+- **Evidence:** only 18.3% of Kenyan adults are financially healthy (FinAccess 2024). Casual labour is the most common livelihood (26.5%). Income is volatile (Financial Diaries). Fuliza use is about 18.4%, at roughly Sh2.7 bn a day in 2024. Savings sit in banks, M-Pesa, chamas (19.7%) and secret places (16.2%).
+- **Competition:** M-Pesa capture, fee/Fuliza totals and savings goals are **not** unique (M-PESA My Spend, PesaSense, Shmoney, PesaTrail, Wavvy, Chumz and others). No Kenyan app was found that combines forward-looking "truly free" money, irregular-income planning, set-aside-in-place savings, strict money correctness and local-only privacy.
+- **Owned problem:** "I don't know how much of my money is actually free, so I run out before the next money comes."
+- **Positioning:** *PesaPilot tells you how much you can safely spend today, after rent, loans, chama and savings are covered, even when your income isn't the same every month. Your money stays on your phone.*
+- **Signature:** true available balance + irregular-income plan + commitments, experienced through a new **"Before You Spend"** check. The weekly check-in is the retention habit. Kenyan specifics (chama, Fuliza, family support) are essential localisation.
+- **Biggest weakness:** manual entry (DB-1).
+- **Initial target [assumption]:** urban 22–35, Android, M-Pesa-first, salary plus side income or irregular income, regular commitments, occasional Fuliza.
+- **Commercial (hypotheses, not validated):** core stays free. "Plus" at KSh 99–199/month, or a ~KSh 1,500 lifetime unlock. Validate with 20 interviews, a 30–50 user beta and real M-Pesa till pre-orders.
+- **Roadmap:**
+  - **Release 1:** freeze scope.
+  - **Release 2 (first commercial):** guided setup, Before You Spend, PWA (D9), paste/share M-Pesa capture, receivables and family support, weekly check-in, Fuliza and chama rules.
+  - **Avoid for now:** bank integrations, selling investments or loans, credit scoring, an AI adviser, default cloud accounts, bookkeeping, crypto.
+
