@@ -264,3 +264,13 @@ These need **financial-rule decisions** (FINANCIAL_RULES changes):
 - I could not open the CBK/FSD primary documents from this environment, because the network was blocked. Figures marked [R2] come from reputable secondary summaries; check them in the [CBK main report](https://www.centralbank.go.ke/wp-content/uploads/2024/12/2024-FINACCESS-HOUSEHOLD-SURVEY-MAIN-REPORT.pdf) before quoting them publicly.
 - Competitor details are from listings and vendor comparisons (some written by competitors), not hands-on testing. Prices change.
 - Segment needs marked [A] are informed judgement, not research. They are exactly what the interviews in §6.3 are designed to test.
+
+---
+
+## 11. Owner refinements (accepted, DEC-023)
+1. **Onboarding:** progressive, optional, not overwhelming. It covers accounts and real balances, income sources and pattern, commitments, savings and debts. Every step is skippable, with gentle "finish later" prompts.
+2. **M-Pesa capture (DB-1):** paste/share only, no SMS permission. The classifier must distinguish **income, transfers between own accounts, expenses, withdrawals, deposits, Fuliza (borrowing, repayment, fees), charges and reversals**. **Duplicate detection is essential:** M-Pesa code first, then amount + time + counterparty as a fallback. Every captured entry is confirmed by the user before it is saved.
+3. **"Will I make it to my next income?" (DB-5)** sits alongside Before You Spend. It uses **actual money, upcoming commitments and expected income as three separate inputs**, shows each assumption in plain words, and never counts expected income as money you have.
+4. **Backup (DB-4):** needs a separate architecture and privacy assessment (P5) before any decision. **Local-first remains the default.** No cloud storage or new infrastructure without a decision brief and owner approval.
+5. **Pricing:** KSh 99–199/month and a one-off unlock remain **hypotheses**. Interviews and willingness-to-pay experiments come before any payment infrastructure (P4, then DB-2).
+6. **Release 1:** this strategy is **not** deployment approval. The owner reviews the preview first, including the savings behaviour corrected in CR-007.

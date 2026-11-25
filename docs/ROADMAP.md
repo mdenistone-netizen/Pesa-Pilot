@@ -1,20 +1,43 @@
-# PesaPilot Roadmap (prioritised)
+# PesaPilot Roadmap (staged)
 
-Priority order (owner's): Financial accuracy → Data integrity → Security → Usability → Reliability → Intelligence → Growth.
-Each phase ends with tests passing, a change-register entry and owner review. **One deployment per phase, at most.**
+- **The problem we own (DEC-023):** *"I don't know how much of my money is actually free, so I run out before the next money comes."*
+- **Priority order (owner's):** financial accuracy → data integrity → security → usability → reliability → intelligence → growth.
+- **Working rule:** **one feature stage at a time.** Each stage has its own change record and tests (regression, migration, engine fingerprint, UI audit), a preview review and separate release approval. Nothing is built in parallel with an unresolved financial-rule decision.
 
-| Phase | Goal | Status |
+## Where we are
+
+| Stage | Scope | Status |
 |---|---|---|
-| 0 | Baseline inspection | **Done:** `CURRENT_STATE_ASSESSMENT.md` |
-| 0.5 | Safety net: tests, non-destructive migration, dead code | **Implemented + tested** (CR-001), not deployed |
-| 1 | Financial model: accounts, transfers, goal allocations, classification | **Implemented + tested** (CR-002), not deployed. Rules: `FINANCIAL_RULES.md` |
-| 2 | Safe to spend for irregular income, reconcile, expected income | **Implemented + tested** (CR-003), not deployed |
-| R1 | Release 1 (0.5–2 + PIN protection): prepared and verified (CR-004) | **Awaiting owner preview review + approval** |
-| 3 | Core features: receivables, savings withdrawals, daily balances, flexible budgets | Planned |
-| 4 | Security & reliability: hashed PIN, PWA/offline, backup hardening | Planned (PIN fix may move earlier) |
-| 5 | Dashboard & insights on correct numbers | Planned |
-| 6 | Release: regression run on realistic scenarios, deploy | Planned |
-| Later | Cloud sync / login (Firebase or other), M-Pesa SMS import, multi-device | Needs separate approval |
+| 0–2 | Safety net, financial model, safe to spend, reconcile (CR-001 to CR-003) | Implemented + tested |
+| R1 prep | PIN protection, recovery, migration verification (CR-004) | Implemented + tested |
+| UI | Redesign (CR-005) + D12 month fix (CR-006) | Implemented + tested |
+| S | Savings: available to spend, use/release/correct (CR-007). **The owner's savings issue: investigated and corrected; the owner confirms it in the preview** | Implemented + tested |
+| **Release 1** | Everything above, as one upgrade | **Waiting for the owner's preview review and explicit deploy approval.** Scope frozen. |
+
+## Next: planning work (no code; can proceed without approval)
+
+| # | Work | Output | Leads to |
+|---|---|---|---|
+| P1 | **Onboarding design:** a progressive, optional first-time setup covering accounts and real balances, how you're paid, income sources, commitments, savings, debts. Every step skippable; "finish later" prompts. | Screen-by-screen spec + clickable mock in the preview (behind a dev flag, not live) | Stage A (UI only, existing features) |
+| P2 | **M-Pesa message research:** a catalogue of confirmation-SMS formats (sent, received, paybill, till, withdrawal, deposit, Fuliza, charges, reversals, M-Shwari, airtime). Synthetic test corpus (no real messages in the repo). Classification and duplicate-detection spec. | `docs/specs/MPESA_CAPTURE.md` + test corpus | DB-1 → Stage D |
+| P3 | **"Will I make it to my next income?" + Before You Spend:** the calculation, the wording, and how assumptions are shown | DB-5 (needs approval: new financial rule) | Stage B |
+| P4 | **Customer validation design:** interview guide (20 interviews), prototype task script, willingness-to-pay experiments (price-sensitivity survey, fake door, manual till pre-orders), success criteria set in advance | `docs/strategy/VALIDATION_PLAN.md` | Owner-run interviews; evidence for DB-2 |
+| P5 | **Backup architecture & privacy assessment** (Google Drive or other): threat model, Kenya Data Protection Act considerations, encryption design, failure modes, cost | `docs/specs/BACKUP_ASSESSMENT.md` | DB-4 (needs approval) |
+| P6 | **PWA (D9) assessment:** install, offline, update strategy so users can't get stuck on old versions, share target for M-Pesa capture | DB-6 (needs approval: architecture) | Stage C |
+
+## Then: build stages (one at a time, after Release 1 is live and stable)
+
+| Stage | Build | Needs first | Engine impact |
+|---|---|---|---|
+| A | Guided onboarding | P1 reviewed by the owner | None: UI over existing features (opening balances, plan settings, bills, goals, debts) |
+| B | "Will I make it?" + Before You Spend | DB-5 approved | New read-only calculation; no change to stored data |
+| C | PWA install/offline | DB-6 approved | Delivery architecture, not money rules |
+| D | Paste/Share M-Pesa capture with duplicate detection | DB-1 approved, Stage C | New input path; entries go through existing forms and rules |
+| E | Weekly check-in | Stage B | Read-only |
+| F | Receivables, family support, Fuliza & chama rules | DB-3 approved | Financial-rule change: migration + full verification |
+| Later | Encrypted user-owned backup; paid tier | DB-4, then DB-2 **with customer evidence** | Infrastructure: separate approvals |
+
+**Deliberately avoid for now:** bank integrations; selling or advising on investments or loans; credit scoring; an AI adviser; cloud accounts by default; bookkeeping; crypto.
 
 ---
 

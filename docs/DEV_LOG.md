@@ -74,3 +74,14 @@ These need Node and Playwright, which are pre-installed in Claude Code cloud ses
 - Researched FinAccess 2024 (via secondary summaries; the primary PDFs were unreachable from this environment), the Kenya Financial Diaries, digital-credit research, and Kenyan competitors.
 - Wrote `strategy/PRODUCT_STRATEGY_2026-11.md`: research, competitors, positioning, signature features, roadmap, pricing hypotheses, validation plan, and decision briefs DB-1 to DB-4.
 - No code or rule changes. Master state §7 and §11 updated.
+
+### 2026-11-25 · Product direction approved
+- The owner approved the direction (DEC-023) with refinements:
+  - progressive onboarding;
+  - paste/share M-Pesa capture with full classification and duplicate detection;
+  - "Will I make it to my next income?";
+  - backup only after a separate assessment, local-first stays the default;
+  - prices stay hypotheses;
+  - no deployment without the preview review.
+- Roadmap rewritten as staged work: planning P1–P6 (independent), then build stages A–F, one at a time, each with its own approval.
+- Clarified that the owner's savings issue was corrected in CR-007 and awaits the owner's confirmation in the preview.
