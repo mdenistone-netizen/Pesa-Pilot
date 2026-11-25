@@ -143,7 +143,7 @@ Full detail: `FINANCIAL_RULES.md`.
 | 10 | **D13 schema guard**: scope and Option B approved in principle (DEC-025). **Implementation needs a separate go-ahead** after Release 1 | Open defect |
 | 11 | **P4 interview pack** approval (and interviewer, thank-you amount, Kiswahili review) | Ready for review |
 
-**Owner review pending (25 Nov):** DB-5 §8 (14 choices), DB-4 (10 choices) and DB-6 (9 choices) together. Nothing in them is approved or implemented. Other waiting items: Release 1 preview review, P4 pack approval, D13 implementation go-ahead after Release 1.
+**Owner review pending (25 Nov):** all 33 choices in one place: `specs/DECISION_PACK_DB5_DB4_DB6.md`. Each choice gives the decision, recommendation, alternatives, the effect on an ordinary user, risks, and whether it changes an existing rule. Release 1, D13, DB-4, DB-5 and DB-6 are **separate approval matters**. Nothing in them is approved or implemented. Other waiting items: Release 1 preview review, P4 pack approval, D13 implementation go-ahead after Release 1.
 
 ## 8. Risks
 - **Real users, data only on their devices:** a faulty release could damage data we can't see or restore centrally. Mitigations: on-device snapshot, proven rollback, deployment checklist, and owner approval (DEC-017).

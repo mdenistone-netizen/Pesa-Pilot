@@ -175,3 +175,11 @@ These need Node and Playwright, which are pre-installed in Claude Code cloud ses
   - **Tested** with a throw-away service-worker proof in the scratchpad: offline open, update, offline-after-update, kill switch, data identical throughout.
   - The proof caught a stale-copy bug (offline served the old version after an update); the fix is in the design and the test list.
 - No app code, financial rules or infrastructure changed. Nothing merged or deployed.
+
+### 2026-11-25 · Decision pack for owner review
+- Wrote `specs/DECISION_PACK_DB5_DB4_DB6.md`: all 33 choices (DB-5 ×14, DB-4 ×10, DB-6 ×9). Each has the exact decision, recommendation, alternatives, ordinary-user effect, risks, and whether it changes an existing rule.
+- Found and corrected 2 issues in DB-5 while mapping it against existing rules:
+  1. **Choices 7 and 8 extend DEC-015's planning period.** "Waiting for your pay" and "my pay is late" change which dates Left to spend covers. The brief had wrongly said DEC-015 was unchanged.
+  2. **The "cancelled" expected-income status needs schema 11.** Release 1's loader (`index.html:853`) rewrites unknown statuses to "expected", so the D13 guard must apply. This makes it a small production migration.
+- DB-4: proposed keeping the backup key under its own storage key (never exported, no schema change).
+- Nothing approved or implemented.
