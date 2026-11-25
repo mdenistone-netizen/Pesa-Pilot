@@ -195,7 +195,7 @@ Status words: **Proposed → Designed → Approved → Implemented → Verified 
 |---|---|---|
 | Release 1 (incl. CR-007 savings fix) | Implemented + verified on the branch; **not approved for deployment** | Owner's preview review |
 | M-Pesa capture (DB-1) | **Declined** (DEC-024) | None |
-| P4 interview pack | Designed (plan); pack **in preparation** | **Next deliverable** |
+| P4 interview pack | **Designed: `strategy/interview-pack/` (7 files), waiting for owner review.** No recruiting or data collection until approved. | Owner review; Kiswahili review; pilot interview |
 | P1 onboarding | Designed | Preview-only mock *as a stand-alone prototype file, not built into the app*, for review; PIN question presented separately |
 | P3 / DB-5 Will I make it? + Before You Spend | Designed (brief draft) | Detailed decision brief for the owner |
 | P5 / DB-4 encrypted user-controlled backup | Assessed | Decision brief explaining encryption, password recovery, loss of password, restore |

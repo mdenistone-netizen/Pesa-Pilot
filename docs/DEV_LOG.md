@@ -99,3 +99,7 @@ These need Node and Playwright, which are pre-installed in Claude Code cloud ses
 - The owner declined M-Pesa message capture (DEC-024). DB-1 closed.
 - `specs/MPESA_CAPTURE.md` marked as historical. Removed from the roadmap and from DB-6 (no share target). The validation plan's H4 is re-aimed at manual-entry tolerance.
 - Priorities set: P4 pack → P1 mock → DB-5 → DB-4 / DB-6 briefs → D13 proposal.
+
+### 2026-11-25 · P4 interview pack drafted (for owner review)
+- 7 files: screener with quotas, consent (EN + draft SW), past-behaviour interview guide, timed preview test (5 manual-entry tasks incl. the withdrawal + charge classification test, balance and forgotten-transaction tasks, quick-entry ideas on paper only), 7-day recording trial with daily check-ins (data stays on participants' phones; fixed-version link), scoring sheet separating DID / SAYS / OBS, synthesis template.
+- No payments, no M-Pesa messages, nothing collected until the owner approves.
