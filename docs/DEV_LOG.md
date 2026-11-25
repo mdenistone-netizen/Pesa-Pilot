@@ -103,3 +103,7 @@ These need Node and Playwright, which are pre-installed in Claude Code cloud ses
 ### 2026-11-25 · P4 interview pack drafted (for owner review)
 - 7 files: screener with quotas, consent (EN + draft SW), past-behaviour interview guide, timed preview test (5 manual-entry tasks incl. the withdrawal + charge classification test, balance and forgotten-transaction tasks, quick-entry ideas on paper only), 7-day recording trial with daily check-ins (data stays on participants' phones; fixed-version link), scoring sheet separating DID / SAYS / OBS, synthesis template.
 - No payments, no M-Pesa messages, nothing collected until the owner approves.
+
+### 2026-11-25 · D13 fix proposal (not implemented)
+- `specs/D13_FIX_PROPOSAL.md`: read-only when stored data is newer, and never lower the schema label; reuses the existing read-only mechanism; tests listed.
+- Release vehicle options A/B/C; standalone release B recommended.

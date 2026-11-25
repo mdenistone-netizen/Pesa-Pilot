@@ -139,7 +139,8 @@ Full detail: `FINANCIAL_RULES.md`.
 | 7 | **DB-4** Backup to the user's own cloud | Waits for the assessment (P5) |
 | 8 | **DB-2** Paid tier and measurement | Waits for customer evidence (P4) |
 | 9 | Onboarding design (P1) | Owner reviews the spec; decides PIN-at-first-run and the mock go-ahead |
-| 10 | **D13 schema guard**: approve as a small separate fix before Stage C | Raised in P6 |
+| 10 | **D13 schema guard**: approve the scope and the release vehicle (`specs/D13_FIX_PROPOSAL.md`) | Proposal ready |
+| 11 | **P4 interview pack** approval (and interviewer, thank-you amount, Kiswahili review) | Ready for review |
 
 **Planning P1–P6: done** (§12). **Next work, in order (§13):** (1) P4 interview pack · (2) P1 onboarding mock *(document/prototype only, not in the app)* · (3) DB-5 decision brief · (4) P5/DB-4 backup brief and DB-6 offline brief · (5) D13 fix proposal.
 
@@ -200,7 +201,7 @@ Status words: **Proposed → Designed → Approved → Implemented → Verified 
 | P3 / DB-5 Will I make it? + Before You Spend | Designed (brief draft) | Detailed decision brief for the owner |
 | P5 / DB-4 encrypted user-controlled backup | Assessed | Decision brief explaining encryption, password recovery, loss of password, restore |
 | P6 / DB-6 installable and offline | Assessed | Decision brief |
-| D13 schema guard | Defect recorded | Separate, clearly scoped fix proposal |
+| D13 schema guard | **Fix proposed: `specs/D13_FIX_PROPOSAL.md`** (not implemented). Scope: read-only if data is newer, never lower the label; about 10–15 lines; no rule changes | Owner: approve the scope; choose the release (A: inside Release 1 / **B: small standalone release right after**, recommended / C: with the PWA) |
 
 **Adviser note: the main risk after declining capture.**
 - Manual entry fatigue is the most common reason people abandon money apps [assumption, consistent with competitor positioning].
