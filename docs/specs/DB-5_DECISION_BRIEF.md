@@ -203,15 +203,23 @@ The safety buffer if set; otherwise max(KSh 500, 10% of N).
 ## 7. What it would change, and what it wouldn't
 - **Unchanged:**
   - balances, transactions, set-asides and classification;
-  - DEC-015's Left to spend;
+  - DEC-015's **formula** for Left to spend;
   - every existing calculation.
-- The calculation is **new and read-only**.
+- The verdict calculation is **new and read-only**.
+- **Correction (25 Nov): choices 7 and 8 extend DEC-015's planning period.**
+  - "Waiting for your pay" stops the period rolling over after a missed payday.
+  - "My pay is late this month" moves the end of this cycle's period.
+  - Left to spend must use the same period as the verdict, or the two figures would disagree. So these two choices change **which dates** DEC-015 plans for, not its formula.
+  - They need your explicit approval as amendments to DEC-015 (see `DECISION_PACK_DB5_DB4_DB6.md`).
 - **New stored data (all optional, all additive):**
   1. a usual-spending override with an end date;
   2. a one-cycle payday change ("my pay is late this month");
   3. an expected-income "cancelled" status, kept in history.
 
-  Old data needs no migration. **D13 must be fixed first** (DEC-025), so an older app can't damage these fields.
+  **Correction (25 Nov): this needs a schema bump (10 → 11).**
+  - Release 1 rewrites any expected-income status other than "received" to "expected" (`index.html:853`), so a "cancelled" item would come back if an older version saved the data.
+  - With schema 11, **D13's guard** (DEC-025, fixed first) makes older versions read-only for this data.
+  - The bump is a small production data migration under DEC-017.
 - **Display change (needs your OK):** replace the combined "If expected income arrives: KSh X a day" with per-payment lines (choice 2).
 - **Builds in Stage B,** after Release 1 and the D13 release, with its own change record, tests (these examples, the properties and the full regression), preview and approval.
 
@@ -236,7 +244,12 @@ The safety buffer if set; otherwise max(KSh 500, 10% of N).
 
 **Reversible?**
 - **Yes.** It is a read-only layer, and the optional fields are additive and ignorable.
-- **Only choice 4's alternative** would change an existing financial rule (DEC-015).
+- **Choices that touch an existing rule:**
+  - choices 7 and 8 extend DEC-015's planning period;
+  - choice 4's alternative would change which bills DEC-015 counts;
+  - choice 2 removes an existing display line.
+
+  All others add new rules without changing old ones.
 
 ## 9. Risks and limits (shown in the app under "How this is worked out")
 - **It is only as good as the records.** Unrecorded spending makes it too optimistic, so it encourages regular balance checks (reconcile).
