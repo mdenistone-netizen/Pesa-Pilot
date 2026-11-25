@@ -481,6 +481,212 @@ test("rollback: the pre-accounts copy downloads and imports into the original sc
   await browser.close();
 });
 
+// ------------------------------------- Phase 2: safe to spend (DEC-015), reconcile (DEC-016)
+const planText = async page => { await h.goView(page, "plan"); return h.bodyText(page); };
+// Wallet for an irregular earner: 10,000 in M-Pesa, two bills, two debts, a goal with a monthly plan.
+function irregularWallet() {
+  const w = wallet();
+  w.bills = [
+    { id: 60, name: "Water", amount: 800, dueDate: "2026-10-30", frequency: "monthly", paid: false, paidDate: "", paidOccurrence: "", category: "Utilities", notes: "", recordAsExpense: true, paidOccurrences: ["2026-10-30"], payments: [] },
+    { id: 61, name: "School trip", amount: 2000, dueDate: "2026-12-05", frequency: "once", paid: false, paidDate: "", paidOccurrence: "", category: "Education", notes: "", recordAsExpense: true, paidOccurrences: [], payments: [] }
+  ];
+  w.debts = [
+    { id: 70, name: "Chama loan", creditor: "Chama", total: 4000, repaid: 0, repaidBeforeTracking: 0, interestRate: 0, dueDate: "", notes: "", repaymentAmount: 1500, repayments: [] },
+    { id: 71, name: "Loan from Achieng", creditor: "Achieng", total: 3000, repaid: 0, repaidBeforeTracking: 0, interestRate: 0, dueDate: "", notes: "", repaymentAmount: 0, repayments: [] }
+  ];
+  w.goals[0].requiredMonthly = 2000;
+  w.allocations = [{ id: 80, goalId: 50, accountId: "mpesa", amount: 500, date: "2026-11-10", note: "", reference: "" }];
+  w.expectedIncome = [
+    { id: 90, source: "Client: logo design", amount: 5000, expectedDate: "2026-11-28", accountId: "mpesa", status: "expected" },
+    { id: 91, source: "December contract", amount: 3000, expectedDate: "2026-12-20", accountId: "mpesa", status: "expected" }
+  ];
+  w.nextId = 200;
+  return w;
+}
+
+test("safe to spend, fixed payday: only spending accounts, bills in period, nothing guessed", async () => {
+  const { page, context, errors } = await h.openApp({ seed: realisticMonth() });
+  const text = await planText(page);
+  // Period 25-27 Nov (payday 28th) = 3 days. Spending money = M-Pesa 35,600 + Cash -7,700 +
+  // Other -5,000 = 22,900 (the savings account and its 3,000 goal money are not counted).
+  // Bills: KPLC 1,500 due 27 Nov. Fuliza: 2,000 already repaid this month > 1,000 plan -> 0.
+  assert.match(text, /Planning until payday on 28 Nov 2026 · 3 days/);
+  assert.match(text, /Spending money available KSh 22,900/);
+  assert.match(text, /Less bills due −KSh 1,500/);
+  assert.match(text, /Less debt instalments −KSh 0/);
+  assert.match(text, /Protected reserve left KSh 21,400/);
+  assert.match(text, /KSh 7,133 per day/);
+  assert.match(text, /Not counted: Savings \(before accounts\) KSh 3,000 \(savings\)/);
+  noErrors(errors); await context.close();
+});
+
+test("safe to spend, irregular income: chosen period, buffer, and no double counting", async () => {
+  const { page, context, errors } = await h.openApp({ seed: irregularWallet() });
+  await h.goView(page, "plan");
+  await h.clickAction(page, "edit-plan");
+  await h.submitForm(page, "plannerForm", { planPattern: "irregular", planDays: "7", planBuffer: "1000" });
+  const text = await planText(page);
+  // Period 25 Nov - 1 Dec (7 days). Spending money = 10,000 - 500 set aside = 9,500.
+  // Bills: Water 800 (30 Nov); the school trip (5 Dec) is outside the period.
+  // Debts: Chama plan 1,500; Achieng has no plan -> not guessed, flagged.
+  // Goal: 2,000 monthly target - 500 already set aside this month = 1,500 (the 500 is NOT deducted twice).
+  // Reserve = 9,500 - 800 - 1,500 - 1,500 - 1,000 buffer = 4,700 -> 671/day.
+  assert.match(text, /Planning the next 7 days · 7 days/);
+  assert.match(text, /Spending money available KSh 9,500/);
+  assert.match(text, /Less bills due −KSh 800/);
+  assert.match(text, /Less debt instalments −KSh 1,500/);
+  assert.match(text, /Less goal plans not yet set aside −KSh 1,500/);
+  assert.match(text, /Less minimum buffer −KSh 1,000/);
+  assert.match(text, /Protected reserve left KSh 4,700/);
+  assert.match(text, /KSh 671 per day/);
+  assert.match(text, /1 debt has no repayment plan and is not included/);
+  // Expected income: only the 5,000 due in the period, and never in the main number.
+  assert.match(text, /If the KSh 5,000 expected in this period arrives, safe to spend would be KSh 1,386 a day instead of KSh 671/);
+  await h.goView(page, "debts");
+  assert.match(await h.bodyText(page), /No repayment plan: add a monthly amount/);
+  noErrors(errors); await context.close();
+});
+
+test("expected income: counted only when received; deleting the income puts it back", async () => {
+  const { page, context, errors } = await h.openApp({ seed: irregularWallet() });
+  await h.goView(page, "plan");
+  await h.clickAction(page, "receive-expected", 90);
+  await h.submitForm(page, "receiveForm", { rcvAmount: "4500", rcvAccount: "mpesa" });   // paid less than promised
+  let s = await h.storedState(page);
+  const income = s.transactions.find(t => t.reference === "expected:90");
+  assert.equal(income.amount, 4500);
+  assert.equal(s.expectedIncome.find(e => e.id === 90).status, "received");
+  assert.equal((await accountCard(page, "M-Pesa")).balance, "KSh 14,500");
+  await h.goView(page, "plan");
+  assert.doesNotMatch(await page.innerText("#planView"), /Client: logo design/);
+  await h.goView(page, "money");
+  await h.clickAction(page, "delete-transaction", income.id);
+  s = await h.storedState(page);
+  assert.equal(s.expectedIncome.find(e => e.id === 90).status, "expected");
+  assert.equal((await accountCard(page, "M-Pesa")).balance, "KSh 10,000");
+  noErrors(errors); await context.close();
+});
+
+test("a savings account counts towards safe to spend only when marked as spending money", async () => {
+  const seed = wallet(); seed.accounts[2].openingBalance = 4000;   // M-Shwari holds 4,000
+  const { page, context } = await h.openApp({ seed });
+  assert.match(await planText(page), /Spending money available KSh 10,000/);
+  await h.goView(page, "money");
+  await h.clickAction(page, "edit-account", "mshwari");
+  await h.submitForm(page, "accountForm", { accSpending: true });
+  assert.match(await planText(page), /Spending money available KSh 14,000/);
+  await context.close();
+});
+
+test("reconcile down: labelled adjustment, not spending; full audit details recorded", async () => {
+  const { page, context, errors } = await h.openApp({ seed: wallet() });
+  await h.goView(page, "money");
+  await h.clickAction(page, "reconcile-account", "mpesa");
+  await h.submitForm(page, "reconcileForm", { recActual: "9200", recReason: "Small M-Pesa payments not recorded" });
+  assert.equal((await accountCard(page, "M-Pesa")).balance, "KSh 9,200");
+  const adj = (await h.storedState(page)).transactions.find(t => t.type === "adjustment");
+  assert.deepEqual([adj.direction, adj.amount, adj.date, adj.notes], ["out", 800, "2026-11-25", "Small M-Pesa payments not recorded"]);
+  assert.deepEqual([adj.reconciliation.recordedBalance, adj.reconciliation.actualBalance, adj.reconciliation.difference], [10000, 9200, -800]);
+  await h.goView(page, "home");
+  assert.match(await h.bodyText(page), /This month out KSh 0/);
+  await h.goView(page, "money");
+  await h.clickAction(page, "reconcile-history", "mpesa");
+  const history = await page.evaluate(() => document.querySelector(".modal").innerText.replace(/\s+/g, " "));
+  assert.match(history, /KSh 10,000 KSh 9,200 −KSh 800 Adjustment Small M-Pesa payments not recorded Active/);
+  noErrors(errors); await context.close();
+});
+
+test("reconcile with 'unrecorded spending': the shortfall counts as spending", async () => {
+  const { page, context } = await h.openApp({ seed: wallet() });
+  await h.goView(page, "money");
+  await h.clickAction(page, "reconcile-account", "mpesa");
+  await h.submitForm(page, "reconcileForm", { recActual: "9000", recReason: "Lunches and fare", recUnrecorded: true });
+  const s = await h.storedState(page);
+  const entry = s.transactions.find(t => t.reconciliation);
+  assert.deepEqual([entry.type, entry.category, entry.amount], ["expense", "Unrecorded spending", 1000]);
+  await h.goView(page, "home");
+  assert.match(await h.bodyText(page), /This month out KSh 1,000/);
+  await context.close();
+});
+
+test("reconcile up and as of a past date: entries after that date are not part of it", async () => {
+  const { page, context } = await h.openApp({ seed: wallet() });
+  await h.goView(page, "money");
+  await h.clickAction(page, "reconcile-account", "mpesa");
+  // On 19 Nov (before the 20 Nov salary) PesaPilot shows 0; the real balance was 500.
+  await h.submitForm(page, "reconcileForm", { recDate: "2026-11-19", recActual: "500", recReason: "Balance before salary" });
+  const adj = (await h.storedState(page)).transactions.find(t => t.type === "adjustment");
+  assert.deepEqual([adj.direction, adj.amount, adj.reconciliation.recordedBalance], ["in", 500, 0]);
+  assert.equal((await accountCard(page, "M-Pesa")).balance, "KSh 10,500");
+  await h.goView(page, "home");
+  assert.match(await h.bodyText(page), /This month in KSh 10,000/);   // an adjustment is not income
+  await context.close();
+});
+
+test("adjustments cannot be edited or deleted, only reversed; both entries stay in history", async () => {
+  const { page, context, errors } = await h.openApp({ seed: wallet() });
+  await h.goView(page, "money");
+  await h.clickAction(page, "reconcile-account", "mpesa");
+  await h.submitForm(page, "reconcileForm", { recActual: "9000", recReason: "Lunches", recUnrecorded: true });
+  const id1 = (await h.storedState(page)).transactions.find(t => t.reconciliation).id;
+  assert.equal(await page.$(`[data-action="delete-transaction"][data-id="${id1}"]`), null, "no Delete button");
+  assert.equal(await page.$(`[data-action="edit-transaction"][data-id="${id1}"]`), null, "no Edit button");
+  await h.clickAction(page, "reverse-transaction", id1);
+  const s = await h.storedState(page);
+  const original = s.transactions.find(t => t.id === id1), reversal = s.transactions.find(t => t.reversesId === id1);
+  assert.ok(reversal, "reversal entry created");
+  assert.equal(original.reversedBy, reversal.id);
+  assert.equal((await accountCard(page, "M-Pesa")).balance, "KSh 10,000");
+  await h.goView(page, "home");
+  assert.match(await h.bodyText(page), /This month out KSh 0/);
+  await h.goView(page, "money");
+  const text = await h.bodyText(page);
+  assert.match(text, /Reversed/); assert.match(text, /Reversal/);
+  await h.clickAction(page, "reconcile-history", "mpesa");
+  assert.match(await page.evaluate(() => document.querySelector(".modal").innerText), /Reversed/);
+  noErrors(errors); await context.close();
+});
+
+test("reconcile fixes an upgraded account that showed below zero", async () => {
+  const { page, context } = await h.openApp({ seed: realisticMonth() });
+  assert.equal((await accountCard(page, "Cash")).balance, "−KSh 7,700");
+  await h.clickAction(page, "reconcile-account", "cash");
+  await h.submitForm(page, "reconcileForm", { recActual: "1200", recReason: "Counted my wallet" });
+  assert.equal((await accountCard(page, "Cash")).balance, "KSh 1,200");
+  await h.goView(page, "reports");
+  assert.match(await h.bodyText(page), /Expenses KSh 23,900/);   // reports unchanged by the correction
+  await context.close();
+});
+
+test("old 'Other / unassigned' entries can be moved to the right account", async () => {
+  const { page, context } = await h.openApp({ seed: realisticMonth() });
+  await h.goView(page, "money");
+  await h.clickAction(page, "edit-transaction", 7);                  // legacy Fuliza repayment
+  await h.submitForm(page, "transactionForm", { txAccountForm: "mpesa" });
+  await h.clickAction(page, "edit-transaction", 5);                  // legacy goal saving (now a transfer)
+  await h.submitForm(page, "transferForm", { trFrom: "mpesa" });
+  assert.equal((await accountCard(page, "Other / unassigned")).balance, "KSh 0");
+  assert.equal((await accountCard(page, "M-Pesa")).balance, "KSh 30,600");   // 35,600 - 2,000 - 3,000
+  const s = await h.storedState(page);
+  assert.equal(s.debts[0].repaid, 2000, "debt unchanged by moving the entry");
+  assert.equal(s.goals[0].current, 3000, "goal unchanged by moving the transfer");
+  await context.close();
+});
+
+test("no screen scrolls sideways on small phones (320 and 360 px)", async () => {
+  const seed = realisticMonth();
+  seed.expectedIncome = [{ id: 300, source: "Client: website redesign phase two", amount: 12000, expectedDate: "2026-11-27", accountId: "mpesa", status: "expected" }];
+  for (const width of [320, 360]) {
+    const { page, context } = await h.openApp({ seed, viewport: { width, height: 800 } });
+    for (const view of ["home", "money", "plan", "goals", "bills", "debts", "reports", "settings"]) {
+      await h.goView(page, view);
+      const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+      assert.equal(overflow, 0, `${view} is ${overflow}px too wide at ${width}px`);
+    }
+    await context.close();
+  }
+});
+
 // --------------------------------------------- known defects (later phases)
 test("[D2 fixed] savings and debt repayments are not counted as spending", async () => {
   const { page, context } = await h.openApp({ seed: realisticMonth() });

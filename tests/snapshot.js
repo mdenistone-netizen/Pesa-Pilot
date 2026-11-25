@@ -18,7 +18,8 @@ const MODALS = [
   ["debts", "add-debt"], ["debts", "repay-debt", 40], ["debts", "debt-history", 40],
   ["settings", "change-pin"],
   ["money", "add-transfer"], ["money", "add-account"], ["money", "edit-account", "mpesa"],
-  ["goals", "move-goal", 20], ["goals", "release-goal", 20], ["goals", "goal-history", 20]
+  ["goals", "move-goal", 20], ["goals", "release-goal", 20], ["goals", "goal-history", 20],
+  ["money", "reconcile-account", "mpesa"], ["plan", "edit-plan"], ["plan", "add-expected"]
 ];
 
 async function capture() {

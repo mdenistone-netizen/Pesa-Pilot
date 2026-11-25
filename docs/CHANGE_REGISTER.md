@@ -107,3 +107,48 @@ Full output: `docs/evidence/phase-1-tests.txt`.
 3. In the previous version, Settings → **Import backup** → choose that file.
 
 Entries made *after* upgrading would need re-entering, so a rollback should happen soon after deployment if it is ever needed.
+
+---
+
+## CR-003 · Phase 2 · Safe to spend for irregular income, reconcile, expected income
+
+| | |
+|---|---|
+| Date | 2026-11-25 |
+| Branch | `claude/pesapilot-master-handover-0z1xae` (PR #1 is a draft "[DO NOT MERGE]", used for preview only) |
+| Status | **Implemented + Tested.** Not independently verified. **Not deployed.** |
+| Approved by owner | DEC-015 (safe to spend) and DEC-016 (reconcile), with the owner's refinements |
+| Data change | No schema bump; still schema 10, which has never been released. New optional fields: `profile.incomePattern`, `profile.planningDays`, `profile.minimumBuffer`, `account.spending`, `expectedIncome[]`, and the `adjustment` transaction kind with `reconciliation`, `reversedBy` and `reversesId`. Older data gets safe defaults. |
+
+### What changed (all in `index.html`)
+- **Safe to spend (DEC-015, FINANCIAL_RULES §6):**
+  - fixed payday *or* irregular income with a 7, 14 or 30 day period;
+  - only spending accounts count, and savings accounts are excluded unless marked;
+  - goal money is deducted once;
+  - bills due in the period plus the latest overdue one;
+  - this month's unpaid debt instalment, only where a plan exists (the 5% guess is removed and unplanned debts are flagged);
+  - this month's goal target minus what was already set aside;
+  - planned spending and an optional minimum buffer.
+- The Plan screen shows every line of the calculation and which accounts are counted.
+- **Expected income:** add, edit, remove and "Received" (records the actual amount and date). It is never counted beforehand, and an "if it arrives" figure is shown separately. Deleting the resulting income entry puts it back on the expected list.
+- **Reconcile (DEC-016, FINANCIAL_RULES §8):**
+  - Records the recorded balance on the chosen date, the actual balance, the difference, the date and the reason.
+  - The difference becomes a labelled adjustment (not income or spending), or "Unrecorded spending" if the user ticks the box.
+  - Adjustments cannot be edited or deleted; **Reverse** adds a reversal entry, and both stay in history and cancel out.
+  - Each account has a reconciliation history and shows when it was last reconciled. Net corrections and unrecorded spending totals are shown on the Money screen.
+- The account form has "Count as spending money".
+- Debt cards flag a missing repayment plan.
+- Wording no longer assumes everyone has a payday.
+- **Phone layout:** Bills no longer overflows on 320 and 360 px phones (D11), and expected-income rows wrap on phones.
+
+### Evidence
+| Check | Result |
+|---|---|
+| Tests | **44 passed, 0 failed.** 11 new: fixed and irregular safe to spend with hand-checked numbers, no double counting, expected income, savings-account toggle, 4 reconcile cases, reversal-only audit, upgraded-account fix, legacy entry reassignment, small-phone overflow at 320/360 px. Output: `docs/evidence/phase-2-tests.txt` |
+| UI snapshots | New baseline of 76 after the intended changes; stable on re-run; no page errors |
+| Known defects open | D3 (receivables), D6 (plain-text PIN), D9 (PWA), D10 (timezone) |
+
+### Known limitations
+- Debt instalments are reserved per calendar month. A planning period that crosses a month end reserves only the current month's instalment.
+- The weekly guardrail still uses 7 × the daily amount, which is fine but simple.
+- Balance adjustments are per account. There is no bulk "reconcile everything" step.

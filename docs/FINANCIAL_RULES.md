@@ -73,7 +73,7 @@ You can set aside at most the account's **available** amount. Once a shilling is
 | Commitment | Amount |
 |---|---|
 | Bills | Unpaid remainder of each bill occurrence due within the period, plus the most recent overdue unpaid occurrence. Partial payments reduce it. |
-| Debt instalments | For each debt with a monthly plan: min(plan, outstanding) − repayments already recorded this calendar month (never below 0). Debts with no plan are **not** guessed: they are listed as "no repayment plan". |
+| Debt instalments | For each debt with a monthly plan: the plan minus repayments already recorded this calendar month (never below 0), capped at what is still owed. Debts with no plan are **not** guessed: they are listed as "no repayment plan". |
 | Goal plans | For each unfinished goal with a monthly target (or weekly × 4.33): min(target, still needed) − money set aside for it this calendar month (never below 0). Money already set aside is excluded here because it was already deducted through *available*. |
 | Planned spending | The amount the user enters for known extra spending in this period. |
 | Minimum buffer | Optional amount the user always wants left untouched. |

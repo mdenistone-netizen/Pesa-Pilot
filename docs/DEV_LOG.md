@@ -31,3 +31,9 @@ These need Node and Playwright, which are pre-installed in Claude Code cloud ses
 - The owner set the collaboration model (DEC-014).
 - Added `docs/MASTER_PROJECT_STATE.md` as the single living record, and `CLAUDE.md` so future sessions load the rules automatically.
 - Raised Phase 2 Decisions A (safe-to-spend model) and B (reconcile) for the owner.
+
+### 2026-11-25 · Phase 2 + production facts
+- Verified the deployment setup from GitHub: Netlify auto-deploys `main`, PRs get previews, and `main` is unprotected. PR #1 was open and mergeable, so it was made a draft "[DO NOT MERGE]". User data lives only on users' devices. Recorded in DEC-017, CLAUDE.md and MASTER §2a/§2b.
+- Built CR-003 (DEC-015 safe to spend, DEC-016 reconcile with reversals, expected income) plus independent fixes (D11, legacy entry reassignment test).
+- 44/44 tests pass.
+- Raised Decisions C (release scope) and D (PIN protection).

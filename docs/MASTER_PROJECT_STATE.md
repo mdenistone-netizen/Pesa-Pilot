@@ -11,7 +11,7 @@ Read this first. Other documents hold the detail:
 | `DEV_LOG.md` | Session-by-session history |
 | `ROADMAP.md` | Phase plan |
 
-_Last updated: 2026-11-25 · Phase 2 approved (DEC-015, DEC-016) and in progress; production protection in force (DEC-017)._
+_Last updated: 2026-11-25 · Phase 2 implemented and tested (CR-003). Production protection in force (DEC-017). Release decisions pending (§7)._
 
 ---
 
@@ -21,7 +21,7 @@ _Last updated: 2026-11-25 · Phase 2 approved (DEC-015, DEC-016) and in progress
 |---|---|
 | Product | Kenyan personal finance app: accounts (M-Pesa, cash, bank, savings), budgets, goals, bills, debts |
 | Live app | https://pesa-pilot.netlify.app/ · runs `main` @ `8e33d44` (schema 9) · **holds real users' financial data** |
-| Work branch | `claude/pesapilot-master-handover-0z1xae` · schema 10 · **33/33 tests pass** · not deployed |
+| Work branch | `claude/pesapilot-master-handover-0z1xae` · schema 10 · **44/44 tests pass** · not deployed · preview: `deploy-preview-1--pesa-pilot.netlify.app` |
 | Deployment plan | Ship Phases 0.5 + 1 + 2 together, once, after Phase 2 is verified, a deployment checklist is presented and the owner explicitly approves |
 | Firebase / cloud | **Not implemented**, and deliberately postponed (DEC-005) |
 
@@ -32,7 +32,7 @@ _Last updated: 2026-11-25 · Phase 2 approved (DEC-015, DEC-016) and in progress
   - A safety backup under `pesapilot_safety_backup_v9`.
   - The pre-accounts snapshot under `pesapilot_pre_v10_snapshot`.
   - Data never leaves the device except through backups the user exports.
-- **Data model (schema 10):** `accounts`, `transactions` (kinds: income, expense, transfer, borrow, debt_repayment), `allocations` (goal money per account), `goals`, `bills`, `debts`, `budgets`, `categories`, `profile`, `pin`.
+- **Data model (schema 10):** `accounts` (with a `spending` flag), `transactions` (kinds: income, expense, transfer, borrow, debt_repayment, adjustment; reversal links), `allocations` (goal money per account), `expectedIncome`, `goals`, `bills`, `debts`, `budgets`, `categories`, `profile` (income pattern, planning days, buffer), `pin`.
 - **Upgrades:** `migrate()` runs on every load. It is non-destructive and idempotent (DEC-004, DEC-012).
 - **Tests:** `npm test` runs headless-browser tests with a fixed clock. `npm run test:ui-snapshot` proves screens are unchanged during refactors (DEC-003).
 
@@ -72,7 +72,7 @@ _Last updated: 2026-11-25 · Phase 2 approved (DEC-015, DEC-016) and in progress
 | 0 | Baseline inspection | Done |
 | 0.5 | Test suite, non-destructive migration, dead code removed (CR-001) | Implemented + tested |
 | 1 | Accounts, transfers, goal allocations, correct classification, reversible upgrade (CR-002) | Implemented + tested |
-| **2** | **Safe-to-spend for irregular income (DEC-015), reconcile with reversible adjustments (DEC-016), expected income, commitment fixes** | **In progress** on the work branch |
+| 2 | Safe to spend for irregular income (DEC-015), reconcile with reversible adjustments (DEC-016), expected income (CR-003) | Implemented + tested |
 | 3 | Money owed to me, savings/debt refinements, daily opening/closing view, flexible budgets | Planned |
 | 4 | Security & reliability: hashed PIN, backup hardening, PWA/offline | Planned |
 | 5 | Dashboard & insights on the corrected numbers | Planned |
@@ -94,12 +94,10 @@ Full detail: `FINANCIAL_RULES.md`.
 | ID | Defect | Status / plan |
 |---|---|---|
 | D3 | No "money owed to me" (receivables) | Phase 3 |
-| D5 | Safe-to-spend assumes one fixed payday; debt fallback guesses 5% of income | Partly fixed (excludes goal money). **Phase 2** |
 | D6 | PIN stored and exported in plain text | Phase 4 (could move earlier) |
 | D9 | No PWA manifest / service worker (install & offline don't work) | Phase 4 |
 | D10 | Dates use the phone's clock and zone, not explicitly Nairobi | Low; review in Phase 4 |
-| D11 | Bills screen 3 px wider than 360 px phones | Low; next UI pass |
-| — | Fixed so far | D1, D2, D4, D7, D8 |
+| — | Fixed so far | D1, D2, D4, D5, D7, D8, D11 |
 
 ## 6. Approved decisions (summary; detail in `DECISIONS.md`)
 - DEC-002: single-file architecture kept.
@@ -118,7 +116,27 @@ Full detail: `FINANCIAL_RULES.md`.
 - DEC-017: production protection (§2b).
 
 ## 7. Decisions waiting for the owner
-None right now. Decisions A and B were approved as DEC-015 and DEC-016; the rules are in `FINANCIAL_RULES.md` §6 and §8.
+
+### Decision C: What goes into the first production release?
+- **Why it matters:** this is the first release to real users, and their data upgrades on their own devices. Every extra item adds risk, but leaving out a known security weakness also has a cost.
+- **Recommended:** ship **Phases 0.5–2 plus the PIN fix (Decision D)** as one release. Before that, the owner tries the preview on their phone.
+- **Alternatives:**
+  - (2) Ship 0.5–2 now and the PIN fix later. Faster, but backups keep exposing PINs and users go through two upgrades.
+  - (3) Wait for Phase 3 (receivables). It delays fixes to wrong totals that users are seeing today.
+- **Reversible?** Yes. Rollback is proven by test (CR-002).
+
+### Decision D: How should the PIN be protected? (defect D6)
+- **Why it matters:** today the PIN is stored as plain text and written into every exported backup file. Anyone who sees a backup sees the PIN.
+- **Recommended:**
+  - Store only a salted, slow hash of the PIN (PBKDF2 via the browser's built-in WebCrypto; no new dependency).
+  - Remove the PIN from backups entirely; importing a backup keeps the PIN already on that device, as today.
+  - Existing PINs are converted automatically on first load.
+  - Forgotten-PIN recovery stays as it is (back up, then reset this device).
+- **Honest limit:** a 4–8 digit PIN on a device can't resist a determined attacker who has the phone's storage. It protects against casual access and leaked backups. Real encryption of the data would be a bigger, separate decision.
+- **Alternatives:**
+  - (2) Only remove the PIN from backups: smaller, but the plain text stays on the device.
+  - (3) Encrypt all data with the PIN: much stronger, but a forgotten PIN means data loss, and it adds complexity. Better later.
+- **Reversible?** Partly. A hash can't be turned back into the PIN. Rolling back uses the pre-accounts snapshot, which keeps the old PIN.
 
 ## 8. Risks
 - **Real users, data only on their devices:** a faulty release could damage data we can't see or restore centrally. Mitigations: on-device snapshot, proven rollback, deployment checklist, and owner approval (DEC-017).
@@ -127,14 +145,10 @@ None right now. Decisions A and B were approved as DEC-015 and DEC-016; the rule
 - **Single-file growth:** `index.html` is about 175 KB. That is acceptable now; I will propose splitting it if changes start to become risky.
 
 ## 9. Next steps
-1. Build Phase 2 on the work branch:
-   - DEC-015 safe to spend, including expected income;
-   - DEC-016 reconcile with reversals and history;
-   - spending-account setting;
-   - debt fallback removed;
-   - independent fixes.
-2. Phase 2 checkpoint with test evidence, plus a check on the deploy preview.
-3. Then a **deployment decision brief and checklist** for Phases 0.5–2, for the owner's explicit approval.
+1. **Owner:** open the preview on your phone and try it with made-up numbers. It is safe, because the preview is a separate address with its own empty storage.
+2. **Owner:** answer Decisions C and D.
+3. **Claude:** build D if approved. Then prepare the **deployment checklist** for explicit approval, including a test upgrade of a real-shaped backup and the rollback steps.
+4. **Owner (recommended):** enable branch protection on `main` (§2a).
 
 ## 10. Working arrangement (DEC-014)
 - **Claude:** architect and builder. Makes routine engineering decisions alone. Brings **decision briefs** for financial rules, data structures, architecture, security, user data, costs and major features. Keeps working on unblocked tasks. Gives evidence-based checkpoints. Keeps these documents current. Never deploys or destroys data without approval.

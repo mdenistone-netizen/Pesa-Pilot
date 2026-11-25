@@ -394,6 +394,7 @@
     /* Grid cards may shrink below their content so long one-line text truncates
        instead of widening the page on phones. */
     .grid > *, .list > *, .hero-grid > * { min-width: 0; }
+    @media (max-width: 640px) { .expected-row { flex-wrap: wrap; } .expected-row .actions { width: 100%; justify-content: flex-end; } }
     .holdings span { border: 1px solid var(--line); border-radius: 999px; padding: 3px 9px; font-size: 12px; }
   </style>
 </head>
@@ -575,9 +576,9 @@
     };
     const blankState = () => ({
       schemaVersion: SCHEMA_VERSION,
-        profile: { name:"", avatar:"P", paydayDay:1, monthlyIncome:0, plannedExpenses:0, emergencyFundMonths:3, theme:"system", currency:"KSh" },
+        profile: { name:"", avatar:"P", paydayDay:1, monthlyIncome:0, plannedExpenses:0, emergencyFundMonths:3, theme:"system", currency:"KSh", incomePattern:"fixed", planningDays:14, minimumBuffer:0 },
       transactions: [], goals: [], bills: [], debts: [], categories: defaultCategories.map(name => ({ id: name.toLowerCase(), name })),
-      accounts: [newAccount("mpesa","M-Pesa","mpesa"), newAccount("cash","Cash","cash")], allocations: [],
+      accounts: [newAccount("mpesa","M-Pesa","mpesa"), newAccount("cash","Cash","cash")], allocations: [], expectedIncome: [],
       budgets: { monthlySpending:0, categoryBudgets:{} },
       nextId: 1, pin:"", deviceId:uid(), deviceFingerprint:fingerprint()
     });
@@ -655,6 +656,9 @@
       next.profile.emergencyFundMonths = Math.min(12,Math.max(1,Number(next.profile.emergencyFundMonths)||3));
       next.profile.theme = ["system","light","dark"].includes(next.profile.theme) ? next.profile.theme : "system";
        next.profile.currency = ["KSh","USD","UGX","TZS"].includes(next.profile.currency) ? next.profile.currency : "KSh";
+       next.profile.incomePattern = next.profile.incomePattern === "irregular" ? "irregular" : "fixed";
+       next.profile.planningDays = [7,14,30].includes(Number(next.profile.planningDays)) ? Number(next.profile.planningDays) : 14;
+       next.profile.minimumBuffer = safeNumber(next.profile.minimumBuffer);
       next.pin = typeof old.pin === "string" ? old.pin : "";
       next.deviceId = old.deviceId || uid();
       next.deviceFingerprint = old.deviceFingerprint || fingerprint();
@@ -733,6 +737,10 @@
          date:entry.date || todayISO(), note:entry.note || "", reference:entry.reference || ""
        })) : [];
        if (sourceVersion < 10) upgradeToAccounts(next, hadAllocations);
+       next.expectedIncome = Array.isArray(old.expectedIncome) ? old.expectedIncome.filter(item => item && typeof item === "object").map(item => ({
+         ...item, id:item.id ?? next.nextId++, source:String(item.source || "Expected income"), amount:roundMoney(safeNumber(item.amount)),
+         expectedDate:item.expectedDate || "", accountId:item.accountId || "", status:item.status === "received" ? "received" : "expected"
+       })) : [];
        next.debts.forEach(debt => {
          if (!Number.isFinite(Number(debt.repaidBeforeTracking))) debt.repaidBeforeTracking = Math.max(0, roundMoney(debt.repaid - sum(debt.repayments || [], entry => entry.amount)));
          else debt.repaidBeforeTracking = safeNumber(debt.repaidBeforeTracking);
@@ -752,7 +760,8 @@
          ...next.bills.flatMap(item => (item.payments || []).map(entry => Number(entry.id) || 0)),
         ...next.debts.map(item => Number(item.id) || 0),
         ...next.debts.flatMap(item => (item.repayments || []).map(entry => Number(entry.id) || 0)),
-        ...next.allocations.map(item => Number(item.id) || 0)
+        ...next.allocations.map(item => Number(item.id) || 0),
+        ...next.expectedIncome.map(item => Number(item.id) || 0)
       ];
       next.nextId = Math.max(next.nextId - 1, ...allIds, 0) + 1;
        // Keep top-level data this version does not know yet (e.g. a future "accounts" list).
@@ -938,7 +947,7 @@
     }
     // Income = earnings only. Expense = spending only. Transfers, borrowing and debt
     // repayments change account balances but are neither earnings nor spending.
-    function totals(transactions = state.transactions) {
+    function totals(transactions = activeTransactions()) {
       const byType = type => sum(transactions.filter(item => item.type === type),item => item.amount);
       const income = byType("income"), expense = byType("expense"), borrowed = byType("borrow"), repaid = byType("debt_repayment");
       const saved = roundMoney(income - expense - repaid);
@@ -950,10 +959,14 @@
     function isValidTransfer(item) { return item.type === "transfer" && item.accountId !== item.toAccountId && Boolean(accountById(item.accountId)) && Boolean(accountById(item.toAccountId)); }
     // Balance = opening balance + money in - money out. With an opening date, earlier
     // entries are treated as already included in the opening balance.
-    function accountBalance(accountId) {
+    // Reversed entries and their reversals stay in history but cancel out (DEC-016).
+    function isReversalPair(item) { return Boolean(item.reversedBy || item.reversesId); }
+    function activeTransactions() { return state.transactions.filter(item => !isReversalPair(item)); }
+    function isAudited(item) { return item.type === "adjustment" || Boolean(item.reconciliation); }
+    function accountBalance(accountId, asOf = "") {
       const account = accountById(accountId);
       if (!account) return 0;
-      const counts = item => !account.openingDate || item.date >= account.openingDate;
+      const counts = item => !isReversalPair(item) && (!account.openingDate || item.date >= account.openingDate) && (!asOf || item.date <= asOf);
       let cents = Math.round((Number(account.openingBalance) || 0) * 100);
       state.transactions.forEach(item => {
         const value = Math.round((Number(item.amount) || 0) * 100);
@@ -965,6 +978,7 @@
         } else if (item.accountId === accountId) {
           if (INFLOW_KINDS[item.type]) cents += value;
           else if (OUTFLOW_KINDS[item.type]) cents -= value;
+          else if (item.type === "adjustment") cents += item.direction === "out" ? -value : value;
         }
       });
       return cents / 100;
@@ -985,7 +999,7 @@
       state.debts.forEach(debt => { debt.repaid = roundMoney((Number(debt.repaidBeforeTracking) || 0) + sum(debt.repayments || [],entry => entry.amount)); });
     }
     function monthTotals(month = currentMonth()) {
-      return totals(state.transactions.filter(item => monthKey(item.date) === month));
+      return totals(activeTransactions().filter(item => monthKey(item.date) === month));
     }
     function goalContributions(month = null) {
       return sum(liveAllocations().filter(entry => !month || monthKey(entry.date) === month),entry => entry.amount);
@@ -1036,37 +1050,76 @@
        }
        return payday;
      }
-     function cycleBillCommitments() {
-       const start = new Date();
-       start.setHours(12,0,0,0);
-       const end = paydayDate(start);
-       const months = [...new Set([monthKey(start.toISOString().slice(0,10)),monthKey(end.toISOString().slice(0,10))])];
-       let total = 0;
-       state.bills.forEach(bill => {
-         let included = false;
-         months.forEach(month => billOccurrencesForMonth(bill,month).forEach(dateValue => {
-           const date = new Date(`${dateValue}T12:00:00`);
-           if (date >= start && date <= end && !billIsPaidOn(bill,dateValue)) {
-             total += Math.max(0,(Number(bill.amount) || 0) - billPaidAmountOn(bill,dateValue));
-             included = true;
-           }
-         }));
-         if (!included && !bill.paid && bill.dueDate && bill.dueDate < todayISO()) total += Number(bill.amount) || 0;
-       });
-       return total;
-     }
+    function isSpendingAccount(account) { return typeof account.spending === "boolean" ? account.spending : account.kind !== "savings"; }
+    function spendingAccounts() { return state.accounts.filter(isSpendingAccount); }
+    // Planning period: to the day before payday, or the next N days for irregular income.
+    function planPeriod() {
+      const start = todayISO(), startDate = new Date(`${start}T12:00:00`);
+      if (state.profile.incomePattern === "irregular") {
+        const days = [7,14,30].includes(Number(state.profile.planningDays)) ? Number(state.profile.planningDays) : 14;
+        const end = new Date(startDate); end.setDate(end.getDate() + days - 1);
+        return { days, start, end:localISO(end), irregular:true, label:`the next ${days} days` };
+      }
+      const payday = paydayDate(startDate), end = new Date(payday); end.setDate(end.getDate() - 1);
+      const days = Math.max(1, Math.round((payday - startDate) / 86400000));
+      return { days, start, end:localISO(end), irregular:false, payday:localISO(payday), label:`until payday on ${dateText(localISO(payday))}` };
+    }
+    // Each unpaid bill occurrence due in the period, plus the latest overdue one; each counted once.
+    function billsDue(period = planPeriod()) {
+      const items = [];
+      state.bills.forEach(bill => {
+        const dates = new Set(billOccurrencesBetween(bill, period.start, period.end));
+        const overdue = billOverdueOccurrence(bill, period.start);
+        if (overdue) dates.add(overdue);
+        [...dates].sort().forEach(date => {
+          const amount = Math.max(0, roundMoney((Number(bill.amount) || 0) - billPaidAmountOn(bill, date)));
+          if (amount > 0.004) items.push({ bill, date, amount, overdue:date < period.start });
+        });
+      });
+      return { items, total:sum(items, item => item.amount) };
+    }
+    // This month's planned instalment not yet paid, capped at what is owed. No plan, no guess.
+    function debtInstalments() {
+      const month = currentMonth(), items = [], unplanned = [];
+      state.debts.forEach(debt => {
+        const outstanding = roundMoney((Number(debt.total) || 0) - (Number(debt.repaid) || 0));
+        if (outstanding <= 0.004) return;
+        const plan = Number(debt.repaymentAmount) || 0;
+        if (!plan) { unplanned.push(debt); return; }
+        const paidThisMonth = sum((debt.repayments || []).filter(entry => monthKey(entry.date) === month), entry => entry.amount);
+        items.push({ debt, amount:Math.min(outstanding, Math.max(0, roundMoney(plan - paidThisMonth))) });
+      });
+      return { items, unplanned, total:sum(items, item => item.amount) };
+    }
+    // This month's goal target minus what was already set aside this month (that money is
+    // already excluded from spending money, so counting it again would double-count).
+    function goalPlanReserve() {
+      const month = currentMonth();
+      return sum(state.goals, goal => {
+        const target = Number(goal.requiredMonthly) || roundMoney((Number(goal.requiredWeekly) || 0) * 4.33);
+        const remaining = Math.max(0, roundMoney(goal.target - goalSaved(goal)));
+        if (!target || !remaining) return 0;
+        const thisMonth = sum(liveAllocations().filter(entry => String(entry.goalId) === String(goal.id) && monthKey(entry.date) === month), entry => entry.amount);
+        return Math.min(remaining, Math.max(0, roundMoney(target - thisMonth)));
+      });
+    }
+    function expectedIncomeItems() { return (state.expectedIncome || []).filter(item => item.status !== "received").sort((a,b) => String(a.expectedDate).localeCompare(String(b.expectedDate))); }
+    function cycleBillCommitments() { return billsDue().total; }
     function debtCommitments() {
-      return sum(state.debts,item => item.repaymentAmount || (item.total-item.repaid > 0 ? Math.min(item.total-item.repaid, Math.max(0, state.profile.monthlyIncome * .05)) : 0));
+      return sum(state.debts.filter(debt => (Number(debt.total) || 0) - (Number(debt.repaid) || 0) > 0.004), debt => Number(debt.repaymentAmount) || 0);
     }
-    function savingsCommitments() {
-      return sum(state.goals,item => Math.min(item.requiredMonthly || 0, Math.max(0, item.target - item.current)));
-    }
+    function savingsCommitments() { return goalPlanReserve(); }
      function daysToPayday() { return Math.max(1,Math.ceil((paydayDate()-new Date())/86400000)); }
     function planner() {
-      const t = totals(), days = daysToPayday();
-       const commitments = cycleBillCommitments() + debtCommitments() + savingsCommitments() + state.profile.plannedExpenses;
-      const reserve = totalAvailable() - commitments;
-       return { days, commitments, bills:cycleBillCommitments(), debt:debtCommitments(), savings:savingsCommitments(), planned:state.profile.plannedExpenses, reserve, daily:reserve/days };
+      const period = planPeriod(), days = period.days;
+      const spendable = sum(spendingAccounts(), account => accountAvailable(account.id));
+      const billInfo = billsDue(period), debtInfo = debtInstalments(), savings = goalPlanReserve();
+      const planned = safeNumber(state.profile.plannedExpenses), buffer = safeNumber(state.profile.minimumBuffer);
+      const commitments = roundMoney(billInfo.total + debtInfo.total + savings + planned + buffer);
+      const reserve = roundMoney(spendable - commitments);
+      const expectedItems = expectedIncomeItems().filter(item => !item.expectedDate || item.expectedDate <= period.end);
+      const expected = sum(expectedItems, item => item.amount);
+      return { period, days, spendable, bills:billInfo.total, billInfo, debt:debtInfo.total, debtInfo, savings, planned, buffer, commitments, reserve, daily:reserve/days, expected, expectedItems, dailyIfExpected:(reserve+expected)/days };
     }
     function monthLabel(month) {
       const date = new Date(`${month}-01T12:00:00`);
@@ -1111,7 +1164,7 @@
        return { from:localISO(start), to:localISO(end) };
      }
      function rangeTotals(from,to) {
-       return totals(state.transactions.filter(item => item.date >= from && item.date <= to));
+       return totals(activeTransactions().filter(item => item.date >= from && item.date <= to));
      }
      function cashFlowSummary() {
        const week = weekRange();
@@ -1171,17 +1224,17 @@
     function smartInsights(month=currentMonth()) {
        const insights=[], current=monthTotals(month), previous=monthTotals(previousMonth(month)), p=month===currentMonth()?planner():{reserve:current.balance,commitments:Math.max(0,-current.balance)}, fund=emergencyFund();
       const categories={};
-      state.transactions.filter(item=>item.type==="expense"&&monthKey(item.date)===month).forEach(item=>categories[item.category]=(categories[item.category]||0)+item.amount);
+      activeTransactions().filter(item=>item.type==="expense"&&monthKey(item.date)===month).forEach(item=>categories[item.category]=(categories[item.category]||0)+item.amount);
       const top=Object.entries(categories).sort((a,b)=>b[1]-a[1])[0];
       const budget=state.budgets.monthlySpending;
-      if (p.reserve < 0) insights.push({kind:"bad",title:"Your protected plan is short",text:`You are ${money(Math.abs(p.reserve))} below bills, debt, savings and planned commitments. Pause non-essential spending until the next payday.`});
+      if (p.reserve < 0) insights.push({kind:"bad",title:"Your protected plan is short",text:`You are ${money(Math.abs(p.reserve))} below bills, debt, savings and planned commitments. Pause non-essential spending until your next income.`});
       if (budget && current.expense > budget) insights.push({kind:"warn",title:"Monthly spending budget is exceeded",text:`${money(current.expense-budget)} is above your ${money(budget)} ceiling. Start with ${escapeHtml(top?.[0]||"your largest category")}.`});
       if (top && current.expense && top[1]/current.expense >= .35) insights.push({kind:"warn",title:`${escapeHtml(top[0])} is carrying the month`,text:`It represents ${Math.round(top[1]/current.expense*100)}% of recorded expenses at ${money(top[1])}. A small adjustment here will matter most.`});
        const overdue=state.bills.filter(bill=>month===currentMonth()?Boolean(nextBillOccurrence(bill)&&nextBillOccurrence(bill)<todayISO()):billOccurrencesForMonth(bill,month).some(dateValue=>dateValue<todayISO()&&!billIsPaidOn(bill,dateValue)));
       if (overdue.length) insights.push({kind:"bad",title:`${overdue.length} bill${overdue.length===1?" is":"s are"} overdue`,text:`Protect ${money(sum(overdue,bill=>billOutstanding(bill)))} before using the remaining daily allowance.`});
       if (fund.gap>0 && !fund.emergencyGoal) insights.push({kind:"neutral",title:"A rainy-day goal would strengthen your plan",text:`A ${fund.months}-month buffer is estimated at ${money(fund.target)}. Create a goal named “Emergency fund” to track it.`});
       if (previous.expense>0 && current.expense<previous.expense) insights.push({kind:"good",title:"Spending is lower than last month",text:`Recorded expenses are down ${money(previous.expense-current.expense)} compared with ${monthLabel(previousMonth(month))}. Keep the improvement intentional.`});
-      if (!insights.length) insights.push({kind:"good",title:"Your money picture is steady",text:"Keep recording transactions and protecting commitments so the next payday number stays trustworthy."});
+      if (!insights.length) insights.push({kind:"good",title:"Your money picture is steady",text:"Keep recording transactions and protecting commitments so your safe-to-spend number stays trustworthy."});
       return insights.slice(0,4);
     }
     function billPaidAmountOn(bill,date) {
@@ -1335,24 +1388,24 @@
           <div class="card hero">
             <p class="eyebrow">Your money, in plain language</p>
              <h1 class="hero-greeting">${timeGreeting()} <span class="hero-name">${escapeHtml(name)}</span> <span aria-hidden="true">👋</span></h1>
-             <p class="hero-tagline">Let’s make it to payday.</p>
+             <p class="hero-tagline">${p.period.irregular?`Let’s plan the next ${p.days} days.`:"Let’s make it to payday."}</p>
             <div class="balance-label">Actual balance across your recorded money</div>
             <div class="balance ${balanceKind}">${money(held)}</div>
            ${setAside?`<div class="balance-label" style="margin:-12px 0 16px">${money(setAside)} set aside for goals · ${money(held-setAside)} available</div>`:""}
-            <div class="hero-foot"><span>${p.days} days until payday</span>${statusBadge(held<0?"Overspent":"On track",held<0?"bad":"good")}</div>
+            <div class="hero-foot"><span>${p.period.irregular?`Planning ${p.days} days ahead`:`${p.days} day${p.days===1?"":"s"} until payday`}</span>${statusBadge(held<0?"Overspent":"On track",held<0?"bad":"good")}</div>
           </div>
           <div class="card soft">
             <p class="eyebrow">Safe to spend today</p>
             <h2 style="font-size:34px;margin:18px 0 4px">${money(p.daily)}</h2>
-            <p class="subtle">After bills, debt, savings and planned expenses are protected.</p>
+            <p class="subtle">After bills, debt, savings and planned expenses are protected.${p.expected?` If expected income arrives: ${money(p.dailyIfExpected)} a day.`:""}</p>
             <div class="progress ${p.daily<0?"red":""}" style="margin-top:23px"><span style="width:${Math.min(100,Math.max(0,p.reserve/(Math.max(1,held))*100))}%"></span></div>
             <div class="progress-meta"><span>Protected commitments</span><strong>${money(p.commitments)}</strong></div>
           </div>
          </div>
          ${reminders.length ? `<div class="card bill-reminders"><div class="section-title"><div><h2>Bill reminders</h2><span class="subtle">Only unpaid bills due in 5, 4, 3, 2 or 1 days.</span></div><button class="btn-link" data-action="view-bills">See bills</button></div><div class="list">${reminders.slice(0,4).map(({bill,info})=>`<div class="bill-reminder-row"><div class="row-icon">▣</div><div class="reminder-copy"><strong>${escapeHtml(bill.name)}</strong><span>Due in ${info.days} day${info.days===1?"":"s"} · ${dateText(info.date)}</span></div><span class="countdown-badge" title="${info.days} days remaining">D−${info.days}</span><div class="row-amount">${money(billOutstanding(bill,info.date))}</div></div>`).join("")}</div>${reminders.length>4?`<small class="subtle">Showing 4 of ${reminders.length} reminders.</small>`:""}</div>` : ""}
          <div class="grid grid-4" style="margin-bottom:15px">
-          <div class="card metric"><div class="metric-label"><span>This month in</span><span class="dot"></span></div><strong class="metric-value green">${money(m.income)}</strong><small>${state.transactions.filter(x=>x.type==="income"&&monthKey(x.date)===currentMonth()).length} income entries</small></div>
-          <div class="card metric"><div class="metric-label"><span>This month out</span><span class="dot red"></span></div><strong class="metric-value red">${money(m.expense)}</strong><small>${state.transactions.filter(x=>x.type==="expense"&&monthKey(x.date)===currentMonth()).length} expense entries</small></div>
+          <div class="card metric"><div class="metric-label"><span>This month in</span><span class="dot"></span></div><strong class="metric-value green">${money(m.income)}</strong><small>${activeTransactions().filter(x=>x.type==="income"&&monthKey(x.date)===currentMonth()).length} income entries</small></div>
+          <div class="card metric"><div class="metric-label"><span>This month out</span><span class="dot red"></span></div><strong class="metric-value red">${money(m.expense)}</strong><small>${activeTransactions().filter(x=>x.type==="expense"&&monthKey(x.date)===currentMonth()).length} expense entries</small></div>
           <div class="card metric"><div class="metric-label"><span>Committed bills</span><span class="dot amber"></span></div><strong class="metric-value">${money(p.bills)}</strong><small>${unpaidBills().length} unpaid bills</small></div>
            <div class="card metric"><div class="metric-label"><span>Week out</span><span class="dot blue"></span></div><strong class="metric-value blue">${money(cashFlowSummary().week.expense)}</strong><small>Recorded since Monday</small></div>
         </div>
@@ -1376,10 +1429,20 @@
         borrow:{ label:"Borrowed", sign:"+", cls:"borrow", icon:"↙" },
         debt_repayment:{ label:"Debt repayment", sign:"−", cls:"expense", icon:"↗" }
       };
-      return kinds[item.type] || { label:String(item.type || "Entry"), sign:"", cls:"transfer", icon:"•" };
+      const base = item.type === "adjustment" ? { label:"Balance adjustment", sign:item.direction === "out" ? "−" : "+", cls:"transfer", icon:"⚖" }
+        : kinds[item.type] || { label:String(item.type || "Entry"), sign:"", cls:"transfer", icon:"•" };
+      if (item.reversesId) return { ...base, label:`Reversal of ${base.label.toLowerCase()}`, sign:"", cls:"transfer" };
+      if (item.reversedBy) return { ...base, label:`${base.label} (reversed)`, sign:"", cls:"transfer" };
+      return base;
     }
     function transactionAccountText(item) {
       return item.type === "transfer" ? `${accountName(item.accountId)} → ${accountName(item.toAccountId)}` : accountName(item.accountId);
+    }
+    function transactionActions(item) {
+      if (item.reversesId) return `<span class="badge neutral">Reversal</span>`;
+      if (item.reversedBy) return `<span class="badge neutral">Reversed</span>`;
+      if (isAudited(item)) return `<div class="actions"><button class="btn small" data-action="reverse-transaction" data-id="${item.id}">Reverse</button></div>`;
+      return `<div class="actions"><button class="btn small" data-action="edit-transaction" data-id="${item.id}">Edit</button><button class="btn small danger" data-action="delete-transaction" data-id="${item.id}">Delete</button></div>`;
     }
     function transactionRow(item) {
       const kind=kindInfo(item), income=item.type==="income";
@@ -1395,7 +1458,7 @@
       return (active.find(account => account.kind === "mpesa") || active[0])?.id || "";
     }
     function accountKindLabel(kind) { return (accountKinds.find(([value]) => value === kind) || ["","Other"])[1]; }
-    function isLinkedReference(reference) { return /^(goal|debt|bill|debtborrow):/.test(String(reference || "")); }
+    function isLinkedReference(reference) { return /^(goal|debt|bill|debtborrow|expected):/.test(String(reference || "")); }
     // Warn (not block) before an outflow uses money set aside for goals or more than the
     // recorded balance. `item` is the entry being edited, whose old amount is given back first.
     function confirmOutflow(accountId, amount, item=null) {
@@ -1422,6 +1485,7 @@
       if (parts[0] === "debt") { const debt = state.debts.find(entry => String(entry.id) === parts[1]); return { kind:"debt", debt, entry:debt?.repayments?.find(entry => String(entry.id) === parts[2]) }; }
       if (parts[0] === "bill") { const bill = state.bills.find(entry => String(entry.id) === parts[1]); return { kind:"bill", bill, entry:bill?.payments?.find(entry => String(entry.id) === parts[3]) }; }
       if (parts[0] === "debtborrow") return { kind:"borrow", debt:state.debts.find(entry => String(entry.id) === parts[1]) };
+      if (parts[0] === "expected") return { kind:"expected", item:(state.expectedIncome || []).find(entry => String(entry.id) === parts[1]) };
       return { kind:"" };
     }
     // Keep the record a transaction belongs to in step with it.
@@ -1434,12 +1498,14 @@
       const link = linkedRecord(item);
       if (link.kind === "debt" && link.debt) link.debt.repayments = (link.debt.repayments || []).filter(entry => entry !== link.entry);
       if (link.kind === "bill" && link.bill && link.entry) { link.bill.payments = (link.bill.payments || []).filter(entry => entry !== link.entry); refreshBillStatus(link.bill,link.entry.occurrenceDate); }
+      if (link.kind === "expected" && link.item) { link.item.status = "expected"; delete link.item.receivedTransactionId; delete link.item.receivedDate; }
       state.allocations = state.allocations.filter(entry => entry.reference !== `transfer:${item.id}`);
     }
     function deleteTransactionMessage(item) {
       const link = linkedRecord(item);
       if (link.kind === "debt") return `Delete this repayment? ${link.debt ? `${link.debt.name} will show ${money(item.amount)} more outstanding.` : ""}`;
       if (link.kind === "bill") return `Delete this bill payment? ${link.bill ? `${link.bill.name} will show this payment as not made.` : ""}`;
+      if (link.kind === "expected") return "Delete this income entry? It goes back to your expected income list.";
       if (item.type === "transfer" && state.allocations.some(entry => entry.reference === `transfer:${item.id}`)) return "Delete this transfer? The goal money it moved goes back to how it was before the transfer.";
       return "Delete this transaction? This cannot be undone.";
     }
@@ -1487,13 +1553,13 @@
         <div class="card">
           <div class="toolbar">
             <div class="field search"><label for="txSearch">Search details</label><input id="txSearch" value="${escapeHtml(transactionFilters.search)}" placeholder="Category, note, reference or account" /></div>
-            <div class="field"><label for="txType">Type</label><select id="txType"><option value="all">All types</option><option value="income" ${transactionFilters.type==="income"?"selected":""}>Income</option><option value="expense" ${transactionFilters.type==="expense"?"selected":""}>Expense</option><option value="transfer" ${transactionFilters.type==="transfer"?"selected":""}>Transfer</option><option value="borrow" ${transactionFilters.type==="borrow"?"selected":""}>Borrowed</option><option value="debt_repayment" ${transactionFilters.type==="debt_repayment"?"selected":""}>Debt repayment</option></select></div>
+            <div class="field"><label for="txType">Type</label><select id="txType"><option value="all">All types</option><option value="income" ${transactionFilters.type==="income"?"selected":""}>Income</option><option value="expense" ${transactionFilters.type==="expense"?"selected":""}>Expense</option><option value="transfer" ${transactionFilters.type==="transfer"?"selected":""}>Transfer</option><option value="borrow" ${transactionFilters.type==="borrow"?"selected":""}>Borrowed</option><option value="debt_repayment" ${transactionFilters.type==="debt_repayment"?"selected":""}>Debt repayment</option><option value="adjustment" ${transactionFilters.type==="adjustment"?"selected":""}>Balance adjustment</option></select></div>
             <div class="field"><label for="txCategory">Category</label><select id="txCategory"><option value="all">All categories</option>${categoryOptions(transactionFilters.category).replace(`value="${escapeHtml(transactionFilters.category)}" selected`,"")}</select></div>
             <div class="field"><label for="txAccount">Account</label><select id="txAccount"><option value="all">All accounts</option>${state.accounts.map(x=>`<option value="${escapeHtml(x.id)}" ${x.id===transactionFilters.account?"selected":""}>${escapeHtml(x.name)}</option>`).join("")}</select></div>
             <div class="field"><label for="txSort">Sort</label><select id="txSort"><option value="date-desc" ${transactionFilters.sort==="date-desc"?"selected":""}>Newest first</option><option value="date-asc" ${transactionFilters.sort==="date-asc"?"selected":""}>Oldest first</option><option value="amount-desc" ${transactionFilters.sort==="amount-desc"?"selected":""}>Largest first</option><option value="amount-asc" ${transactionFilters.sort==="amount-asc"?"selected":""}>Smallest first</option></select></div>
             <div class="field"><label for="txFrom">From</label><input id="txFrom" type="date" value="${transactionFilters.from}" /></div><div class="field"><label for="txTo">To</label><input id="txTo" type="date" value="${transactionFilters.to}" /></div>
           </div>
-          <div class="table-wrap"><table><thead><tr><th>Date</th><th>Type & detail</th><th>Category</th><th>Account</th><th>Amount</th><th></th></tr></thead><tbody>${filtered.length ? filtered.map(item => `<tr><td>${dateText(item.date)}</td><td><strong>${escapeHtml(item.notes || item.description || kindInfo(item).label)}</strong>${item.reference&&!isLinkedReference(item.reference)?`<br><small class="subtle">Ref: ${escapeHtml(item.reference)}</small>`:""}<br><small class="subtle">${escapeHtml(kindInfo(item).label)}</small></td><td><span class="category-chip"><span class="dot ${item.type==="income"?"":"red"}"></span>${escapeHtml(item.type==="transfer"?"Transfer":item.category)}</span></td><td>${escapeHtml(transactionAccountText(item))}</td><td class="amount ${kindInfo(item).cls}">${kindInfo(item).sign}${plainMoney(item.amount)}</td><td><div class="actions"><button class="btn small" data-action="edit-transaction" data-id="${item.id}">Edit</button><button class="btn small danger" data-action="delete-transaction" data-id="${item.id}">Delete</button></div></td></tr>`).join("") : `<tr><td colspan="6">${emptyState("No matching transactions","Try changing the filters or add a new entry.")}</td></tr>`}</tbody></table></div>
+          <div class="table-wrap"><table><thead><tr><th>Date</th><th>Type & detail</th><th>Category</th><th>Account</th><th>Amount</th><th></th></tr></thead><tbody>${filtered.length ? filtered.map(item => `<tr><td>${dateText(item.date)}</td><td><strong>${escapeHtml(item.notes || item.description || kindInfo(item).label)}</strong>${item.reference&&!isLinkedReference(item.reference)?`<br><small class="subtle">Ref: ${escapeHtml(item.reference)}</small>`:""}<br><small class="subtle">${escapeHtml(kindInfo(item).label)}</small></td><td><span class="category-chip"><span class="dot ${item.type==="income"?"":"red"}"></span>${escapeHtml(item.type==="transfer"?"Transfer":item.category)}</span></td><td>${escapeHtml(transactionAccountText(item))}</td><td class="amount ${kindInfo(item).cls}">${kindInfo(item).sign}${plainMoney(item.amount)}</td><td>${transactionActions(item)}</td></tr>`).join("") : `<tr><td colspan="6">${emptyState("No matching transactions","Try changing the filters or add a new entry.")}</td></tr>`}</tbody></table></div>
         </div>`;
        const refreshTransactions = event => {
          transactionFilters={search:$("txSearch").value,type:$("txType").value,category:$("txCategory").value,account:$("txAccount").value,sort:$("txSort").value,from:$("txFrom").value,to:$("txTo").value};
@@ -1515,24 +1581,24 @@
     function changeLabel(value,expense=false) { const direction=value>0?"up":value<0?"down":"flat"; return `${direction==="flat"?"No change":`${money(Math.abs(value))} ${direction}`} vs last month`; }
      function renderPlan() {
        const p=planner(), m=monthTotals(), budget=state.budgets.monthlySpending, budgetPct=budget?m.expense/budget*100:0, fund=emergencyFund(), score=healthScore(), cash=cashFlowSummary();
-      const categorySpend={}; state.transactions.filter(x=>x.type==="expense"&&monthKey(x.date)===currentMonth()).forEach(x=>categorySpend[x.category]=(categorySpend[x.category]||0)+x.amount);
+      const categorySpend={}; activeTransactions().filter(x=>x.type==="expense"&&monthKey(x.date)===currentMonth()).forEach(x=>categorySpend[x.category]=(categorySpend[x.category]||0)+x.amount);
       const cats=[...new Set([...state.categories.map(x=>x.name),...Object.keys(state.budgets.categoryBudgets)])];
       $("planView").innerHTML = `
-        <div class="page-head"><div><p class="eyebrow">Money control</p><h1>Your payday planner.</h1><p class="subtle">Protect this payday cycle first, then make a clear daily allowance from what remains.</p></div><div class="page-actions"><button class="btn primary" data-action="edit-plan">Edit plan</button></div></div>
+        <div class="page-head"><div><p class="eyebrow">Money control</p><h1>Plan until your next income.</h1><p class="subtle">Protect what is due first, then spend from what remains. Only money you have actually received is counted.</p></div><div class="page-actions"><button class="btn primary" data-action="edit-plan">Edit plan</button></div></div>
         <div class="hero-grid">
-          <div class="card soft"><p class="eyebrow">Safe-to-spend calculation</p><h2 style="font-size:34px;margin:12px 0">${money(p.daily)} <span style="font-size:14px;color:var(--muted);font-weight:600">per day</span></h2><p class="subtle">You have ${p.days} days to protect until payday.</p><div class="kv" style="margin-top:19px"><div><span>Actual balance</span><strong>${money(totalHeld())}</strong></div><div><span>Less set aside for goals</span><strong>−${plainMoney(totalAllocated())}</strong></div><div><span>Less committed bills</span><strong>−${plainMoney(p.bills)}</strong></div><div><span>Less debt repayments</span><strong>−${plainMoney(p.debt)}</strong></div><div><span>Less goal savings</span><strong>−${plainMoney(p.savings)}</strong></div><div><span>Less planned expenses</span><strong>−${plainMoney(p.planned)}</strong></div><div style="padding-top:7px;border-top:1px solid #A7F3D0"><span>Protected reserve left</span><strong class="${p.reserve<0?"red":""}">${money(p.reserve)}</strong></div></div></div>
+          <div class="card soft"><p class="eyebrow">Safe-to-spend calculation</p><h2 style="font-size:34px;margin:12px 0">${money(p.daily)} <span style="font-size:14px;color:var(--muted);font-weight:600">per day</span></h2><p class="subtle">Planning ${escapeHtml(p.period.label)} · ${p.days} day${p.days===1?"":"s"}.</p><div class="kv" style="margin-top:19px"><div><span>Spending money available</span><strong>${money(p.spendable)}</strong></div><div><span>Less bills due</span><strong>−${plainMoney(p.bills)}</strong></div><div><span>Less debt instalments</span><strong>−${plainMoney(p.debt)}</strong></div><div><span>Less goal plans not yet set aside</span><strong>−${plainMoney(p.savings)}</strong></div><div><span>Less planned spending</span><strong>−${plainMoney(p.planned)}</strong></div>${p.buffer?`<div><span>Less minimum buffer</span><strong>−${plainMoney(p.buffer)}</strong></div>`:""}<div style="padding-top:7px;border-top:1px solid #A7F3D0"><span>Protected reserve left</span><strong class="${p.reserve<0?"red":""}">${money(p.reserve)}</strong></div></div><p class="subtle" style="margin-top:12px">${spendingMoneyNote()}</p></div>
           <div class="card"><div class="section-title"><h2>Financial health</h2>${statusBadge(score.score>=75?"Strong":score.score>=50?"Building":"Needs attention",score.score>=75?"good":score.score>=50?"warn":"bad")}</div><div class="score"><div class="score-number">${score.score}</div><div><strong>out of 100</strong><p class="subtle" style="margin:3px 0 0">Based on reserve, savings, budget control, bills, debt and goals.</p></div></div><div class="progress" style="margin-top:16px"><span style="width:${score.score}%"></span></div><div class="progress-meta"><span>Keep recording consistently</span><strong>${score.score}%</strong></div></div>
         </div>
         <div class="grid grid-2" style="margin-bottom:15px">
-          <div class="card"><div class="section-title"><h2>Monthly spending</h2>${budget?statusBadge(budgetPct>100?"Over budget":budgetPct>80?"Watch it":"On track",budgetPct>100?"bad":budgetPct>80?"warn":"good"):""}</div><p class="subtle">Expenses recorded in ${monthLabel(currentMonth())}</p>${budget?`<div class="budget-line"><div class="split"><span>Used</span><strong>${money(m.expense)} of ${money(budget)}</strong></div><div class="progress ${budgetPct>100?"red":budgetPct>80?"blue":""}"><span style="width:${Math.min(100,budgetPct)}%"></span></div><div class="progress-meta"><span>${budgetPct>100?money(m.expense-budget)+" over":"Remaining"}</span><strong>${money(budget-m.expense)}</strong></div></div>`:`<div class="empty"><strong>No monthly budget yet</strong><span>Set a ceiling that helps your daily allowance stay honest.</span></div>`}</div>
+          ${renderExpectedIncomeCard(p)}<div class="card"><div class="section-title"><h2>Monthly spending</h2>${budget?statusBadge(budgetPct>100?"Over budget":budgetPct>80?"Watch it":"On track",budgetPct>100?"bad":budgetPct>80?"warn":"good"):""}</div><p class="subtle">Expenses recorded in ${monthLabel(currentMonth())}</p>${budget?`<div class="budget-line"><div class="split"><span>Used</span><strong>${money(m.expense)} of ${money(budget)}</strong></div><div class="progress ${budgetPct>100?"red":budgetPct>80?"blue":""}"><span style="width:${Math.min(100,budgetPct)}%"></span></div><div class="progress-meta"><span>${budgetPct>100?money(m.expense-budget)+" over":"Remaining"}</span><strong>${money(budget-m.expense)}</strong></div></div>`:`<div class="empty"><strong>No monthly budget yet</strong><span>Set a ceiling that helps your daily allowance stay honest.</span></div>`}</div>
           <div class="card"><div class="section-title"><h2>Emergency fund</h2><button class="btn small" data-action="edit-profile">Set target</button></div><p class="subtle">A ${fund.months}-month buffer based on your recurring commitments and spending plan.</p><div class="split" style="margin:15px 0 7px"><strong style="font-size:25px">${money(fund.current)}</strong><span class="subtle">of ${money(fund.target)}</span></div><div class="progress blue"><span style="width:${progress(fund.current,fund.target)}%"></span></div><div class="progress-meta"><span>${fund.gap?`${money(fund.gap)} still needed`:"Target reached"}</span><strong>${Math.round(progress(fund.current,fund.target))}%</strong></div><div class="callout ${fund.gap?"":"good"}"><span class="callout-icon">${fund.gap?"i":"✓"}</span><span>${fund.emergencyGoal?`Keep contributing ${money(fund.gap/Math.max(1,fund.months*6))} per month to close the gap steadily.`:"Create a goal named Emergency fund and PesaPilot will track it here automatically."}</span></div></div>
         </div>
          <div class="grid grid-2" style="margin-bottom:15px">
            <div class="card"><div class="section-title"><h2>Cash-flow comparison</h2><span class="subtle">Recorded money in each period</span></div><div class="kv"><div><span>Current week</span><strong class="${cash.week.balance<0?"red":"green"}">${money(cash.week.balance)}</strong></div><div><span>Current month</span><strong class="${cash.month.balance<0?"red":"green"}">${money(cash.month.balance)}</strong></div><div><span>Previous month</span><strong class="${cash.previous.balance<0?"red":"green"}">${money(cash.previous.balance)}</strong></div></div><div class="callout ${cash.week.balance<0?"warn":"good"}"><span class="callout-icon">${cash.week.balance<0?"!":"✓"}</span><span>${cash.weekLabel}: ${cash.week.income ? `${money(cash.week.income)} in and ${money(cash.week.expense)} out.` : "No money recorded yet."}</span></div></div>
-          <div class="card"><div class="section-title"><h2>Commitments this cycle</h2><span class="subtle">${unpaidBills().length} bills · ${state.goals.length} goals</span></div><div class="list"><div class="list-row"><div class="row-icon bill">▣</div><div class="row-main"><strong>Unpaid bills</strong><span>Due before your next payday</span></div><div class="row-amount">${money(p.bills)}</div></div><div class="list-row"><div class="row-icon">↗</div><div class="row-main"><strong>Debt repayments</strong><span>Planned monthly amount; record what you actually pay</span></div><div class="row-amount">${money(p.debt)}</div></div><div class="list-row"><div class="row-icon">◎</div><div class="row-main"><strong>Goal contributions</strong><span>Stops automatically when a goal reaches its target</span></div><div class="row-amount">${money(p.savings)}</div></div><div class="list-row"><div class="row-icon income">＋</div><div class="row-main"><strong>Planned expenses</strong><span>One-off commitments before payday</span></div><div class="row-amount">${money(p.planned)}</div></div></div></div>
+          <div class="card"><div class="section-title"><h2>Commitments this period</h2><span class="subtle">${unpaidBills().length} bills · ${state.goals.length} goals</span></div><div class="list"><div class="list-row"><div class="row-icon bill">▣</div><div class="row-main"><strong>Unpaid bills</strong><span>Due in this period${p.billInfo.items.some(item=>item.overdue)?", including overdue":""}</span></div><div class="row-amount">${money(p.bills)}</div></div><div class="list-row"><div class="row-icon">↗</div><div class="row-main"><strong>Debt repayments</strong><span>${p.debtInfo.unplanned.length?`${p.debtInfo.unplanned.length} debt${p.debtInfo.unplanned.length===1?" has":"s have"} no repayment plan and ${p.debtInfo.unplanned.length===1?"is":"are"} not included`:"This month’s planned instalments not yet paid"}</span></div><div class="row-amount">${money(p.debt)}</div></div><div class="list-row"><div class="row-icon">◎</div><div class="row-main"><strong>Goal plans</strong><span>This month’s targets not yet set aside</span></div><div class="row-amount">${money(p.savings)}</div></div><div class="list-row"><div class="row-icon income">＋</div><div class="row-main"><strong>Planned spending</strong><span>Extra spending you expect in this period</span></div><div class="row-amount">${money(p.planned)}</div></div></div></div>
          </div>
         <div class="grid grid-2" style="margin-top:15px">
-          <div class="card"><div class="section-title"><h2>How your cycles work</h2><span class="badge neutral">Repeats</span></div><p class="subtle">A cycle runs from one payday to the next. PesaPilot protects bills due in the remaining window, your debt plan, active goal contributions and planned expenses before calculating the daily amount.</p><div class="callout"><span class="callout-icon">i</span><span>When payday arrives, the next cycle begins automatically. Nothing is deleted or cleared: transactions, bill payments, debt repayments and goal contributions remain in your history.</span></div></div>
+          <div class="card"><div class="section-title"><h2>How your plan works</h2><span class="badge neutral">Repeats</span></div><p class="subtle">With a fixed payday the plan runs until payday. With irregular income it covers the period you choose. Bills due, debt instalments, goal plans, planned spending and your buffer are protected first, and each is counted once.</p><div class="callout"><span class="callout-icon">i</span><span>When payday arrives, the next cycle begins automatically. Nothing is deleted or cleared: transactions, bill payments, debt repayments and goal contributions remain in your history.</span></div></div>
           <div class="card"><div class="section-title"><h2>Goals keep going</h2><span class="badge good">No auto-clear</span></div><p class="subtle">Goals do not reset after six months. They continue until the target is reached, and their contribution is removed from the protected plan once complete.</p><div class="callout good"><span class="callout-icon">✓</span><span>The reports trend intentionally shows the last six months for readability. Export a backup for a permanent copy; the app never erases older records automatically.</span></div></div>
          </div>
          <div class="grid grid-2">
@@ -1552,7 +1618,7 @@
      }
      function renderBillsOriginal() {
        const bills=[...state.bills].filter(bill=>Boolean(billDisplayOccurrence(bill))).sort((a,b)=>Number(a.paid)-Number(b.paid)||a.dueDate.localeCompare(b.dueDate));
-         $("billsView").innerHTML = `<div class="page-head"><div><p class="eyebrow">Bills</p><h1>Know what is waiting.</h1><p class="subtle">Paid occurrences leave this month’s list. Installments show what is paid and what remains.</p></div><button class="btn primary" data-action="add-bill">＋ Add bill</button></div><div class="card" style="margin-bottom:15px"><div class="grid grid-3" style="margin-bottom:17px"><div class="metric"><div class="metric-label"><span>Next unpaid total</span><span class="dot amber"></span></div><strong class="metric-value">${money(sum(unpaidBills(),x=>billOutstanding(x)))}</strong></div><div class="metric"><div class="metric-label"><span>Overdue</span><span class="dot red"></span></div><strong class="metric-value red">${state.bills.filter(x=>Boolean(billOverdueOccurrence(x))).length}</strong></div><div class="metric"><div class="metric-label"><span>Bills tracked</span><span class="dot"></span></div><strong class="metric-value green">${state.bills.length}</strong></div></div><div class="list">${bills.length?bills.map(bill=>{const displayOccurrence=billDisplayOccurrence(bill),nextDue=nextBillOccurrence(bill)||displayOccurrence,paidAmount=billPaidAmountOn(bill,nextDue),remaining=Math.max(0,(Number(bill.amount)||0)-paidAmount),overdue=Boolean(nextDue&&nextDue<todayISO()),canUndo=Boolean((bill.payments||[]).length || bill.paidDate || bill.paidOccurrence);return `<div class="list-row"><div class="row-icon bill">${overdue?"!":"▣"}</div><div class="row-main"><strong>${escapeHtml(bill.name)} ${bill.frequency!=="monthly"?`<span class="category-chip">${bill.frequency}</span>`:""}</strong><span>${nextDue?`${overdue?"Overdue":"Next due"} ${dateText(nextDue)} · ${escapeHtml(bill.category)}`:""}${paidAmount>0?` · Paid ${money(paidAmount)} · Remaining ${money(remaining)}`:""}</span></div><div class="row-amount">${money(remaining)}</div><div class="actions">${nextDue?`<button class="btn small" data-action="pay-bill" data-id="${bill.id}" data-occurrence="${displayOccurrence}">Pay ${remaining < Number(bill.amount) ? "remaining" : "bill"}</button>`:""}${canUndo?`<button class="btn small" data-action="unpay-bill" data-id="${bill.id}">Undo last</button>`:""}<button class="btn small" data-action="edit-bill" data-id="${bill.id}">Edit</button><button class="btn small danger" data-action="delete-bill" data-id="${bill.id}">Delete</button></div></div>`}).join(""):emptyState("No unpaid bills for this month","Paid bills and paid occurrences are kept in Money history and the calendar. Choose another month or add a bill.")}</div></div><div class="card"><div class="section-title"><div><h2>Bill calendar</h2><span class="subtle">Recurring due dates for the selected month</span></div><select id="billMonth" style="width:auto">${monthOptions(billMonth)}</select></div>${billCalendar(billMonth)}</div>`;
+         $("billsView").innerHTML = `<div class="page-head"><div><p class="eyebrow">Bills</p><h1>Know what is waiting.</h1><p class="subtle">Paid occurrences leave this month’s list. Installments show what is paid and what remains.</p></div><button class="btn primary" data-action="add-bill">＋ Add bill</button></div><div class="card" style="margin-bottom:15px"><div class="grid grid-3" style="margin-bottom:17px"><div class="metric"><div class="metric-label"><span>Next unpaid total</span><span class="dot amber"></span></div><strong class="metric-value">${money(sum(unpaidBills(),x=>billOutstanding(x)))}</strong></div><div class="metric"><div class="metric-label"><span>Overdue</span><span class="dot red"></span></div><strong class="metric-value red">${state.bills.filter(x=>Boolean(billOverdueOccurrence(x))).length}</strong></div><div class="metric"><div class="metric-label"><span>Bills tracked</span><span class="dot"></span></div><strong class="metric-value green">${state.bills.length}</strong></div></div><div class="list">${bills.length?bills.map(bill=>{const displayOccurrence=billDisplayOccurrence(bill),nextDue=nextBillOccurrence(bill)||displayOccurrence,paidAmount=billPaidAmountOn(bill,nextDue),remaining=Math.max(0,(Number(bill.amount)||0)-paidAmount),overdue=Boolean(nextDue&&nextDue<todayISO()),canUndo=Boolean((bill.payments||[]).length || bill.paidDate || bill.paidOccurrence);return `<div class="list-row"><div class="row-icon bill">${overdue?"!":"▣"}</div><div class="row-main"><strong>${escapeHtml(bill.name)} ${bill.frequency!=="monthly"?`<span class="category-chip">${bill.frequency}</span>`:""}</strong><span>${nextDue?`${overdue?"Overdue":"Next due"} ${dateText(nextDue)} · ${escapeHtml(bill.category)}`:""}${paidAmount>0?` · Paid ${money(paidAmount)} · Remaining ${money(remaining)}`:""}</span></div><div class="row-amount">${money(remaining)}</div><div class="actions">${nextDue?`<button class="btn small" data-action="pay-bill" data-id="${bill.id}" data-occurrence="${displayOccurrence}">Pay ${remaining < Number(bill.amount) ? "remaining" : "bill"}</button>`:""}${canUndo?`<button class="btn small" data-action="unpay-bill" data-id="${bill.id}">Undo last</button>`:""}<button class="btn small" data-action="edit-bill" data-id="${bill.id}">Edit</button><button class="btn small danger" data-action="delete-bill" data-id="${bill.id}">Delete</button></div></div>`}).join(""):emptyState("No unpaid bills for this month","Paid bills and paid occurrences are kept in Money history and the calendar. Choose another month or add a bill.")}</div></div><div class="card"><div class="section-title"><div><h2>Bill calendar</h2><span class="subtle">Recurring due dates for the selected month</span></div><select id="billMonth" style="width:auto;max-width:100%;min-width:0">${monthOptions(billMonth)}</select></div>${billCalendar(billMonth)}</div>`;
        $("billMonth").onchange=event=>{billMonth=event.target.value;renderBills();};
       bindActions();
     }
@@ -1574,16 +1640,16 @@
      }
     function renderDebts() {
       const outstanding=sum(state.debts,x=>Math.max(0,x.total-x.repaid));
-      $("debtsView").innerHTML = `<div class="page-head"><div><p class="eyebrow">Debts</p><h1>Make the outstanding feel smaller.</h1><p class="subtle">Track who is owed, what is left, and every repayment.</p></div><button class="btn primary" data-action="add-debt">＋ Add debt</button></div><div class="grid grid-3" style="margin-bottom:15px"><div class="card metric"><div class="metric-label"><span>Total outstanding</span><span class="dot red"></span></div><strong class="metric-value red">${money(outstanding)}</strong></div><div class="card metric"><div class="metric-label"><span>Repayments recorded</span><span class="dot"></span></div><strong class="metric-value green">${money(sum(state.debts,x=>x.repaid))}</strong></div><div class="card metric"><div class="metric-label"><span>Monthly commitment</span><span class="dot amber"></span></div><strong class="metric-value">${money(debtCommitments())}</strong></div></div><div class="grid grid-2">${state.debts.length?state.debts.map(debt=>{const left=Math.max(0,debt.total-debt.repaid);return `<div class="card"><div class="section-title"><div><h2>${escapeHtml(debt.name)}</h2><span class="subtle">${escapeHtml(debt.creditor||"Creditor not set")}${debt.dueDate?` · due ${dateText(debt.dueDate)}`:""}${debt.interestRate?` · ${debt.interestRate}% interest`:""}</span></div>${statusBadge(left?"Outstanding":"Cleared",left?"warn":"good")}</div><div class="split" style="margin:18px 0 8px"><strong style="font-size:25px">${money(left)}</strong><span class="subtle">of ${money(debt.total)} left</span></div><div class="progress red"><span style="width:${progress(debt.repaid,debt.total)}%"></span></div><div class="progress-meta"><span>${Math.round(progress(debt.repaid,debt.total))}% repaid</span><span>${(debt.repayments||[]).length} repayments</span></div><div class="form-actions"><button class="btn small" data-action="repay-debt" data-id="${debt.id}">Record repayment</button><button class="btn small" data-action="debt-history" data-id="${debt.id}">History</button><button class="btn small" data-action="edit-debt" data-id="${debt.id}">Edit</button><button class="btn small danger" data-action="delete-debt" data-id="${debt.id}">Delete</button></div></div>`}).join(""):`<div class="card" style="grid-column:1/-1">${emptyState("No debts recorded","Add a debt so your payday plan can protect realistic repayments.")}</div>`}</div>`;
+      $("debtsView").innerHTML = `<div class="page-head"><div><p class="eyebrow">Debts</p><h1>Make the outstanding feel smaller.</h1><p class="subtle">Track who is owed, what is left, and every repayment.</p></div><button class="btn primary" data-action="add-debt">＋ Add debt</button></div><div class="grid grid-3" style="margin-bottom:15px"><div class="card metric"><div class="metric-label"><span>Total outstanding</span><span class="dot red"></span></div><strong class="metric-value red">${money(outstanding)}</strong></div><div class="card metric"><div class="metric-label"><span>Repayments recorded</span><span class="dot"></span></div><strong class="metric-value green">${money(sum(state.debts,x=>x.repaid))}</strong></div><div class="card metric"><div class="metric-label"><span>Monthly commitment</span><span class="dot amber"></span></div><strong class="metric-value">${money(debtCommitments())}</strong></div></div><div class="grid grid-2">${state.debts.length?state.debts.map(debt=>{const left=Math.max(0,debt.total-debt.repaid);return `<div class="card"><div class="section-title"><div><h2>${escapeHtml(debt.name)}</h2><span class="subtle">${escapeHtml(debt.creditor||"Creditor not set")}${debt.dueDate?` · due ${dateText(debt.dueDate)}`:""}${debt.interestRate?` · ${debt.interestRate}% interest`:""}</span></div>${statusBadge(left?"Outstanding":"Cleared",left?"warn":"good")}</div><div class="split" style="margin:18px 0 8px"><strong style="font-size:25px">${money(left)}</strong><span class="subtle">of ${money(debt.total)} left</span></div><div class="progress red"><span style="width:${progress(debt.repaid,debt.total)}%"></span></div><div class="progress-meta"><span>${Math.round(progress(debt.repaid,debt.total))}% repaid</span><span>${(debt.repayments||[]).length} repayments</span></div>${left&&!debt.repaymentAmount?`<p class="goal-warning">No repayment plan: add a monthly amount (Edit) so Safe to spend can protect it.</p>`:""}<div class="form-actions"><button class="btn small" data-action="repay-debt" data-id="${debt.id}">Record repayment</button><button class="btn small" data-action="debt-history" data-id="${debt.id}">History</button><button class="btn small" data-action="edit-debt" data-id="${debt.id}">Edit</button><button class="btn small danger" data-action="delete-debt" data-id="${debt.id}">Delete</button></div></div>`}).join(""):`<div class="card" style="grid-column:1/-1">${emptyState("No debts recorded","Add a debt so your payday plan can protect realistic repayments.")}</div>`}</div>`;
       bindActions();
     }
     function renderReports() {
        const current=monthTotals(reportMonth), previous=monthTotals(previousMonth(reportMonth)), cats={}, prevCats={};
         const reportBillsPaid=sum(state.bills,bill=>sum((bill.payments||[]).filter(payment=>monthKey(payment.paymentDate)===reportMonth),payment=>payment.amount));
        const reportDebtRepayments=sum(state.debts,debt=>sum((debt.repayments||[]).filter(entry=>monthKey(entry.date)===reportMonth),entry=>entry.amount));
-      state.transactions.filter(x=>x.type==="expense"&&monthKey(x.date)===reportMonth).forEach(x=>cats[x.category]=(cats[x.category]||0)+x.amount);
-      state.transactions.filter(x=>x.type==="expense"&&monthKey(x.date)===previousMonth(reportMonth)).forEach(x=>prevCats[x.category]=(prevCats[x.category]||0)+x.amount);
-       const top=Object.entries(cats).sort((a,b)=>b[1]-a[1]).slice(0,6), largest=state.transactions.filter(x=>x.type==="expense"&&monthKey(x.date)===reportMonth).sort((a,b)=>b.amount-a.amount).slice(0,5), change=current.expense-previous.expense, score=healthScore(reportMonth), insights=smartInsights(reportMonth), pace=monthSpendPace(reportMonth);
+      activeTransactions().filter(x=>x.type==="expense"&&monthKey(x.date)===reportMonth).forEach(x=>cats[x.category]=(cats[x.category]||0)+x.amount);
+      activeTransactions().filter(x=>x.type==="expense"&&monthKey(x.date)===previousMonth(reportMonth)).forEach(x=>prevCats[x.category]=(prevCats[x.category]||0)+x.amount);
+       const top=Object.entries(cats).sort((a,b)=>b[1]-a[1]).slice(0,6), largest=activeTransactions().filter(x=>x.type==="expense"&&monthKey(x.date)===reportMonth).sort((a,b)=>b.amount-a.amount).slice(0,5), change=current.expense-previous.expense, score=healthScore(reportMonth), insights=smartInsights(reportMonth), pace=monthSpendPace(reportMonth);
       const trendMonths=[]; const reportDate=new Date(`${reportMonth}-01T12:00:00`); for(let index=5;index>=0;index--){const date=new Date(reportDate.getFullYear(),reportDate.getMonth()-index,1);trendMonths.push(date.toISOString().slice(0,7));}
       const trend=trendMonths.map(month=>monthTotals(month).expense), trendMax=Math.max(1,...trend);
        $("reportsView").innerHTML = `<div class="page-head"><div><p class="eyebrow">Report & insights</p><h1>Your month at a glance.</h1><p class="subtle">${monthLabel(reportMonth)} compared with ${monthLabel(previousMonth(reportMonth))}.</p></div><div class="page-actions"><div class="field"><label for="reportMonth">Report month</label><select id="reportMonth">${monthOptions(reportMonth)}</select></div></div></div><div class="grid grid-4" style="margin-bottom:15px"><div class="card metric"><div class="metric-label"><span>Income</span><span class="dot"></span></div><strong class="metric-value green">${money(current.income)}</strong><small>${changeLabel(current.income-previous.income)}</small></div><div class="card metric"><div class="metric-label"><span>Expenses</span><span class="dot red"></span></div><strong class="metric-value red">${money(current.expense)}</strong><small>${changeLabel(change,true)}</small></div><div class="card metric"><div class="metric-label"><span>Saved</span><span class="dot blue"></span></div><strong class="metric-value blue">${money(current.saved)}</strong><small>${Math.round(current.savingsRate)}% savings rate</small></div><div class="card metric"><div class="metric-label"><span>Set aside for goals</span><span class="dot"></span></div><strong class="metric-value">${money(goalContributions(reportMonth))}</strong><small>not counted as spending</small></div></div><div class="grid grid-2" style="margin-bottom:15px"><div class="card"><div class="section-title"><h2>Financial health score</h2>${statusBadge(score.score>=75?"Strong":score.score>=50?"Building":"Needs attention",score.score>=75?"good":score.score>=50?"warn":"bad")}</div><div class="score"><div class="score-number">${score.score}</div><div><strong>out of 100</strong><p class="subtle" style="margin:3px 0 0">A broader view than savings rate alone.</p></div></div><div class="list" style="margin-top:14px">${score.parts.map(part=>`<div class="budget-line"><div class="split"><span>${escapeHtml(part.label)}</span><strong>${Math.round(part.value)} / ${part.label==="Positive payday reserve"||part.label==="Savings rate"||part.label==="Budget control"?"20":part.label==="Bills kept current"?"15":part.label==="Debt progress"?"15":"10"}</strong></div><div class="progress"><span style="width:${Math.min(100,part.value/(part.label==="Positive payday reserve"||part.label==="Savings rate"||part.label==="Budget control"?20:part.label==="Bills kept current"||part.label==="Debt progress"?15:10)*100)}%"></span></div></div>`).join("")}</div></div><div class="card"><div class="section-title"><h2>Smart focus</h2><span class="subtle">Based on ${monthLabel(reportMonth)}</span></div><div class="insight-list">${insights.map(item=>`<div class="insight"><span class="callout-icon">${item.kind==="bad"?"!":item.kind==="warn"?"△":item.kind==="good"?"✓":"i"}</span><div><strong>${item.title}</strong><span>${item.text}</span></div></div>`).join("")}</div></div></div><div class="grid grid-2" style="margin-bottom:15px"><div class="card"><div class="section-title"><h2>Spending trend</h2><span class="subtle">Last six months</span></div><div class="trend-bars">${trend.map((amount,index)=>`<div class="trend-col"><div class="trend-bar-wrap"><div class="trend-bar" style="height:${Math.max(3,amount/trendMax*100)}%" title="${money(amount)}"></div></div><span>${new Date(`${trendMonths[index]}-01T12:00:00`).toLocaleDateString("en-KE",{month:"short"})}</span></div>`).join("")}</div></div><div class="card"><div class="section-title"><h2>Month-end forecast</h2>${statusBadge(pace.spent>state.budgets.monthlySpending&&state.budgets.monthlySpending?"Over budget":"On track",pace.spent>state.budgets.monthlySpending&&state.budgets.monthlySpending?"bad":"good")}</div><p class="subtle">A simple pace check based on recorded expenses so far.</p><div class="kv"><div><span>Recorded so far</span><strong>${money(pace.spent)}</strong></div><div><span>Projected by month end</span><strong>${money(pace.projected)}</strong></div><div><span>Days counted</span><strong>${pace.elapsed} of ${pace.daysInMonth}</strong></div>${state.budgets.monthlySpending?`<div><span>Budget headroom</span><strong class="${state.budgets.monthlySpending-pace.projected<0?"red":"green"}">${money(state.budgets.monthlySpending-pace.projected)}</strong></div>`:""}</div></div></div><div class="grid grid-2" style="margin-bottom:15px"><div class="card"><div class="section-title"><h2>Top spending categories</h2><span class="subtle">${monthLabel(reportMonth)}</span></div>${top.length?top.map(([name,amount])=>`<div class="budget-line"><div class="split"><span>${escapeHtml(name)}</span><strong>${money(amount)}</strong></div><div class="progress"><span style="width:${current.expense?amount/current.expense*100:0}%"></span></div><div class="progress-meta"><span>${current.expense?Math.round(amount/current.expense*100):0}% of expenses</span><strong>${prevCats[name]!==undefined?`${changeLabel(amount-prevCats[name])}`:"New"}</strong></div></div>`).join(""):emptyState("No expenses this month","Your category report will appear as you record spending.")}</div><div class="card"><div class="section-title"><h2>Largest transactions</h2></div>${largest.length?`<div class="list">${largest.map(transactionRow).join("")}</div>`:emptyState("No large transactions","Record expenses to see where the biggest amounts went.")}</div></div><div class="grid grid-2"><div class="card"><div class="section-title"><h2>Monthly summary</h2></div><div class="kv"><div><span>Previous expenses</span><strong>${money(previous.expense)}</strong></div><div><span>Change in expenses</span><strong class="${change>0?"red":"green"}">${change>0?"+":"−"}${plainMoney(Math.abs(change))}</strong></div><div><span>Bills paid in ${monthLabel(reportMonth)}</span><strong>${money(reportBillsPaid)}</strong></div><div><span>Unpaid bills protected</span><strong>${money(sum(unpaidBills(),bill=>billOutstanding(bill)))}</strong></div><div><span>Debt repayments in ${monthLabel(reportMonth)}</span><strong>${money(reportDebtRepayments)}</strong></div><div><span>Largest category</span><strong>${escapeHtml(top[0]?.[0]||"—")}</strong></div></div><div class="callout ${change>0?"warn":"good"}" style="margin-top:17px"><span class="callout-icon">${change>0?"!":"✓"}</span><span>${change>0?`Expenses are ${money(change)} higher than last month. Focus first on ${escapeHtml(top[0]?.[0]||"your largest category")}.`:"Expenses are holding steady or lower than last month. Keep protecting your commitments."}</span></div></div><div class="card"><div class="section-title"><h2>Spending trend guide</h2></div><p class="subtle">Use the forecast with your bills and payday plan. It is a planning signal, not a guarantee, and becomes more useful as you record more transactions.</p></div></div>`;
@@ -1605,6 +1671,7 @@
      function closeModal() { $("modalBackdrop").classList.remove("open"); $("modalBackdrop").setAttribute("aria-hidden","true"); $("modal").innerHTML=""; if(modalReturnFocus?.focus)modalReturnFocus.focus(); modalReturnFocus=null; }
     function inputField(label,id,type="text",value="",extra="",full=false) { return `<div class="field ${full?"full":""}"><label for="${id}">${label}</label><input id="${id}" type="${type}" value="${escapeHtml(value)}" ${extra}/></div>`; }
     function transactionForm(item=null,type="expense") {
+      if(item&&(isAudited(item)||isReversalPair(item))){toast("Adjustments can't be edited. Reverse it, then reconcile again if needed.");return;}
       const kind=item ? item.type : type;
       if (kind==="transfer") return transferForm(item);
       if (!["income","expense","borrow","debt_repayment"].includes(kind)) { toast("This entry was created by a newer version of PesaPilot and cannot be edited here."); return; }
@@ -1668,16 +1735,17 @@
     }
     function accountForm(account=null) {
       const used=account&&(state.transactions.some(item=>item.accountId===account.id||item.toAccountId===account.id)||state.allocations.some(entry=>entry.accountId===account.id));
-      openModal(account?"Edit account":"Add an account",`<form id="accountForm" class="form-grid">${inputField("Account name","accName","text",account?.name||"","required placeholder=\"e.g. M-Shwari, Equity, Chama\"")}<div class="field"><label for="accKind">Type</label><select id="accKind">${accountKinds.map(([value,label])=>`<option value="${value}" ${value===(account?.kind||"savings")?"selected":""}>${escapeHtml(label)}</option>`).join("")}</select></div>${inputField("Opening balance ("+currencyConfig().label+")","accOpening","number",account?account.openingBalance:"","step=\"0.01\" placeholder=\"What it held on the opening date\"")}${inputField("Opening date","accOpeningDate","date",account?account.openingDate:todayISO())}<div class="field full"><small class="subtle">Enter what this account actually held at the start of the opening date. Entries dated before it are treated as already included. Leave the date empty to count every entry.</small></div>${account?`<div class="field full"><label><input id="accArchived" type="checkbox" style="width:auto;margin-right:6px" ${account.archived?"checked":""}/> Hide this account from forms (keeps its history)</label></div>`:""}<div class="field full form-actions">${account&&!used?`<button type="button" class="btn danger" data-action="delete-account" data-id="${escapeHtml(account.id)}">Delete</button>`:""}<button type="button" class="btn" data-action="close-modal">Cancel</button><button class="btn primary">${account?"Save changes":"Add account"}</button></div></form>`);
+      openModal(account?"Edit account":"Add an account",`<form id="accountForm" class="form-grid">${inputField("Account name","accName","text",account?.name||"","required placeholder=\"e.g. M-Shwari, Equity, Chama\"")}<div class="field"><label for="accKind">Type</label><select id="accKind">${accountKinds.map(([value,label])=>`<option value="${value}" ${value===(account?.kind||"savings")?"selected":""}>${escapeHtml(label)}</option>`).join("")}</select></div>${inputField("Opening balance ("+currencyConfig().label+")","accOpening","number",account?account.openingBalance:"","step=\"0.01\" placeholder=\"What it held on the opening date\"")}${inputField("Opening date","accOpeningDate","date",account?account.openingDate:todayISO())}<div class="field full"><small class="subtle">Enter what this account actually held at the start of the opening date. Entries dated before it are treated as already included. Leave the date empty to count every entry.</small></div><div class="field full"><label><input id="accSpending" type="checkbox" style="width:auto;margin-right:6px" ${account&&isSpendingAccount(account)?"checked":""}/> Count as spending money in Safe to spend</label><small class="subtle">Usually on for M-Pesa, cash and bank; off for savings such as M-Shwari or a SACCO.</small></div>${account?`<div class="field full"><label><input id="accArchived" type="checkbox" style="width:auto;margin-right:6px" ${account.archived?"checked":""}/> Hide this account from forms (keeps its history)</label></div>`:""}<div class="field full form-actions">${account&&!used?`<button type="button" class="btn danger" data-action="delete-account" data-id="${escapeHtml(account.id)}">Delete</button>`:""}<button type="button" class="btn" data-action="close-modal">Cancel</button><button class="btn primary">${account?"Save changes":"Add account"}</button></div></form>`);
+      if(!account)$("accKind").onchange=()=>{$("accSpending").checked=$("accKind").value!=="savings";};
       $("accountForm").onsubmit=event=>{
         event.preventDefault();
         const name=$("accName").value.trim(), opening=$("accOpening").value.trim();
         if(!name){toast("Enter an account name.");return;}
         if(state.accounts.some(item=>item!==account&&item.name.toLowerCase()===name.toLowerCase())){toast("You already have an account with that name.");return;}
         if(opening&&!Number.isFinite(Number(opening))){toast("Enter a valid opening balance.");return;}
-        const values={name,kind:$("accKind").value,openingBalance:roundMoney(opening),openingDate:$("accOpeningDate").value||""};
+        const values={name,kind:$("accKind").value,openingBalance:roundMoney(opening),openingDate:$("accOpeningDate").value||"",spending:$("accSpending").checked};
         if(account){if($("accArchived")?.checked&&!account.archived&&accountAllocated(account.id)>0.004){toast("Release the goal money in this account before hiding it.");return;}Object.assign(account,values,{archived:Boolean($("accArchived")?.checked)});}
-        else state.accounts.push({...newAccount(`acc-${id()}`,values.name,values.kind,values.openingBalance,values.openingDate)});
+        else state.accounts.push({...newAccount(`acc-${id()}`,values.name,values.kind,values.openingBalance,values.openingDate),spending:values.spending});
         closeModal();commit(account?"Account updated":"Account added");
       };
     }
@@ -1730,8 +1798,11 @@
       };
     }
     function plannerForm() {
-      openModal("Edit payday plan",`<form id="plannerForm" class="form-grid">${inputField("Monthly spending budget","planBudget","number",state.budgets.monthlySpending,"min=\"0\"")}${inputField("Planned expenses before payday","planExpenses","number",state.profile.plannedExpenses,"min=\"0\"")}<div class="field full"><p class="subtle">Bills, goal contributions and debt repayments are already calculated from their own records. This is for additional spending you know is coming.</p></div><div class="field full form-actions"><button type="button" class="btn" data-action="close-modal">Cancel</button><button class="btn primary">Save plan</button></div></form>`);
-      $("plannerForm").onsubmit=event=>{event.preventDefault();state.budgets.monthlySpending=safeNumber($("planBudget").value);state.profile.plannedExpenses=safeNumber($("planExpenses").value);closeModal();commit("Plan updated");};
+      const irregular=state.profile.incomePattern==="irregular";
+      openModal("Edit plan",`<form id="plannerForm" class="form-grid"><div class="field full"><label for="planPattern">How are you paid?</label><select id="planPattern"><option value="fixed" ${irregular?"":"selected"}>On a fixed payday each month</option><option value="irregular" ${irregular?"selected":""}>Irregularly (business, freelance, casual work)</option></select></div>${inputField("Payday (day of month)","planPayday","number",state.profile.paydayDay,"min=\"1\" max=\"31\"")}<div class="field"><label for="planDays">Planning period</label><select id="planDays">${[7,14,30].map(days=>`<option value="${days}" ${Number(state.profile.planningDays)===days?"selected":""}>${days===7?"1 week":days===14?"2 weeks":"1 month"}</option>`).join("")}</select></div>${inputField("Minimum buffer to keep ("+currencyConfig().label+")","planBuffer","number",state.profile.minimumBuffer||"","min=\"0\" step=\"0.01\" placeholder=\"e.g. 2000\"")}${inputField("Planned extra spending in this period","planExpenses","number",state.profile.plannedExpenses,"min=\"0\"")}${inputField("Monthly spending budget","planBudget","number",state.budgets.monthlySpending,"min=\"0\"")}<div class="field full"><p class="subtle">Bills, debt instalments and goal plans are calculated from their own records. The buffer is money you always want left untouched, for example for emergencies. Expected income is never counted until it arrives.</p></div><div class="field full form-actions"><button type="button" class="btn" data-action="close-modal">Cancel</button><button class="btn primary">Save plan</button></div></form>`);
+      const toggle=()=>{const isIrregular=$("planPattern").value==="irregular";$("planPayday").closest(".field").style.display=isIrregular?"none":"";$("planDays").closest(".field").style.display=isIrregular?"":"none";};
+      toggle(); $("planPattern").onchange=toggle;
+      $("plannerForm").onsubmit=event=>{event.preventDefault();state.profile.incomePattern=$("planPattern").value==="irregular"?"irregular":"fixed";state.profile.paydayDay=Math.min(31,Math.max(1,Number($("planPayday").value)||1));state.profile.planningDays=[7,14,30].includes(Number($("planDays").value))?Number($("planDays").value):14;state.profile.minimumBuffer=roundMoney(safeNumber($("planBuffer").value));state.budgets.monthlySpending=safeNumber($("planBudget").value);state.profile.plannedExpenses=safeNumber($("planExpenses").value);closeModal();commit("Plan updated");};
     }
     function categoryBudgetForm() {
       openModal("Set category budgets",`<form id="categoryBudgetForm">${state.categories.map(cat=>`<div class="field" style="margin-bottom:11px"><label for="budget_${escapeHtml(cat.id)}">${escapeHtml(cat.name)}</label><input id="budget_${escapeHtml(cat.id)}" type="number" min="0" value="${Number(state.budgets.categoryBudgets[cat.name]||0)}" /></div>`).join("")}<div class="form-actions"><button type="button" class="btn" data-action="close-modal">Cancel</button><button class="btn primary">Save budgets</button></div></form>`);
@@ -1776,7 +1847,67 @@
     }
     function renderAccountsSection() {
       const shown=state.accounts.filter(account=>!account.archived||Math.abs(accountBalance(account.id))>0.004);
-      return `<div class="card" style="margin-bottom:15px"><div class="section-title"><div><h2>Accounts</h2><span class="subtle">Where your money is. Set aside = earmarked for goals; available = free to use.</span></div><button class="btn small" data-action="add-account">＋ Account</button></div>${shown.some(account=>accountBalance(account.id)<-0.004)?`<div class="callout warn" style="margin-bottom:12px"><span class="callout-icon">!</span><span><strong>Some accounts are below zero.</strong> Entries recorded before accounts existed were placed using their payment method. Tap Edit on each account and enter what it actually held on a recent date, so every balance matches reality.${state.accounts.some(account=>account.id==="other")?" Goal and debt entries made before accounts existed sit in “Other / unassigned”: edit them in the list below to choose the right account.":""} Your overall total is not affected by where entries sit.</span></div>`:""}<div class="grid grid-3">${shown.map(account=>{const balance=accountBalance(account.id), setAside=accountAllocated(account.id), available=roundMoney(balance-setAside);return `<div class="card metric account-card"><div class="metric-label"><span>${escapeHtml(account.name)}${account.archived?" (hidden)":""}</span><span class="subtle">${(label=>label.toLowerCase()===account.name.toLowerCase()?"":escapeHtml(label))(accountKindLabel(account.kind).split(" (")[0])}</span></div><strong class="metric-value ${balance<0?"red":""}">${money(balance)}</strong><small>Set aside ${money(setAside)} · Available ${money(available)}</small>${setAside>0.004&&available<-0.004?`<small class="warn-text">Goals expect ${money(Math.min(setAside,-available))} more than this account holds.</small>`:""}${balance<-0.004?`<small class="warn-text">Below zero: check the opening balance or missing income.</small>`:""}<div class="form-actions"><button class="btn small" data-action="edit-account" data-id="${escapeHtml(account.id)}">Edit</button></div></div>`}).join("")}</div><div class="kv" style="margin-top:12px"><div><span>Total held</span><strong>${money(totalHeld())}</strong></div><div><span>Set aside for goals</span><strong>${money(totalAllocated())}</strong></div><div><span>Available</span><strong>${money(totalAvailable())}</strong></div></div></div>`;
+      const active=activeTransactions(), adjustments=active.filter(item=>item.type==="adjustment");
+      const netCorrections=sum(adjustments,item=>item.direction==="out"?-item.amount:item.amount), unrecorded=sum(active.filter(item=>item.type==="expense"&&item.reconciliation),item=>item.amount);
+      return `<div class="card" style="margin-bottom:15px"><div class="section-title"><div><h2>Accounts</h2><span class="subtle">Where your money is. Set aside = earmarked for goals; available = free to use.</span></div><button class="btn small" data-action="add-account">＋ Account</button></div>${shown.some(account=>accountBalance(account.id)<-0.004)?`<div class="callout warn" style="margin-bottom:12px"><span class="callout-icon">!</span><span><strong>Some accounts are below zero.</strong> Use <strong>Reconcile</strong> on each account to enter what it actually holds; PesaPilot records a labelled adjustment you can see and reverse.${state.accounts.some(account=>account.id==="other")?" Goal and debt entries made before accounts existed sit in “Other / unassigned”: you can also edit them in the list below to choose the right account.":""}</span></div>`:""}<div class="grid grid-3">${shown.map(account=>{const balance=accountBalance(account.id), setAside=accountAllocated(account.id), available=roundMoney(balance-setAside), history=state.transactions.filter(item=>item.accountId===account.id&&item.reconciliation), last=history.filter(item=>!isReversalPair(item)).sort((a,b)=>String(b.date).localeCompare(String(a.date)))[0];return `<div class="card metric account-card"><div class="metric-label"><span>${escapeHtml(account.name)}${account.archived?" (hidden)":""}</span><span class="subtle">${(label=>label.toLowerCase()===account.name.toLowerCase()?"":escapeHtml(label))(accountKindLabel(account.kind).split(" (")[0])}</span></div><strong class="metric-value ${balance<0?"red":""}">${money(balance)}</strong><small>Set aside ${money(setAside)} · Available ${money(available)}</small><small class="subtle">${isSpendingAccount(account)?"":"Not counted in safe to spend · "}${last?`Reconciled ${dateText(last.date)}`:"Not reconciled yet"}</small>${setAside>0.004&&available<-0.004?`<small class="warn-text">Goals expect ${money(Math.min(setAside,-available))} more than this account holds.</small>`:""}${balance<-0.004?`<small class="warn-text">Below zero: reconcile with the real balance.</small>`:""}<div class="form-actions"><button class="btn small" data-action="edit-account" data-id="${escapeHtml(account.id)}">Edit</button><button class="btn small" data-action="reconcile-account" data-id="${escapeHtml(account.id)}">Reconcile</button>${history.length?`<button class="btn small" data-action="reconcile-history" data-id="${escapeHtml(account.id)}">History</button>`:""}</div></div>`}).join("")}</div><div class="kv" style="margin-top:12px"><div><span>Total held</span><strong>${money(totalHeld())}</strong></div><div><span>Set aside for goals</span><strong>${money(totalAllocated())}</strong></div><div><span>Available</span><strong>${money(totalAvailable())}</strong></div>${adjustments.length||unrecorded?`<div><span>Balance corrections (net)</span><strong>${netCorrections<0?"−":"+"}${plainMoney(netCorrections)}</strong></div>${unrecorded?`<div><span>Unrecorded spending found</span><strong>${money(unrecorded)}</strong></div>`:""}`:""}</div></div>`;
+    }
+    function spendingMoneyNote() {
+      const counted=spendingAccounts(), excluded=state.accounts.filter(account=>!isSpendingAccount(account)&&Math.abs(accountBalance(account.id))>0.004);
+      const setAside=sum(counted,account=>accountAllocated(account.id));
+      return `Counts ${counted.length?counted.map(account=>escapeHtml(account.name)).join(", "):"no accounts"}${setAside?` and already leaves out ${money(setAside)} set aside for goals`:""}.${excluded.length?` Not counted: ${excluded.map(account=>`${escapeHtml(account.name)} ${money(accountBalance(account.id))}`).join(", ")} (savings).`:""}`;
+    }
+    // DEC-016: a reconciliation records a labelled adjustment, never income or spending
+    // (unless the user says the shortfall was unrecorded spending).
+    function reconcileForm(account) {
+      if(!account)return;
+      openModal(`Reconcile ${escapeHtml(account.name)}`,`<form id="reconcileForm" class="form-grid">${inputField("Balance on date","recDate","date",todayISO(),"required")}<div class="field"><label>PesaPilot shows</label><strong id="recRecorded" style="font-size:22px;display:block;margin-top:8px"></strong></div>${inputField("Actual balance ("+currencyConfig().label+")","recActual","number","","step=\"0.01\" required placeholder=\"What M-Pesa, the bank or your wallet shows\"")}${inputField("Reason","recReason","text","","required placeholder=\"e.g. Small M-Pesa payments not recorded\"",true)}<div class="field full"><label><input id="recUnrecorded" type="checkbox" style="width:auto;margin-right:6px"/> I spent the difference and didn't record it: count it as spending</label></div><div class="field full"><small id="recPreview" class="subtle"></small></div><div class="field full form-actions"><button type="button" class="btn" data-action="close-modal">Cancel</button><button class="btn primary">Record adjustment</button></div></form>`);
+      const read=()=>{const date=$("recDate").value||todayISO(), recorded=accountBalance(account.id,date), raw=$("recActual").value.trim(), valid=raw!==""&&Number.isFinite(Number(raw)), actual=valid?roundMoney(raw):null, diff=valid?roundMoney(actual-recorded):null;return {date,recorded,actual,diff,valid};};
+      const update=()=>{const r=read();$("recRecorded").textContent=money(r.recorded);const shortfall=r.valid&&r.diff<-0.004;$("recUnrecorded").disabled=!shortfall;if(!shortfall)$("recUnrecorded").checked=false;$("recPreview").textContent=!r.valid?"Enter the balance shown by M-Pesa, your bank or your wallet on that date.":Math.abs(r.diff)<0.005?"Already matches. Nothing to adjust.":`Difference ${r.diff>0?"+":"−"}${plainMoney(r.diff)}. ${shortfall&&$("recUnrecorded").checked?"It will be recorded as unrecorded spending.":"It will be recorded as a balance adjustment: not income or spending."}`;};
+      ["recDate","recActual","recUnrecorded"].forEach(field=>{$(field).addEventListener("input",update);$(field).addEventListener("change",update);});
+      update();
+      $("reconcileForm").onsubmit=event=>{
+        event.preventDefault();
+        const r=read(), reason=$("recReason").value.trim();
+        if(!r.valid){toast("Enter the actual balance.");return;}
+        if(!reason){toast("Add a short reason so the adjustment is clear later.");return;}
+        if(Math.abs(r.diff)<0.005){toast("The balance already matches. Nothing to adjust.");return;}
+        const reconciliation={recordedBalance:r.recorded,actualBalance:r.actual,difference:r.diff,recordedAt:new Date().toISOString()};
+        const common={id:id(),amount:Math.abs(r.diff),date:r.date,accountId:account.id,paymentMethod:account.name,notes:reason,description:reason,reference:"",reconciliation,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()};
+        if(r.diff<0&&$("recUnrecorded").checked){
+          if(!state.categories.some(category=>category.name.toLowerCase()==="unrecorded spending"))state.categories.push({id:"unrecorded-spending",name:"Unrecorded spending"});
+          state.transactions.push({...common,type:"expense",category:"Unrecorded spending"});
+        } else state.transactions.push({...common,type:"adjustment",direction:r.diff>0?"in":"out",category:"Balance adjustment"});
+        closeModal();commit(`${account.name} reconciled to ${money(r.actual)}`);
+      };
+    }
+    function reconcileHistory(account) {
+      if(!account)return;
+      const entries=state.transactions.filter(item=>item.accountId===account.id&&(item.reconciliation||(item.reversesId&&state.transactions.some(original=>String(original.id)===String(item.reversesId)&&original.reconciliation)))).sort((a,b)=>String(b.date).localeCompare(String(a.date))||Number(b.id)-Number(a.id));
+      openModal(`${escapeHtml(account.name)} reconciliation history`,`${entries.length?`<div class="table-wrap"><table><thead><tr><th>Date</th><th>PesaPilot showed</th><th>Actual</th><th>Difference</th><th>Recorded as</th><th>Reason</th><th>Status</th></tr></thead><tbody>${entries.map(item=>item.reversesId?`<tr><td>${dateText(item.date)}</td><td colspan="4">${escapeHtml(item.notes)}</td><td></td><td>Reversal</td></tr>`:`<tr><td>${dateText(item.date)}</td><td>${money(item.reconciliation.recordedBalance)}</td><td>${money(item.reconciliation.actualBalance)}</td><td class="amount ${item.reconciliation.difference<0?"expense":"income"}">${item.reconciliation.difference<0?"−":"+"}${plainMoney(item.reconciliation.difference)}</td><td>${item.type==="expense"?"Unrecorded spending":"Adjustment"}</td><td>${escapeHtml(item.notes)}</td><td>${item.reversedBy?"Reversed":"Active"}</td></tr>`).join("")}</tbody></table></div>`:emptyState("No reconciliations yet","Use Reconcile to match this account with its real balance.")}<div class="form-actions"><button class="btn" data-action="close-modal">Close</button></div>`);
+    }
+    function reverseTransaction(item) {
+      if(!item)return;
+      if(item.reversesId){toast("A reversal can't be reversed. Reconcile the account again instead.");return;}
+      if(item.reversedBy){toast("This entry has already been reversed.");return;}
+      if(!isAudited(item)){toast("Only adjustments are reversed. Edit or delete ordinary entries instead.");return;}
+      if(!confirm(`Reverse this ${item.type==="expense"?"unrecorded spending":"adjustment"} of ${money(item.amount)}? Both entries stay in your history and cancel each other out.`))return;
+      const reversal={id:id(),type:item.type,direction:item.direction,amount:item.amount,category:item.category,date:todayISO(),accountId:item.accountId,paymentMethod:item.paymentMethod,notes:`Reversal of: ${item.notes||kindInfo(item).label}`,description:`Reversal of: ${item.notes||kindInfo(item).label}`,reference:"",reversesId:item.id,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()};
+      if(reversal.direction===undefined)delete reversal.direction;
+      item.reversedBy=reversal.id; state.transactions.push(reversal);
+      closeModal();commit("Adjustment reversed");
+    }
+    function renderExpectedIncomeCard(p) {
+      const items=expectedIncomeItems();
+      return `<div class="card" style="grid-column:1/-1"><div class="section-title"><div><h2>Expected income</h2><span class="subtle">Not counted until it arrives</span></div><button class="btn small" data-action="add-expected">＋ Expected income</button></div>${items.length?`<div class="list">${items.map(item=>`<div class="list-row expected-row"><div class="row-icon income">⏳</div><div class="row-main"><strong>${escapeHtml(item.source)} · ${money(item.amount)}</strong><span>${item.expectedDate?`Expected ${dateText(item.expectedDate)}`:"No date"}${item.expectedDate&&item.expectedDate<todayISO()?" · late":""} · into ${escapeHtml(accountName(item.accountId))}</span></div><div class="actions"><button class="btn small" data-action="receive-expected" data-id="${item.id}">Received</button><button class="btn small" data-action="edit-expected" data-id="${item.id}">Edit</button><button class="btn small danger" data-action="delete-expected" data-id="${item.id}">Remove</button></div></div>`).join("")}</div><div class="callout" style="margin-top:12px"><span class="callout-icon">i</span><span>${p.expected?`If the ${money(p.expected)} expected in this period arrives, safe to spend would be ${money(p.dailyIfExpected)} a day instead of ${money(p.daily)}.`:"None of it is expected within this planning period."}</span></div>`:emptyState("No expected income","Add money you are waiting for, such as a client payment. PesaPilot shows it separately and never counts it before it arrives.")}</div>`;
+    }
+    function expectedIncomeForm(item=null) {
+      openModal(item?"Edit expected income":"Add expected income",`<form id="expectedForm" class="form-grid">${inputField("From (source)","expSource","text",item?.source||"","required placeholder=\"e.g. Client payment, salary, chama payout\"")}${inputField("Amount ("+currencyConfig().label+")","expAmount","number",item?.amount||"","min=\"0\" step=\"0.01\" required")}${inputField("Expected date","expDate","date",item?.expectedDate||"")}<div class="field"><label for="expAccount">Will arrive in</label><select id="expAccount">${accountOptions(accountById(item?.accountId)?item.accountId:defaultAccountId())}</select></div><div class="field full"><small class="subtle">Expected income is shown separately and never counted in safe to spend until you mark it received.</small></div><div class="field full form-actions"><button type="button" class="btn" data-action="close-modal">Cancel</button><button class="btn primary">${item?"Save changes":"Add expected income"}</button></div></form>`);
+      $("expectedForm").onsubmit=event=>{event.preventDefault();const amount=roundMoney(safeNumber($("expAmount").value)),source=$("expSource").value.trim();if(!source){toast("Say who the money is from.");return;}if(amount<=0){toast("Enter an amount greater than zero.");return;}const values={source,amount,expectedDate:$("expDate").value||"",accountId:$("expAccount").value};if(item)Object.assign(item,values);else{state.expectedIncome=state.expectedIncome||[];state.expectedIncome.push({id:id(),...values,status:"expected",createdAt:new Date().toISOString()});}closeModal();commit(item?"Expected income updated":"Expected income added: not counted until it arrives");};
+    }
+    function receiveExpectedForm(item) {
+      if(!item)return;
+      openModal(`Received from ${escapeHtml(item.source)}`,`<form id="receiveForm" class="form-grid">${inputField("Amount actually received ("+currencyConfig().label+")","rcvAmount","number",item.amount,"min=\"0\" step=\"0.01\" required")}${inputField("Date received","rcvDate","date",todayISO(),"required")}<div class="field"><label for="rcvAccount">Received into</label><select id="rcvAccount">${accountOptions(accountById(item.accountId)?item.accountId:defaultAccountId())}</select></div><div class="field full"><small class="subtle">This records the income and removes it from the expected list.</small></div><div class="field full form-actions"><button type="button" class="btn" data-action="close-modal">Cancel</button><button class="btn primary">Record income</button></div></form>`);
+      $("receiveForm").onsubmit=event=>{event.preventDefault();const amount=roundMoney(safeNumber($("rcvAmount").value)),accountId=$("rcvAccount").value,date=$("rcvDate").value||todayISO();if(amount<=0){toast("Enter the amount received.");return;}if(!accountById(accountId)){toast("Choose an account.");return;}const transaction={id:id(),type:"income",amount,category:"Income",date,accountId,paymentMethod:accountName(accountId),notes:item.source,description:item.source,reference:`expected:${item.id}`,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()};state.transactions.push(transaction);item.status="received";item.receivedTransactionId=transaction.id;item.receivedDate=date;closeModal();commit(`${money(amount)} from ${item.source} recorded as income`);};
     }
     function bindActions() {
       document.querySelectorAll("[data-action]").forEach(button => {
@@ -1793,13 +1924,20 @@
           if(action==="add-income") return transactionForm(null,"income");
           if(action==="add-expense") return transactionForm(null,"expense");
           if(action==="add-transfer") return transferForm();
+          if(action==="reconcile-account") return reconcileForm(accountById(itemId));
+          if(action==="reconcile-history") return reconcileHistory(accountById(itemId));
+          if(action==="reverse-transaction") return reverseTransaction(state.transactions.find(x=>String(x.id)===String(itemId)));
+          if(action==="add-expected") return expectedIncomeForm();
+          if(action==="edit-expected") return expectedIncomeForm((state.expectedIncome||[]).find(x=>String(x.id)===String(itemId)));
+          if(action==="receive-expected") return receiveExpectedForm((state.expectedIncome||[]).find(x=>String(x.id)===String(itemId)));
+          if(action==="delete-expected"){const item=(state.expectedIncome||[]).find(x=>String(x.id)===String(itemId));if(item&&confirm(`Remove the expected ${money(item.amount)} from ${item.source}?`)){state.expectedIncome=state.expectedIncome.filter(x=>x!==item);commit("Expected income removed");}return;}
           if(action==="add-account") return accountForm();
           if(action==="edit-account") return accountForm(accountById(itemId));
           if(action==="delete-account"){const account=accountById(itemId);if(!account)return;if(state.transactions.some(item=>item.accountId===account.id||item.toAccountId===account.id)||state.allocations.some(entry=>entry.accountId===account.id)){toast("This account has history. Hide it instead.");return;}if(confirm(`Delete the ${account.name} account?`)){state.accounts=state.accounts.filter(item=>item!==account);closeModal();commit("Account deleted");}return;}
           if(action==="move-goal") return transferForm(null,itemId);
           if(action==="release-goal") return releaseGoal(state.goals.find(x=>String(x.id)===String(itemId)));
           if(action==="edit-transaction") return transactionForm(state.transactions.find(x=>String(x.id)===String(itemId)));
-          if(action==="delete-transaction"){const item=state.transactions.find(x=>String(x.id)===String(itemId));if(item&&confirm(deleteTransactionMessage(item))){removeLinkedForTransaction(item);state.transactions=state.transactions.filter(x=>x!==item);commit("Transaction deleted");}}
+          if(action==="delete-transaction"){const item=state.transactions.find(x=>String(x.id)===String(itemId));if(item&&(isAudited(item)||isReversalPair(item)))return reverseTransaction(item);if(item&&confirm(deleteTransactionMessage(item))){removeLinkedForTransaction(item);state.transactions=state.transactions.filter(x=>x!==item);commit("Transaction deleted");}}
           if(action==="add-goal") return goalForm();
           if(action==="edit-goal") return goalForm(state.goals.find(x=>String(x.id)===String(itemId)));
           if(action==="contribute-goal") return contributeGoal(state.goals.find(x=>String(x.id)===String(itemId)));

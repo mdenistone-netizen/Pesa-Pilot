@@ -8,7 +8,7 @@ Each phase ends with tests passing, a change-register entry and owner review. **
 | 0 | Baseline inspection | **Done:** `CURRENT_STATE_ASSESSMENT.md` |
 | 0.5 | Safety net: tests, non-destructive migration, dead code | **Implemented + tested** (CR-001), not deployed |
 | 1 | Financial model: accounts, transfers, goal allocations, classification | **Implemented + tested** (CR-002), not deployed. Rules: `FINANCIAL_RULES.md` |
-| 2 | Calculation engine: safe-to-spend for irregular income, reconcile-to-real-balance, payday-free planning | **Next** |
+| 2 | Safe to spend for irregular income, reconcile, expected income | **Implemented + tested** (CR-003), not deployed |
 | 3 | Core features: receivables, savings withdrawals, daily balances, flexible budgets | Planned |
 | 4 | Security & reliability: hashed PIN, PWA/offline, backup hardening | Planned (PIN fix may move earlier) |
 | 5 | Dashboard & insights on correct numbers | Planned |
