@@ -7,8 +7,8 @@ Each phase ends with tests passing, a change-register entry and owner review. **
 |---|---|---|
 | 0 | Baseline inspection | **Done:** `CURRENT_STATE_ASSESSMENT.md` |
 | 0.5 | Safety net: tests, non-destructive migration, dead code | **Implemented + tested** (CR-001), not deployed |
-| 1 | Financial model: accounts, transfers, correct classification | **Designed below, awaiting approval** |
-| 2 | Calculation engine: balances, safe-to-spend, irregular income | Planned |
+| 1 | Financial model: accounts, transfers, goal allocations, classification | **Implemented + tested** (CR-002), not deployed. Rules: `FINANCIAL_RULES.md` |
+| 2 | Calculation engine: safe-to-spend for irregular income, reconcile-to-real-balance, payday-free planning | **Next** |
 | 3 | Core features: receivables, savings withdrawals, daily balances, flexible budgets | Planned |
 | 4 | Security & reliability: hashed PIN, PWA/offline, backup hardening | Planned (PIN fix may move earlier) |
 | 5 | Dashboard & insights on correct numbers | Planned |
@@ -17,7 +17,7 @@ Each phase ends with tests passing, a change-register entry and owner review. **
 
 ---
 
-## Phase 1: Financial model (proposed design)
+## Phase 1: Financial model (as designed; implemented in CR-002, with the savings model refined by DEC-008)
 
 ### The core idea
 Today the app has one number: everything you ever earned minus everything you ever spent. Phase 1 gives every shilling a **location** (an account) and every movement a **kind**, so the app always knows *where* your money is and *what* each movement means.

@@ -28,13 +28,13 @@ Evidence was produced by loading the real `index.html` in headless Chromium (Nai
 | # | Defect | Evidence | Severity |
 |---|---|---|---|
 | D1 ✅ fixed CR-001 | Migration runs on **every load**, rebuilds every record and coerces any non-`income` type to `expense`; unknown fields are dropped. | Seeded `{type:"transfer", fromAccount, toAccount}` came back as `{type:"expense"}` with both account fields deleted (`migrate()` ~line 578). | Critical — blocks adding new transaction types safely |
-| D2 | Savings contributions are recorded as **expenses**. | Home showed balance **KSh 19,000** (money in savings treated as spent); month expenses **KSh 11,000** instead of 5,000. Savings rate understated. (line 1464) | High |
+| D2 ✅ fixed CR-002 | Savings contributions are recorded as **expenses**. | Home showed balance **KSh 19,000** (money in savings treated as spent); month expenses **KSh 11,000** instead of 5,000. Savings rate understated. (line 1464) | High |
 | D3 | Debt repayments are expenses, but borrowing is never recorded as money received; no "money owed to me" at all. | No receivable/lent/borrow logic exists (keyword search: 0 hits). | High (missing feature) |
-| D4 | Deleting/editing a linked transaction does not update its goal/debt/bill. | `delete-transaction` just filters the array (line 1518); `goal.current`, `debt.repaid`, bill payments stay unchanged. | High — silent inconsistency |
-| D5 | Safe-to-spend uses the all-time balance, assumes a single fixed payday, and debt fallback = 5% of declared monthly income. | `planner()` / `debtCommitments()` (~lines 880–895). Not valid for irregular income. | High |
+| D4 ✅ fixed CR-002 | Deleting/editing a linked transaction does not update its goal/debt/bill. | `delete-transaction` just filters the array (line 1518); `goal.current`, `debt.repaid`, bill payments stay unchanged. | High — silent inconsistency |
+| D5 ◐ partly (CR-002), rest Phase 2 | Safe-to-spend uses the all-time balance, assumes a single fixed payday, and debt fallback = 5% of declared monthly income. | `planner()` / `debtCommitments()` (~lines 880–895). Not valid for irregular income. | High |
 | D6 | PIN stored and exported in **plaintext**. | `state.pin` is saved raw in localStorage and included in JSON backups (export confirmed the `pin` field). Device fingerprint (user agent) also exported. | High (security) |
 | D7 ✅ fixed CR-001 | Dead/duplicate code. | `renderGoals/Debts/Reports/Settings` defined twice (later wins), plus `renderSettingsLegacy`, `bindActionsLegacy`, `payBillOriginal`. | Medium (maintainability) |
-| D8 | No multi-account model, opening balances or transfers. | Not present. | Core gap |
+| D8 ✅ fixed CR-002 | No multi-account model, opening balances or transfers. | Not present. | Core gap |
 | D9 | No PWA manifest/service worker. | Not present. | Medium |
 | D10 | Dates use device-local time, not explicitly Africa/Nairobi. Works for phones set to Kenyan time; otherwise mostly safe (noon anchoring). | `todayISO()` uses local date. | Low |
 

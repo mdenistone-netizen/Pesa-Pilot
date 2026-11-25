@@ -53,3 +53,57 @@ Not required on its own: there is no user-visible benefit yet. Recommended to sh
 
 ### Rollback
 `git revert` of the CR-001 commits. No stored data format changed, so rollback is safe at any time.
+
+---
+
+## CR-002 · Phase 1 · Financial model: accounts, transfers, goal allocations
+
+| | |
+|---|---|
+| Date | 2026-11-25 |
+| Branch | `claude/pesapilot-master-handover-0z1xae` (not merged to `main`) |
+| Status | **Implemented + Tested.** Not independently verified. **Not deployed.** |
+| Approved by owner | Yes: savings model option (c) "Both", goal separate from account, no double allocation |
+| Data change | Schema 9 → 10, backup format 3 → 4. One-time, non-destructive, reversible (see FINANCIAL_RULES §7) |
+
+### What changed (all in `index.html`)
+- **Accounts:** balance, set aside and available shown per account on the Money screen. You can add and edit accounts, set opening balances and dates, hide accounts, and delete accounts that have no history.
+- **Transfers** between accounts: these never count as income or spending, and can optionally be "for a goal".
+- **Goals:** "Set aside" from any account, "Move money", and "Use / release" (with optional expense). Each goal shows its holdings per account and warns about shortfalls. Goal progress is calculated.
+- **No double allocation:** you can never set aside more than an account's available amount.
+- **Classification fixes:**
+  - Savings are no longer counted as spending (fixes D2).
+  - Debt repayments are no longer counted as spending.
+  - Borrowed money can be recorded but is not income.
+- **Linked consistency** (fixes D4):
+  - Editing or deleting a repayment or bill payment updates the debt or bill.
+  - Deleting a goal transfer reverses its allocations.
+  - Linked references can no longer be overwritten from the edit form.
+- Expenses, bill payments, debt repayments and transfers ask before using goal money or more than the recorded balance.
+- Totals are added in whole cents.
+- Safe-to-spend now starts from money not set aside for goals (interim; Phase 2 redesigns it).
+- **Phone layout:** fixed sideways scrolling on Home, Plan and Reports, which already overflowed on 390 px phones before this change. Bills is fixed at 390 px but is still 3 px over on 360 px phones.
+
+### Evidence
+| Check | Result |
+|---|---|
+| Regression + Phase 1 tests | **33 passed, 0 failed** (17 new Phase 1 tests, incl. rollback into the real schema 9 app; D2 and D4 promoted to regression tests) |
+| Known defects open | D3 (receivables: Phase 3), D6 (PIN: Phase 4) |
+| UI snapshots | New baseline (70) saved after the intended changes; stable on re-run; no page errors |
+| Horizontal overflow at 390 px | 0 on all 8 screens (was 27–62 px on 4 screens before) |
+
+Full output: `docs/evidence/phase-1-tests.txt`.
+
+### Known limitations
+- Upgraded users' individual account balances are only as good as their old payment-method labels. All opening balances start at 0, so some accounts can show below zero until the user enters opening balances. A banner explains this. The **total** is correct.
+- Goal and debt entries created by the app before accounts existed land in "Other / unassigned". The app always forced that label, so the real account is unknown.
+- There is no "reconcile to my real balance" button yet (recommended for Phase 2).
+- Receivables (money owed to me) are not built yet (Phase 3).
+- Bills screen is 3 px wider than 360 px phones (calendar). It was 62 px over before this change.
+
+### Rollback (proven by the test "rollback: …")
+1. On each device that upgraded, open Settings → **Download pre-accounts copy**. This is the untouched schema 9 data, saved once at upgrade time.
+2. Redeploy the previous version (revert the CR-002 commit).
+3. In the previous version, Settings → **Import backup** → choose that file.
+
+Entries made *after* upgrading would need re-entering, so a rollback should happen soon after deployment if it is ever needed.

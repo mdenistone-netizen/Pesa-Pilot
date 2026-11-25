@@ -34,10 +34,12 @@ test("every screen renders without errors", async () => {
   noErrors(errors); await context.close();
 });
 
-test("home balance equals all-time income minus all-time expenses (current rule)", async () => {
+test("home balance is the total held across all accounts", async () => {
   const { page, context, errors } = await h.openApp({ seed: realisticMonth() });
-  // income 53,000 - expenses 30,100 = 22,900 (savings & debt repayments counted as expenses today)
-  assert.match(await h.bodyText(page), /recorded money KSh 22,900/);
+  // income 53,000 - spending 25,100 - debt repayment 2,000 = 25,900. The 3,000 goal
+  // contribution is still the user's money (now in a savings account), not spending.
+  // Schema 9 showed 22,900 because it counted that saving as an expense (defect D2).
+  assert.match(await h.bodyText(page), /recorded money KSh 25,900 KSh 3,000 set aside for goals · KSh 22,900 available/);
   noErrors(errors); await context.close();
 });
 
@@ -49,7 +51,7 @@ test("adding an expense through the form reduces the balance", async () => {
   await page.evaluate(() => document.getElementById("transactionForm").requestSubmit());
   await page.waitForTimeout(200);
   await h.goView(page, "home");
-  assert.match(await h.bodyText(page), /recorded money KSh 22,000/);
+  assert.match(await h.bodyText(page), /recorded money KSh 25,000/);
   const saved = await h.storedState(page);
   assert.equal(saved.transactions.length, 9);
   noErrors(errors); await context.close();
@@ -125,7 +127,7 @@ test("migration keeps fields it does not recognise on every record type", async 
   seed.goals[0].contributions[0].fromAccount = "mpesa";
   seed.bills[0].payee = "Landlord";
   seed.debts[0].direction = "i_owe";
-  seed.accounts = [{ id: "mpesa", name: "M-Pesa", openingBalance: 1200 }];
+  seed.accounts = [{ id: "mpesa", name: "M-Pesa", kind: "mpesa", openingBalance: 1200, nickname: "Main line" }];
   const { page, context } = await h.openApp({ seed });
   const d = (await h.exportBackup(page)).data;
   assert.equal(d.transactions.find(t => t.id === 1).accountId, "mpesa");
@@ -133,7 +135,9 @@ test("migration keeps fields it does not recognise on every record type", async 
   assert.equal(d.goals[0].contributions[0].fromAccount, "mpesa");
   assert.equal(d.bills[0].payee, "Landlord");
   assert.equal(d.debts[0].direction, "i_owe");
-  assert.deepEqual(d.accounts, seed.accounts);
+  const mpesa = d.accounts.find(a => a.id === "mpesa");
+  assert.equal(mpesa.openingBalance, 1200);
+  assert.equal(mpesa.nickname, "Main line");
   await context.close();
 });
 
@@ -145,9 +149,9 @@ test("migration keeps transaction types it does not recognise (e.g. transfer)", 
   assert.equal(t.type, "transfer");
   assert.equal(t.fromAccount, "mpesa");
   assert.equal(t.toAccount, "bank");
-  // and it is not counted as an expense: balance unchanged at 22,900
+  // it has no valid destination account, so it moves nothing: total unchanged at 25,900
   await h.goView(page, "home");
-  assert.match(await h.bodyText(page), /recorded money KSh 22,900/);
+  assert.match(await h.bodyText(page), /recorded money KSh 25,900/);
   noErrors(errors); await context.close();
 });
 
@@ -170,7 +174,7 @@ test("migration normalises legacy types: missing -> expense, 'Income' -> income"
   assert.equal(d.transactions.find(t => t.id === 3).type, "expense");
   assert.equal(d.transactions.find(t => t.id === 2).type, "income");
   await h.goView(page, "home");
-  assert.match(await h.bodyText(page), /recorded money KSh 22,900/);
+  assert.match(await h.bodyText(page), /recorded money KSh 25,900/);
   await context.close();
 });
 
@@ -185,17 +189,312 @@ test("migration still repairs invalid values (negative amounts, unknown frequenc
   await context.close();
 });
 
-// --------------------------------------------- known defects (later phases)
-knownDefect("D2", "savings contributions are not counted as spending", async () => {
-  const { page, context } = await h.openApp({ seed: realisticMonth() });
-  await h.goView(page, "reports");
-  // Real November spending excluding the 3,000 savings move = 25,900 (app shows 28,900)
-  assert.match(await h.bodyText(page), new RegExp(kes(25900)));
-  assert.doesNotMatch(await h.bodyText(page), new RegExp(kes(28900)));
+// ------------------------------------- Phase 1: accounts, transfers, goal allocations
+// A schema 10 wallet: KSh 10,000 salary in M-Pesa, an empty M-Shwari, two goals.
+function wallet(extra = {}) {
+  return baseState({
+    schemaVersion: 10,
+    accounts: [
+      { id: "mpesa", name: "M-Pesa", kind: "mpesa", openingBalance: 0, openingDate: "", archived: false },
+      { id: "cash", name: "Cash", kind: "cash", openingBalance: 0, openingDate: "", archived: false },
+      { id: "mshwari", name: "M-Shwari", kind: "savings", openingBalance: 0, openingDate: "", archived: false }
+    ],
+    allocations: [],
+    transactions: [tx(1, "income", 10000, "Income", "2026-11-20", { accountId: "mpesa" })],
+    goals: [
+      { id: 50, name: "Emergency fund", target: 20000, current: 0, targetDate: "", requiredMonthly: 0, requiredWeekly: 0, contributions: [] },
+      { id: 51, name: "School fees", target: 15000, current: 0, targetDate: "", requiredMonthly: 0, requiredWeekly: 0, contributions: [] }
+    ],
+    ...extra
+  });
+}
+const accountCard = async (page, name) => {
+  await h.goView(page, "money");
+  const text = await h.bodyText(page);
+  const m = text.match(new RegExp(`${name} [A-Za-z /-]*? ?(−?KSh [0-9,]+) Set aside (KSh [0-9,]+) · Available (−?KSh [0-9,]+)`));
+  assert.ok(m, `no account card for ${name}`);
+  return { balance: m[1], setAside: m[2], available: m[3] };
+};
+const setAside = async (page, goalId, accountId, amount) => {
+  await h.goView(page, "goals");
+  await h.clickAction(page, "contribute-goal", goalId);
+  await h.submitForm(page, "contributionForm", { contributionAccount: accountId, contributionAmount: String(amount) });
+};
+const goalSavedOf = async (page, goalId) => (await h.storedState(page)).goals.find(g => g.id === goalId).current;
+
+test("upgrade 9 -> 10: accounts created, nothing lost, saving becomes a transfer, reversible", async () => {
+  const seed = realisticMonth();
+  const { page, context, errors } = await h.openApp({ seed });
+  const d = (await h.exportBackup(page)).data;
+  assert.equal(d.schemaVersion, 10);
+  assert.deepEqual(d.transactions.map(t => t.id).sort((a, b) => a - b), [1, 2, 3, 4, 5, 6, 7, 8], "every entry kept");
+  const t5 = d.transactions.find(t => t.id === 5), t7 = d.transactions.find(t => t.id === 7);
+  assert.deepEqual([t5.type, t5.legacyType, t5.toAccountId, t5.goalId], ["transfer", "expense", "savings-migrated", 20]);
+  assert.deepEqual([t7.type, t7.legacyType], ["debt_repayment", "expense"]);
+  assert.equal(d.goals[0].current, 3000, "goal progress unchanged");
+  assert.deepEqual(d.allocations.map(a => [a.goalId, a.accountId, a.amount]), [[20, "savings-migrated", 3000]]);
+  assert.equal(d.debts[0].repaid, 2000);
+  assert.deepEqual((await accountCard(page, "M-Pesa")).balance, "KSh 35,600");
+  assert.deepEqual((await accountCard(page, "Savings \\(before accounts\\)")).balance, "KSh 3,000");
+  const snapshot = await page.evaluate(() => JSON.parse(localStorage.getItem("pesapilot_pre_v10_snapshot")));
+  assert.equal(snapshot.backupVersion, 3, "snapshot must be importable by the schema 9 app");
+  assert.deepEqual(snapshot.data, seed, "pre-upgrade snapshot is the untouched original");
+  noErrors(errors); await context.close();
+});
+
+test("setting money aside inside M-Pesa keeps the balance and lowers what is available", async () => {
+  const { page, context, errors } = await h.openApp({ seed: wallet() });
+  await setAside(page, 50, "mpesa", 2000);
+  assert.deepEqual(await accountCard(page, "M-Pesa"), { balance: "KSh 10,000", setAside: "KSh 2,000", available: "KSh 8,000" });
+  assert.equal(await goalSavedOf(page, 50), 2000);
+  await h.goView(page, "home");
+  assert.match(await h.bodyText(page), /recorded money KSh 10,000 KSh 2,000 set aside for goals · KSh 8,000 available/);
+  noErrors(errors); await context.close();
+});
+
+test("the same money cannot be set aside for two goals", async () => {
+  const { page, context } = await h.openApp({ seed: wallet() });
+  await setAside(page, 50, "mpesa", 6000);
+  await setAside(page, 51, "mpesa", 5000);                 // only 4,000 is free
+  assert.match(await h.toastText(page), /Only KSh 4,000 in M-Pesa is not already set aside/);
+  assert.equal(await goalSavedOf(page, 51), 0, "blocked allocation must not be saved");
+  await h.clickAction(page, "close-modal");
+  await setAside(page, 51, "mpesa", 4000);                 // exactly what is free: allowed
+  assert.equal(await goalSavedOf(page, 51), 4000);
+  assert.deepEqual(await accountCard(page, "M-Pesa"), { balance: "KSh 10,000", setAside: "KSh 10,000", available: "KSh 0" });
+  await h.clickAction(page, "close-modal").catch(() => {});
+  await setAside(page, 50, "mpesa", 1);                    // nothing left
+  assert.match(await h.toastText(page), /Nothing in M-Pesa is free to set aside/);
   await context.close();
 });
 
-knownDefect("D4", "deleting a goal's linked savings entry also reverses the goal progress", async () => {
+test("a transfer moves money between accounts without changing income, spending or the total", async () => {
+  const { page, context, errors } = await h.openApp({ seed: wallet() });
+  await h.goView(page, "money");
+  await h.clickAction(page, "add-transfer");
+  await h.submitForm(page, "transferForm", { trAmount: "3000", trFrom: "mpesa", trTo: "mshwari" });
+  assert.equal((await accountCard(page, "M-Pesa")).balance, "KSh 7,000");
+  assert.equal((await accountCard(page, "M-Shwari")).balance, "KSh 3,000");
+  await h.goView(page, "home");
+  const text = await h.bodyText(page);
+  assert.match(text, /recorded money KSh 10,000/);
+  assert.match(text, /This month in KSh 10,000/);
+  assert.match(text, /This month out KSh 0/);
+  noErrors(errors); await context.close();
+});
+
+test("moving goal money to M-Shwari keeps it set aside for the same goal", async () => {
+  const { page, context, errors } = await h.openApp({ seed: wallet() });
+  await setAside(page, 50, "mpesa", 5000);
+  await h.goView(page, "goals");
+  await h.clickAction(page, "move-goal", 50);
+  await h.submitForm(page, "transferForm", { trAmount: "5000", trFrom: "mpesa", trTo: "mshwari" });
+  assert.equal(await goalSavedOf(page, 50), 5000, "goal total unchanged");
+  assert.deepEqual(await accountCard(page, "M-Pesa"), { balance: "KSh 5,000", setAside: "KSh 0", available: "KSh 5,000" });
+  assert.deepEqual(await accountCard(page, "M-Shwari"), { balance: "KSh 5,000", setAside: "KSh 5,000", available: "KSh 0" });
+  noErrors(errors); await context.close();
+});
+
+test("moving money for a goal that was not set aside first earmarks it on arrival", async () => {
+  const { page, context } = await h.openApp({ seed: wallet() });
+  await h.goView(page, "goals");
+  await h.clickAction(page, "move-goal", 51);
+  await h.submitForm(page, "transferForm", { trAmount: "2500", trFrom: "mpesa", trTo: "mshwari" });
+  assert.equal(await goalSavedOf(page, 51), 2500);
+  assert.deepEqual(await accountCard(page, "M-Pesa"), { balance: "KSh 7,500", setAside: "KSh 0", available: "KSh 7,500" });
+  await context.close();
+});
+
+test("partial release and spend-from-goal: progress, balance and spending all correct", async () => {
+  const { page, context, errors } = await h.openApp({ seed: wallet() });
+  await setAside(page, 50, "mpesa", 5000);
+  await h.goView(page, "goals");
+  await h.clickAction(page, "release-goal", 50);
+  await h.submitForm(page, "releaseForm", { releaseAccount: "mpesa", releaseAmount: "1000" });
+  assert.equal(await goalSavedOf(page, 50), 4000);
+  assert.deepEqual(await accountCard(page, "M-Pesa"), { balance: "KSh 10,000", setAside: "KSh 4,000", available: "KSh 6,000" });
+  await h.goView(page, "goals");
+  await h.clickAction(page, "release-goal", 50);
+  await h.submitForm(page, "releaseForm", { releaseAccount: "mpesa", releaseAmount: "500", releaseSpent: true, releaseCategory: "Health" });
+  assert.equal(await goalSavedOf(page, 50), 3500);
+  assert.deepEqual(await accountCard(page, "M-Pesa"), { balance: "KSh 9,500", setAside: "KSh 3,500", available: "KSh 6,000" });
+  await h.goView(page, "home");
+  assert.match(await h.bodyText(page), /This month out KSh 500/);
+  await h.goView(page, "goals");
+  await h.clickAction(page, "release-goal", 50);
+  await h.submitForm(page, "releaseForm", { releaseAccount: "mpesa", releaseAmount: "9000" });
+  assert.match(await h.toastText(page), /Only KSh 3,500 of Emergency fund is held in M-Pesa/);
+  noErrors(errors); await context.close();
+});
+
+test("spending money that is set aside asks first, then shows the goal shortfall", async () => {
+  const { page, context, dialogs } = await h.openApp({ seed: wallet() });
+  await setAside(page, 50, "mpesa", 9000);
+  await h.goView(page, "money");
+  await h.clickAction(page, "add-expense");
+  await h.submitForm(page, "transactionForm", { txAmount: "2500", txAccountForm: "mpesa" });
+  assert.ok(dialogs.some(m => /KSh 1,500 of this is money set aside for goals in M-Pesa/.test(m)), "expected a warning: " + dialogs.join(" | "));
+  assert.deepEqual(await accountCard(page, "M-Pesa"), { balance: "KSh 7,500", setAside: "KSh 9,000", available: "−KSh 1,500" });
+  await h.goView(page, "goals");
+  assert.match(await h.bodyText(page), /M-Pesa holds less than is set aside \(short by KSh 1,500\)/);
+  await context.close();
+});
+
+test("borrowed money increases the account but is not income; repayments are not spending", async () => {
+  const { page, context, errors } = await h.openApp({ seed: wallet() });
+  await h.goView(page, "debts");
+  await h.clickAction(page, "add-debt");
+  await h.submitForm(page, "debtForm", { debtName: "Loan from Otieno", debtTotal: "5000", debtReceived: "mpesa" });
+  assert.equal((await accountCard(page, "M-Pesa")).balance, "KSh 15,000");
+  await h.goView(page, "home");
+  assert.match(await h.bodyText(page), /This month in KSh 10,000/);
+  const debtId = (await h.storedState(page)).debts[0].id;
+  await h.goView(page, "debts");
+  await h.clickAction(page, "repay-debt", debtId);
+  await h.submitForm(page, "repaymentForm", { repaymentAmount: "1000", repaymentAccount: "mpesa" });
+  assert.equal((await accountCard(page, "M-Pesa")).balance, "KSh 14,000");
+  await h.goView(page, "home");
+  assert.match(await h.bodyText(page), /This month out KSh 0/);
+  const s = await h.storedState(page);
+  assert.equal(s.debts[0].repaid, 1000);
+  noErrors(errors); await context.close();
+});
+
+test("editing or deleting a debt repayment entry keeps the debt in step", async () => {
+  const { page, context } = await h.openApp({ seed: realisticMonth() });
+  await h.goView(page, "money");
+  await h.clickAction(page, "edit-transaction", 7);
+  await h.submitForm(page, "transactionForm", { txAmount: "1500" });
+  let s = await h.storedState(page);
+  assert.equal(s.debts[0].repaid, 1500);
+  assert.equal(s.debts[0].repayments[0].amount, 1500);
+  await h.clickAction(page, "edit-transaction", 7);
+  await h.submitForm(page, "transactionForm", { txAmount: "9000" });   // more than the 5,000 debt
+  assert.match(await h.toastText(page), /more than the KSh 5,000 left on Fuliza/);
+  await h.clickAction(page, "close-modal");
+  await h.clickAction(page, "delete-transaction", 7);
+  s = await h.storedState(page);
+  assert.equal(s.debts[0].repaid, 0);
+  assert.equal(s.debts[0].repayments.length, 0);
+  await context.close();
+});
+
+test("deleting a bill payment entry reopens that bill occurrence", async () => {
+  const { page, context } = await h.openApp({ seed: realisticMonth() });
+  await h.goView(page, "money");
+  await h.clickAction(page, "delete-transaction", 6);
+  const rent = (await h.storedState(page)).bills.find(b => b.id === 30);
+  assert.deepEqual(rent.payments, []);
+  assert.deepEqual(rent.paidOccurrences, []);
+  await context.close();
+});
+
+test("deleting one bill payment leaves the bill's other paid months untouched (legacy data)", async () => {
+  const seed = realisticMonth();
+  seed.bills[0].paidOccurrences = ["2026-10-05", "2026-11-05"];   // October marked paid with no payment record (older data)
+  const { page, context } = await h.openApp({ seed });
+  await h.goView(page, "money");
+  await h.clickAction(page, "delete-transaction", 6);               // November rent payment
+  const rent = (await h.storedState(page)).bills.find(b => b.id === 30);
+  assert.deepEqual(rent.paidOccurrences, ["2026-10-05"]);
+  await context.close();
+});
+
+test("opening balance with an opening date: earlier entries are treated as already included", async () => {
+  const seed = wallet();
+  seed.accounts.push({ id: "equity", name: "Equity", kind: "bank", openingBalance: 20000, openingDate: "2026-11-15", archived: false });
+  seed.transactions.push(tx(2, "expense", 4000, "Shopping", "2026-11-10", { accountId: "equity" }));  // before: ignored
+  seed.transactions.push(tx(3, "expense", 1500, "Food", "2026-11-18", { accountId: "equity" }));      // after: counted
+  const { page, context } = await h.openApp({ seed });
+  assert.equal((await accountCard(page, "Equity")).balance, "KSh 18,500");
+  await context.close();
+});
+
+test("adding an account through the form and money totals stay exact to the cent", async () => {
+  const seed = wallet({ transactions: [tx(1, "income", 0.3, "Income", "2026-11-20", { accountId: "mpesa" }), tx(2, "expense", 0.1, "Food", "2026-11-20", { accountId: "mpesa" }), tx(3, "expense", 0.2, "Food", "2026-11-20", { accountId: "mpesa" })] });
+  const { page, context, errors } = await h.openApp({ seed });
+  // 0.3 - 0.1 - 0.2 is -0.0000000000000000277 in plain floating point; it must be exactly 0
+  assert.match(await h.bodyText(page), /recorded money KSh 0 /);
+  await h.goView(page, "money");
+  await h.clickAction(page, "add-account");
+  await h.submitForm(page, "accountForm", { accName: "KCB M-Pesa", accKind: "savings", accOpening: "2500", accOpeningDate: "" });
+  assert.equal((await accountCard(page, "KCB M-Pesa")).balance, "KSh 2,500");
+  await h.clickAction(page, "add-account");
+  await h.submitForm(page, "accountForm", { accName: "kcb m-pesa" });
+  assert.match(await h.toastText(page), /already have an account with that name/);
+  noErrors(errors); await context.close();
+});
+
+test("deleting a goal frees its money and keeps transfers it made", async () => {
+  const { page, context } = await h.openApp({ seed: wallet() });
+  await h.goView(page, "goals");
+  await h.clickAction(page, "move-goal", 50);
+  await h.submitForm(page, "transferForm", { trAmount: "4000", trFrom: "mpesa", trTo: "mshwari" });
+  await h.goView(page, "goals");
+  await h.clickAction(page, "delete-goal", 50);
+  const s = await h.storedState(page);
+  assert.equal(s.allocations.length, 0);
+  assert.equal(s.transactions.filter(t => t.type === "transfer").length, 1);
+  assert.deepEqual(await accountCard(page, "M-Shwari"), { balance: "KSh 4,000", setAside: "KSh 0", available: "KSh 4,000" });
+  await context.close();
+});
+
+test("a schema 9 safety backup restores into the new version and is upgraded", async () => {
+  const { page, context, errors } = await h.openApp({ seed: wallet() });
+  const legacy = { app: "PesaPilot", backupVersion: 3, schemaVersion: 9, data: realisticMonth() };
+  await h.importBackup(page, legacy);
+  const d = (await h.exportBackup(page)).data;
+  assert.equal(d.schemaVersion, 10);
+  assert.equal(d.goals[0].current, 3000);
+  assert.equal(d.transactions.length, 8);
+  noErrors(errors); await context.close();
+});
+
+test("rollback: the pre-accounts copy downloads and imports into the original schema 9 app", async () => {
+  const seed = realisticMonth();
+  const { page, context, errors } = await h.openApp({ seed });
+  await h.goView(page, "settings");
+  const [download] = await Promise.all([page.waitForEvent("download"), h.clickAction(page, "download-pre-upgrade")]);
+  const copy = JSON.parse(require("fs").readFileSync(await download.path(), "utf8"));
+  assert.deepEqual(copy.data, seed);
+  noErrors(errors); await context.close();
+  // Load the last schema 9 release (commit 8e33d44) and import the copy into it.
+  const os = require("os"), path = require("path"), fs = require("fs");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "pp-v9-"));
+  fs.writeFileSync(path.join(dir, "index.html"), require("child_process").execSync("git show 8e33d44:index.html", { cwd: path.join(__dirname, "..") }));
+  const { chromium } = require("playwright");
+  const browser = await chromium.launch();
+  const old = await (await browser.newContext({ acceptDownloads: true, timezoneId: "Africa/Nairobi" })).newPage();
+  old.on("dialog", d => d.accept());
+  await old.clock.setFixedTime(h.FIXED_NOW);
+  await old.goto("file://" + path.join(dir, "index.html"));
+  await old.evaluate(() => { localStorage.clear(); localStorage.setItem("pesapilot_onboarding_v1", "done"); });
+  await old.reload(); await old.waitForTimeout(1200);
+  await old.evaluate(() => document.querySelector('[data-view="settings"]').click());
+  const nav = old.waitForNavigation();
+  await old.setInputFiles("#importFile", { name: "copy.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(copy)) });
+  await nav; await old.waitForTimeout(1200);
+  const restored = await old.evaluate(() => JSON.parse(localStorage.getItem("pesapilot_v2")));
+  assert.equal(restored.schemaVersion, 9);
+  assert.deepEqual(restored.transactions.map(t => [t.id, t.type, t.amount]), seed.transactions.map(t => [t.id, t.type, t.amount]));
+  assert.equal(restored.goals[0].current, 3000);
+  await browser.close();
+});
+
+// --------------------------------------------- known defects (later phases)
+test("[D2 fixed] savings and debt repayments are not counted as spending", async () => {
+  const { page, context } = await h.openApp({ seed: realisticMonth() });
+  await h.goView(page, "reports");
+  // November spending = food 6,500 + transport 2,400 + rent 15,000 = 23,900.
+  // Schema 9 showed 28,900 (it added the 3,000 saving and the 2,000 debt repayment).
+  const text = await h.bodyText(page);
+  assert.match(text, /Expenses KSh 23,900/);
+  assert.match(text, /Set aside for goals KSh 3,000 not counted as spending/);
+  assert.doesNotMatch(text, new RegExp(kes(28900)));
+  await context.close();
+});
+
+test("[D4 fixed] deleting a goal's linked savings entry also reverses the goal progress", async () => {
   const { page, context } = await h.openApp({ seed: realisticMonth() });
   await h.goView(page, "money");
   await h.clickAction(page, "delete-transaction", 5);

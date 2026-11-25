@@ -25,10 +25,10 @@ async function closeBrowser() {
 async function openApp({ seed = null, onboardingDone = true, viewport = { width: 1280, height: 900 } } = {}) {
   const context = await (await getBrowser()).newContext({ acceptDownloads: true, timezoneId: "Africa/Nairobi", locale: "en-KE", viewport });
   const page = await context.newPage();
-  const errors = [];
+  const errors = [], dialogs = [];
   page.on("pageerror", err => errors.push(String(err && err.message || err)));
   page.on("console", msg => { if (msg.type() === "error") errors.push("console: " + msg.text()); });
-  page.on("dialog", dialog => dialog.accept());
+  page.on("dialog", dialog => { dialogs.push(dialog.message()); dialog.accept(); });
   await page.clock.setFixedTime(FIXED_NOW);
   await page.goto(APP_URL);
   await page.evaluate(({ seed, onboardingDone, STORAGE_KEY, ONBOARDING_KEY }) => {
@@ -38,7 +38,7 @@ async function openApp({ seed = null, onboardingDone = true, viewport = { width:
   }, { seed, onboardingDone, STORAGE_KEY, ONBOARDING_KEY });
   await page.reload();
   await settle(page);
-  return { page, context, errors };
+  return { page, context, errors, dialogs };
 }
 
 async function settle(page, ms = 1200) {
@@ -91,4 +91,21 @@ async function clickAction(page, action, id) {
   await page.waitForTimeout(150);
 }
 
-module.exports = { openApp, closeBrowser, settle, goView, exportBackup, importBackup, storedState, bodyText, clickAction, FIXED_NOW, STORAGE_KEY };
+async function toastText(page) {
+  return page.evaluate(() => document.getElementById("toast").textContent);
+}
+/** Fill a form's fields ({ id: value }, selects included) and submit it. */
+async function submitForm(page, formId, values = {}) {
+  await page.evaluate(({ formId, values }) => {
+    for (const [field, value] of Object.entries(values)) {
+      const el = document.getElementById(field);
+      if (!el) throw new Error("No field #" + field);
+      if (el.type === "checkbox") el.checked = Boolean(value); else el.value = value;
+      el.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+    document.getElementById(formId).requestSubmit();
+  }, { formId, values });
+  await page.waitForTimeout(150);
+}
+
+module.exports = { toastText, submitForm, openApp, closeBrowser, settle, goView, exportBackup, importBackup, storedState, bodyText, clickAction, FIXED_NOW, STORAGE_KEY };
