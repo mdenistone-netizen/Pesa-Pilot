@@ -54,6 +54,39 @@ const step = (n, t) => console.log(`${n}. ${t}`);
   assert.deepEqual(found.map(d => [d.key, d.amount]), [["deleted", 2000]]);
   assert.equal(model.leftToSpend(up), 6500);
   assert.deepEqual(errors, []);
-  console.log("\nRelease 1 keeps plannedLedger through plan edit, delete and profile edit; the deletion is detected: PASS");
-  await context.close(); await h.closeBrowser();
+  console.log("\nPart 1, Release 1 keeps plannedLedger through plan edit, delete and profile edit; the deletion is detected: PASS");
+  await context.close();
+
+  // ---- Part 2 (owner, 26 Nov): can an OLD Release 1 tab reopen a discrepancy the user has already resolved? ----
+  // Tab A: Release 1, opened while the discrepancy was unresolved. Tab B: stands in for the new app and saves "Add back".
+  const unresolved = st;                                                        // from part 1: ledger 2,000; expense 50 gone; planned 1,500
+  const resolvedState = JSON.parse(JSON.stringify(unresolved));
+  resolvedState.schemaVersion = 11; resolvedState.profile.plannedExpenses = 1500 + 2000; resolvedState.profile.plannedLedger = { periodStart: "2026-11-25", used: 0 };
+  const ctx2 = await (await require("playwright").chromium.launch()).newContext({ timezoneId: "Africa/Nairobi" });
+  const tabA = await ctx2.newPage(), tabB = await ctx2.newPage();
+  for (const t of [tabA, tabB]) { t.on("dialog", d => d.accept()); await t.clock.setFixedTime(h.FIXED_NOW); }
+  const url = "file://" + require("path").resolve(__dirname, "../../../index.html");
+  await tabA.goto(url);
+  await tabA.evaluate(([k, v]) => { localStorage.setItem("pesapilot_onboarding_v1", "done"); localStorage.setItem(k, v); }, [h.STORAGE_KEY, JSON.stringify(unresolved)]);
+  await tabA.reload(); await tabA.waitForTimeout(1200);
+  await tabA.evaluate(() => { window.__openedBeforeResolution = true; });
+  await tabB.goto(url); await tabB.waitForTimeout(800);
+  const reloaded = tabA.waitForEvent("load", { timeout: 5000 }).then(() => true).catch(() => false);
+  await tabB.evaluate(([k, v]) => localStorage.setItem(k, v), [h.STORAGE_KEY, JSON.stringify(resolvedState)]);   // the user chose "Add back"
+  const didReload = await reloaded; await tabA.waitForTimeout(1200);
+  const stillOld = await tabA.evaluate(() => window.__openedBeforeResolution === true);
+  step(6, `Tab B saves the resolution (Add back: planned 3,500, ledger 0). Old tab A reloaded automatically: ${didReload && !stillOld}.`);
+  // Tab A (Release 1) now saves something ordinary: a profile edit.
+  await tabA.evaluate(() => document.querySelector('[data-view="settings"]').click()); await tabA.waitForTimeout(200);
+  await tabA.evaluate(() => { document.getElementById("profileName").value = "Wanjiku Mwangi"; document.getElementById("profileForm").requestSubmit(); });
+  await tabA.waitForTimeout(300);
+  const after = await tabA.evaluate(k => JSON.parse(localStorage.getItem(k)), h.STORAGE_KEY);
+  const back = model.migrateTo11({ schemaVersion: after.schemaVersion, period: { start: "2026-11-25", end: "2026-11-27" }, free: 10000, planned: after.profile.plannedExpenses,
+    expenses: after.transactions.filter(t => t.type === "expense").map(t => ({ id: t.id, date: t.date, amount: t.amount, ...(t.plannedUsed ? { plannedUsed: t.plannedUsed } : {}) })), ledger: after.profile.plannedLedger });
+  step(7, `Old tab A saves a profile edit: name "${after.profile.name}"; planned ${after.profile.plannedExpenses}; ledger ${JSON.stringify(after.profile.plannedLedger)}; discrepancies when the new app reopens: ${JSON.stringify(model.discrepancies(back))}.`);
+  assert.ok(didReload && !stillOld);
+  assert.equal(after.profile.plannedExpenses, 3500); assert.deepEqual(after.profile.plannedLedger, { periodStart: "2026-11-25", used: 0 });
+  assert.deepEqual(model.discrepancies(back), []); assert.equal(after.profile.name, "Wanjiku Mwangi");
+  console.log("\nPart 2, an old tab reloads before it can save, so the resolved discrepancy stays resolved: PASS");
+  await ctx2.browser().close(); await h.closeBrowser();
 })().catch(async e => { console.error(e); await h.closeBrowser(); process.exit(1); });

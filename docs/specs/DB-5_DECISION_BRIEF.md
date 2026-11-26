@@ -116,7 +116,38 @@ Evidence:
   - **Decide later:** it stays held back **and visible** ("Held back: KSh 2,000, needs your decision").
 - **Not indefinite:** at the end of the planning period, an unresolved item **lapses** with one message ("That plan has ended, so nothing is held back any more"). Planned spending belongs to a period, so nothing is ever deducted beyond it.
 
-**The model checks P1–P6 (with the T0–T6 behaviour) and the real-Release-1 ledger test become required release tests,** re-run against the actual code (RELEASE_1_CHECKLIST §9).
+**7. Resolutions are persistent and idempotent** (owner's final check, 26 Nov)
+
+**How a resolution is stored**
+- There is **no separate discrepancy record**. A discrepancy is always **recomputed** from the stored ledger and entries when the app opens.
+- A resolution is saved by **correcting the ledger** (and, for "Add back", planned spending) **in the same single save**. After that the ledger and entries agree, so nothing is left to detect.
+- "Decide later" changes nothing stored. The same amount is recomputed and held back once on every opening, never added up.
+
+**Model checks R0–R5:** each state reopened 3–5 times, as reloads or restarts.
+
+| Check | Result |
+|---|---|
+| R0 Detected | Ledger 3,000, planned 0, held back 2,000, Left to spend 7,000: identical on every opening |
+| R1 **Add back** | Planned 0 → 2,000 **once**. Pressing it again changes nothing. 5 reopenings identical (held back 0, Left to spend 7,000). A later reversal of another planned expense restores only its own 1,000. |
+| R2 **Let it go** | Left to spend 7,000 → 9,000 **once**, by the user's choice. The ledger now matches the entries, so it is **never reported again** over 5 reopenings. |
+| R3 **Decide later** | 2,000 held back on **all 5 openings**. Left to spend stays 7,000; it is **never deducted twice**. A reversal meanwhile returns 1,000 and restores its own 1,000 (Left to spend unchanged). Choosing "Add back" afterwards still adds once. |
+| R4 **Period ends** | The 2,000 **lapses once**, with a message. 5 reopenings in the new period show nothing. Reversing a last-period expense restores nothing. The next period has nothing to lapse. |
+| R5 **Can't be reopened** | After Add back or Let it go, an ordinary profile edit and an older-version save reopen nothing. A later, **different** deletion is reported on its own (1,000), never together with the resolved 2,000. |
+
+**Real Release 1 build, part 2** (`release1-ledger.js`, two tabs on the same data):
+- Old tab A was opened while the discrepancy was unresolved.
+- Tab B saved the user's "Add back" (planned 3,500, ledger 0).
+- **Tab A reloaded automatically before it could save** (Release 1 reloads when another tab saves, `index.html:949–951`).
+- Tab A then saved a profile edit, and the stored data **kept** planned 3,500 and ledger 0. The new app found **no discrepancy**. PASS.
+
+**Remaining limit:** the only way to reopen a resolved item would be a tab writing back data from **before** the resolution **without** reloading. Release 1 prevents this, as shown, and later versions add the D13 guard. Even then the result would be **cautious and visible**: the amount held back again, never silently optimistic.
+
+## Final D14 design: approved by the owner (DEC-030, 26 Nov)
+- **`plannedUsed`** (5th optional field) + **`plannedLedger`** (6th optional field), as a confirmed extension of the approved DB-5.12.
+- Rules 1–6 above, the ledger rules, and persistent, idempotent resolution (R0–R5).
+- **Design approval only.** No implementation, schema change, code change, merge or deployment without the owner's separate authorisation (after Release 1 and D13, with DB-5).
+
+**The model checks P1–P6 and R0–R5 (with the T0–T6 behaviour) and both parts of the real-Release-1 ledger test become required release tests,** re-run against the actual code (RELEASE_1_CHECKLIST §9).
 
 - **If itemised planned spending** (several named items) is wanted later, that would need a stored list and its own approval.
 

@@ -100,7 +100,7 @@ Full detail: `FINANCIAL_RULES.md`.
 | D3 | No "money owed to me" (receivables) | Phase 3 |
 | D9 | No PWA manifest / service worker (install & offline don't work) | Phase 4 |
 | D13 | Opening data saved by a *newer* version keeps it intact but re-labels it as schema 10 when saving, so a future version could re-run its upgrade. Found in P6. No effect on Release 1. | Fix before PWA/any later release (DB-6 §3.4) |
-| D14 | **Planned spending can be deducted twice** (found 26 Nov). Planned spending is one amount the user maintains, and recording the actual expense doesn't reduce it. **Cautious direction** (Left to spend too low), but inaccurate. Present in the live app and Release 1. | Open, minor, **not blocking** Release 1. **Fix designed and approved** (DEC-027 5.11 + DEC-030: `plannedUsed`, rules T0–T6). Built with DB-5. Option A (`plannedLedger`) chosen; final confirmation pending. |
+| D14 | **Planned spending can be deducted twice** (found 26 Nov). Planned spending is one amount the user maintains, and recording the actual expense doesn't reduce it. **Cautious direction** (Left to spend too low), but inaccurate. Present in the live app and Release 1. | Open, minor, **not blocking** Release 1. **Fix designed and approved** (DEC-027 5.11 + DEC-030: `plannedUsed`, rules T0–T6). Built with DB-5. Option A (`plannedLedger`) chosen; **final design approved 26 Nov** (DEC-030). |
 | D10 | Dates use the phone's clock and zone | Assessed: upgrade identical across timezones; not blocking (checklist §4) |
 | — | Fixed so far | D1, D2, D4, D5, D6, D7, D8, D11, D12 |
 
@@ -124,7 +124,7 @@ Full detail: `FINANCIAL_RULES.md`.
 - DEC-022: savings behaviour: available = balance − set aside; linked use-from-goal; corrections never create income or spending. **Owner-specified.**
 - DEC-021: UI/UX redesign: modern, calm, clean and welcoming; presentation only. **Owner-requested.**
 - DEC-020: data protection & recovery strategy (`DATA_RECOVERY.md`), with an in-app backup reminder. **Owner-required.**
-- DEC-030: **D14:** `plannedUsed` approved as the preferred design. **Option A chosen:** `plannedLedger` is the 6th optional field (both a proposed extension of DB-5.12). Ledger clarifications P1–P6 are model-checked, and the real Release 1 build keeps the ledger. **Final D14 confirmation pending.** **Owner-approved** (design).
+- DEC-030: **D14:** `plannedUsed` approved as the preferred design. **Option A chosen:** `plannedLedger` is the 6th optional field (both a proposed extension of DB-5.12). Ledger checks P1–P6 and persistence checks R0–R5 pass; real Release 1 build: the ledger survives and old tabs reload before saving. **Final D14 design approved (26 Nov).** **Owner-approved** (design only).
 - DEC-029: **DB-6 installable/offline: design approved** with conditions (failed updates keep the working version; no loss of unsaved work; a reliable emergency switch; persistent-storage honesty; rollback floor). Extends DEC-017's release process from Stage C. Not implementation. **Owner-approved.**
 - DEC-028: **DB-4 protected backups: design approved** with conditions (real-Android performance, recovery and share-sheet testing; crypto implementation review; password and code each restore independently; a monthly check that never forces or locks; repair needs confirmation and never touches records). Extends DEC-020. Not implementation. **Owner-approved.**
 - DEC-027: **DB-5 rules and design approved** with conditions (payday note, unexplained shortfalls kept distinct, Fuliza disclosure, no planned/actual double counting, schema 11 only after D13 with full tests, 5.14 wording for testing). **Amends DEC-015** (missed payday; one-cycle late pay). Not implementation. **Owner-approved.**
@@ -174,7 +174,7 @@ Full detail: `FINANCIAL_RULES.md`.
 | Item | Decision | Status | Next |
 |---|---|---|---|
 | **DB-5** Will I make it? + Before You Spend | DEC-027 (14 choices, with conditions); amends DEC-015 | **Design approved; not implemented** | Implementation go-ahead after Release 1 and D13 |
-| **D14** planned-spending restoration | DEC-030 (`plannedUsed` + `plannedLedger`, option A; proposed 5th and 6th fields of DB-5.12) | **Design approved; not implemented.** Ledger clarifications ready (DB-5 brief, rule 6) | Owner: confirm the final D14 design |
+| **D14** planned-spending restoration | DEC-030 (`plannedUsed` + `plannedLedger`, option A; proposed 5th and 6th fields of DB-5.12) | **Final design approved (26 Nov); not implemented** | Built with DB-5, after Release 1 and D13, with separate authorisation |
 | **DB-4** protected backups | DEC-028 (11 choices, with conditions); extends DEC-020 | **Design approved; not implemented** | Implementation authorisation after Release 1 and D13 |
 | **DB-6** installable / offline | DEC-029 (9 choices, with conditions); extends DEC-017 | **Design approved; not implemented** | Implementation authorisation after Release 1 and D13 |
 | **Release 1** | DEC-018 | Implemented and verified on the branch; **not approved for deployment** | Owner's preview review + explicit deploy approval |

@@ -207,5 +207,70 @@ if (require.main === module) {
   const lost = clone(old); delete lost.ledger; assert.deepEqual(discrepancies(migrateTo11(lost)), []);
   L("P5 upgrade keeps an existing ledger (2,000 still held back after an older version's delete + relabel); idempotent; a failed upgrade changes nothing; no-ledger data gets one from its entries; a lost ledger can't prove past deletions (stated limit)");
 
-  console.log("\nAll D14 + ledger checks pass (P1–P6, plus T0–T6 behaviour).");
+
+  // ===== Persistence and idempotency of resolutions (owner, 26 Nov) =====
+  // There is no separate "discrepancy record": a discrepancy is ALWAYS recomputed from the stored ledger and entries.
+  // A resolution is persisted by correcting the ledger (and planned spending for "Add back") in the same single save,
+  // so after it the ledger and the entries agree and nothing is left to detect. "Later" changes nothing stored.
+  const save = st => JSON.stringify(st), openApp = text => migrateTo11(JSON.parse(text));   // reload / restart = parse + load
+  const snapshot = st => ({ ledger: st.ledger.used, planned: st.planned, held: heldBack(st), left: leftToSpend(st), items: discrepancies(st).map(x => x.key) });
+  const reopen = (text, times) => { const seen = []; let t = text; for (let i = 0; i < times; i++) { const st = openApp(t); seen.push(snapshot(st)); t = save(st); } return { seen, text: t }; };
+  const sameEveryTime = seen => seen.every(x => JSON.stringify(x) === JSON.stringify(seen[0]));
+  // Setup: planned 3,000; two planned expenses (2,000 and 1,000) → planned 0, ledger 3,000; free 10,000 − 3,000 = 7,000.
+  let st0 = record(record({ ...base(), planned: 3000 }, { id: 1, date: "2026-11-26", amount: 2000, planned: true }), { id: 2, date: "2026-11-27", amount: 1000, planned: true });
+  st0 = oldVersion.remove(st0, 1);                                                // an older version deletes the 2,000 expense
+  const before = reopen(save(st0), 3);
+  assert.ok(sameEveryTime(before.seen)); assert.deepEqual(before.seen[0], { ledger: 3000, planned: 0, held: 2000, left: 7000, items: ["deleted"] });
+  L("R0 detected and stable over 3 openings:", JSON.stringify(before.seen[0]));
+
+  // R1 Add back: returns to planned spending exactly once.
+  let a1 = resolve(openApp(before.text), { deleted: "addBack" });
+  assert.deepEqual(resolve(a1, { deleted: "addBack" }), a1);                      // pressing it again (or a repeated message) changes nothing
+  let ra = reopen(save(a1), 5);
+  assert.ok(sameEveryTime(ra.seen)); assert.deepEqual(ra.seen[0], { ledger: 1000, planned: 2000, held: 0, left: 7000, items: [] });
+  const ra2 = reverse(openApp(ra.text), 2, 1000);                                 // a later reversal of the OTHER planned expense
+  assert.equal(ra2.restored, 1000); assert.deepEqual(reopen(save(ra2.state), 3).seen[0], { ledger: 0, planned: 3000, held: 0, left: 7000, items: [] });
+  L("R1 Add back: planned 0 → 2,000 once; 5 reopenings identical; repeat = no change; a later reversal restores its own 1,000 only");
+
+  // R2 Let it go: released exactly once; never reported again.
+  let g1 = resolve(openApp(before.text), { deleted: "letGo" });
+  assert.deepEqual(resolve(g1, { deleted: "letGo" }), g1);
+  const rg = reopen(save(g1), 5);
+  assert.ok(sameEveryTime(rg.seen)); assert.deepEqual(rg.seen[0], { ledger: 1000, planned: 0, held: 0, left: 9000, items: [] });
+  L("R2 Let it go: Left to spend 7,000 → 9,000 once (user's choice); 5 reopenings identical; never reported again");
+
+  // R3 Decide later: held back across restarts, never deducted twice.
+  const rl = reopen(save(resolve(openApp(before.text), { deleted: "later" })), 5);
+  assert.ok(sameEveryTime(rl.seen)); assert.deepEqual(rl.seen[0], { ledger: 3000, planned: 0, held: 2000, left: 7000, items: ["deleted"] });
+  const rl2 = reverse(openApp(rl.text), 2, 1000);                                 // meanwhile a normal reversal of the other expense
+  const afterRev = reopen(save(rl2.state), 3);
+  assert.ok(sameEveryTime(afterRev.seen)); assert.deepEqual(afterRev.seen[0], { ledger: 2000, planned: 1000, held: 2000, left: 7000, items: ["deleted"] });
+  const lateAdd = resolve(openApp(afterRev.text), { deleted: "addBack" });
+  assert.deepEqual(snapshot(lateAdd), { ledger: 0, planned: 3000, held: 0, left: 7000, items: [] });
+  L("R3 Later: held back 2,000 on all 5 openings (Left to spend stays 7,000, not reduced again); a reversal meanwhile returns 1,000 and restores its own 1,000 (Left to spend unchanged); deciding later still adds back once");
+
+  // R4 Period ends while unresolved: closed out once; never reappears.
+  const ended2 = startNewPeriod(openApp(rl.text), { start: "2026-12-01", end: "2026-12-06" });
+  assert.deepEqual(ended2.lapsed, [2000]); assert.ok(ended2.message);
+  const rp = reopen(save(ended2.state), 5);
+  assert.ok(sameEveryTime(rp.seen)); assert.equal(rp.seen[0].held, 0); assert.deepEqual(rp.seen[0].items, []); assert.equal(rp.seen[0].ledger, 0);
+  const oldPeriodRev = reverse(openApp(rp.text), 2, 1000);                         // reversing a last-period expense in the new period
+  assert.equal(oldPeriodRev.restored, 0); assert.deepEqual(discrepancies(oldPeriodRev.state), []);
+  const nextAgain = startNewPeriod(openApp(rp.text), { start: "2026-12-07", end: "2026-12-12" });
+  assert.deepEqual(nextAgain.lapsed, []);                                         // nothing lapses twice
+  L("R4 Period ends: 2,000 lapses once with a message; 5 reopenings in the new period show nothing; an old-period reversal restores nothing; the next period has nothing to lapse");
+
+  // R5 Resolved items can't be reopened by ordinary edits or older-version saves.
+  for (const [name, resolved] of [["addBack", a1], ["letGo", g1]]) {
+    let t = save(resolved);
+    const prof = JSON.parse(t); prof.profileName = "Wanjiku M"; t = save(prof);                                       // ordinary profile edit
+    t = save(oldVersion.setPlanned(JSON.parse(t), JSON.parse(t).planned));                                            // an older version re-saves the plan unchanged
+    const back = openApp(t); assert.deepEqual(discrepancies(back), []);
+    const fresh = discrepancies(openApp(save(oldVersion.remove(back, 2))));                                           // a NEW deletion afterwards…
+    assert.deepEqual(fresh.map(x => [x.key, x.amount]), [["deleted", 1000]]);                                         // …is reported on its own: the resolved 2,000 doesn't return
+  }
+  L("R5 after Add back / Let it go: a profile edit and an older-version save reopen nothing; a later, different deletion is reported alone (1,000), never with the resolved 2,000");
+  // The one thing that WOULD reopen it: a tab still holding the pre-resolution data writing it back. Release 1 reloads when
+  // another tab saves (index.html:949), so it re-reads before it can save. Proved on the real build: release1-ledger.js, part 2.
+  console.log("\nAll D14 + ledger checks pass (P1–P6, R0–R5, plus T0–T6 behaviour).");
 }

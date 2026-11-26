@@ -258,3 +258,13 @@ These need Node and Playwright, which are pre-installed in Claude Code cloud ses
   - I removed a meaningless placeholder filter I had left in, and restored the rule 4/5 checks dropped in the rewrite.
 - **Real Release 1 build** (`release1-ledger.js`): the ledger was kept through a plan edit, a delete and a profile edit. The reference model then detected the 2,000 deletion and accepted the manual plan change (Left to spend 6,500, not 8,500).
 - DEC-030, DB-5 brief (rule 6), decision pack, master, RELEASE_1_CHECKLIST §9 and roadmap updated. Final D14 confirmation pending. No code, schema, merge or deployment.
+
+### 2026-11-26 · D14 final design approved (DEC-030)
+- **Owner's final check: resolutions persistent and idempotent.** Model R0–R5 (3–5 reopenings each):
+  - Add back and Let it go apply once and never reappear;
+  - Later is held back once per opening, never accumulated;
+  - period end lapses once;
+  - profile edits and older-version saves reopen nothing; a later, different deletion is reported alone.
+  - Two of my own expected figures in R3 were wrong (a reversal returns money *and* restores the plan, so Left to spend is unchanged); the model was right.
+- **Real Release 1 build, part 2:** an old tab opened before the resolution reloaded automatically when the new app saved, and its later profile save kept the resolution (planned 3,500, ledger 0; no discrepancy).
+- Final D14 design recorded as approved in DEC-030, the DB-5 brief, master, pack and RELEASE_1_CHECKLIST §9. Design only; no code, schema, merge or deployment.
