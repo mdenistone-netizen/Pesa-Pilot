@@ -177,8 +177,11 @@ Full detail: `FINANCIAL_RULES.md`.
 | **D14** planned-spending restoration | DEC-030 (`plannedUsed` + `plannedLedger`, option A; proposed 5th and 6th fields of DB-5.12) | **Final design approved (26 Nov); not implemented** | Built with DB-5, after Release 1 and D13, with separate authorisation |
 | **DB-4** protected backups | DEC-028 (11 choices, with conditions); extends DEC-020 | **Design approved; not implemented** | Implementation authorisation after Release 1 and D13 |
 | **DB-6** installable / offline | DEC-029 (9 choices, with conditions); extends DEC-017 | **Design approved; not implemented** | Implementation authorisation after Release 1 and D13 |
-| **Release 1** | DEC-018 | Implemented and verified on the branch; **not approved for deployment**. **Owner review started 26 Nov:** baseline verified (PR #1 draft, head `1325ee9`, preview ready on it, `main` = `8e33d44`). Guide: `RELEASE_1_OWNER_TEST_GUIDE.md` | Owner tests T1–T19 on the preview and reports; then deploy decision |
+| **Release 1** | DEC-018 | Implemented and verified on the branch; **not approved for deployment**. Owner (26 Nov): "happy with Release 1 for now", **not a deploy approval**. **Blocking before merge: DB-7** (merging today would publish `docs/`, `tests/`, `CLAUDE.md`). **Owner review started 26 Nov:** baseline verified (PR #1 draft, head `1325ee9`, preview ready on it, `main` = `8e33d44`). Guide: `RELEASE_1_OWNER_TEST_GUIDE.md` | Owner tests T1–T19 on the preview and reports; then deploy decision |
 | **D13** schema guard | DEC-025 (in principle) | Open defect; not implemented | Go-ahead to implement after Release 1 |
+| **PWA + launch plan** | — | **Planning (26 Nov):** `strategy/PWA_AND_LAUNCH_PLAN.md` (current vs target architecture, Android test plan, L1–L4 launch phases, sequence) | Owner review |
+| **DB-7** public deployment boundary + repo visibility | — | **Proposed** (`specs/DB-7_PUBLIC_DEPLOYMENT_BRIEF.md`). Verified: the repo is **public**; `main` = only `index.html` | Owner decision, **before the Release 1 merge** |
+| **DB-8** identity and icon | — | **Proposed** (`specs/DB-8_IDENTITY_BRIEF.md`): PesaPilot; forest `#183B35` / off-white `#FAF9F6`; "heading P" icon concept | Owner review; icon rounds are design work |
 
 **Round 4 (26 Nov), the owner's final clarifications, done. Still not approval:**
 - **DB-4 full lifecycle** model-checked (L1–L6, D-a to D-e). Two flaws found and fixed: repair re-locks with the current password; one damaged lock no longer breaks a file.
