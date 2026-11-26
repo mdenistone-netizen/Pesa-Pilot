@@ -329,3 +329,8 @@ D12: the Reports month picker and trend chart skip the current month in Kenyan t
 - UI snapshots **78/78 identical**; UI audit **0 issues**.
 
 The preview checks (404s, headers, Android) are recorded below once run.
+
+**Preview status (26 Nov)**
+- Netlify reports "Deploy Preview ready" for `d61fd6c`.
+- PR #1 is still a **draft**; `main` = `8e33d44` (unchanged).
+- **Not yet verified on the real preview:** that internal addresses return 404 and that the 6 headers are present. The workspace network access to the preview domain was not approved, so these are owner phone checks (owner guide, DB-7 section) and stay **outstanding** until done.

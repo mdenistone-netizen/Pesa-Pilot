@@ -282,3 +282,33 @@ This uses made-up data in the **old** format, as stored by today's live app, so 
 Send me, for example: "T1–T18 done; T8 unclear; T12 showed …; screenshots attached".
 - **I'll investigate anything you report** using made-up data, and fix and re-verify on the branch.
 - **Nothing is deployed** until you've reviewed the preview and explicitly approved (DEC-018).
+
+---
+
+## DB-7 preview checks (CR-008; about 5 minutes)
+These confirm on the **real** Netlify preview that only the app is published.
+
+**1. These addresses must show Netlify's "Page not found":**
+- https://deploy-preview-1--pesa-pilot.netlify.app/docs/RELEASE_1_CHECKLIST.md
+- https://deploy-preview-1--pesa-pilot.netlify.app/docs/demo/pesapilot-demo-schema9.json
+- https://deploy-preview-1--pesa-pilot.netlify.app/docs/prototypes/onboarding/
+- https://deploy-preview-1--pesa-pilot.netlify.app/tests/run.js
+- https://deploy-preview-1--pesa-pilot.netlify.app/CLAUDE.md
+- https://deploy-preview-1--pesa-pilot.netlify.app/package.json
+- https://deploy-preview-1--pesa-pilot.netlify.app/netlify.toml
+- https://deploy-preview-1--pesa-pilot.netlify.app/release/rollback/README.md
+- https://deploy-preview-1--pesa-pilot.netlify.app/app/index.html
+
+  **Failure:** any of them shows text, a file or a download.
+
+**2. The app must still open normally:**
+- https://deploy-preview-1--pesa-pilot.netlify.app/ shows PesaPilot with its normal font and layout.
+
+**3. Security headers** (optional, your choice of tool):
+- On a free header-checking website (for example securityheaders.com), enter `https://deploy-preview-1--pesa-pilot.netlify.app`.
+- It should list: **Content-Security-Policy, X-Content-Type-Options, Referrer-Policy, Permissions-Policy, X-Frame-Options** and **Cross-Origin-Opener-Policy**.
+- The preview address is already public, and the check sends nothing about your data.
+- A screenshot of the result is enough.
+
+**4. A short app check:** T1–T6 and T14–T16 above. The figures must be the same as before DB-7.
+- **Note:** the preview is a new deployment, but it has the **same web address**, so any test data you entered earlier is still there. Use More → Settings → Delete all data first if you want a clean start.

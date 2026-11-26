@@ -180,7 +180,7 @@ Full detail: `FINANCIAL_RULES.md`.
 | **Release 1** | DEC-018 | Implemented and verified on the branch; **not approved for deployment**. Owner (26 Nov): "happy with Release 1 for now", **not a deploy approval**. **Blocking before merge: DB-7** (merging today would publish `docs/`, `tests/`, `CLAUDE.md`). **Owner review started 26 Nov:** baseline verified (PR #1 draft, head `1325ee9`, preview ready on it, `main` = `8e33d44`). Guide: `RELEASE_1_OWNER_TEST_GUIDE.md` | Owner tests T1–T19 on the preview and reports; then deploy decision |
 | **D13** schema guard | DEC-025 (in principle) | Open defect; not implemented | Go-ahead to implement after Release 1 |
 | **PWA + launch plan** | — | **Planning (26 Nov):** `strategy/PWA_AND_LAUNCH_PLAN.md` (current vs target architecture, Android test plan, L1–L4 launch phases, sequence) | Owner review |
-| **DB-7** public deployment boundary + repo visibility | — | **Proposed; implementation-readiness review ready** (`specs/DB-7_IMPLEMENTATION_READINESS.md`). Verified: the repo is **public**, you're the only collaborator, 0 forks, no Actions or Pages; `main` = only `index.html`; the rollback build `8370097` contains `docs/`. **Tested:** the interim policy causes 0 violations and blocks outside code, requests and framing; the strict policy needs an `app.js` split (prototype passes 64/64) | Owner: approve 7.1, 7.3, 7.5–7.8; do the GitHub/Netlify pre-checks; privacy switch after the folder change is verified |
+| **DB-7** public deployment boundary + repo visibility | **DEC-031** (approved; amends DEC-018 scope) | **Implemented on the branch: CR-008, commit `d61fd6c`.** App in `app/`; Netlify publishes only `app/`; interim headers; prepared rollback build. Local evidence: publish guard; 64/64; 4/4; 106/106; release/rollback 6/6; 78/78; audit 0. Netlify reports **Deploy Preview ready** for `d61fd6c`; PR #1 still a draft; `main` `8e33d44`. **Outstanding:** real-preview checks (404s, headers), because the workspace preview access wasn't approved; owner phone checks instead; Android check; repository made private by the owner, then re-verified | Owner: preview checks on the phone; then the privacy switch |
 | **DB-8** identity and icon | — | **Proposed** (`specs/DB-8_IDENTITY_BRIEF.md`): PesaPilot; forest `#183B35` / off-white `#FAF9F6`; "heading P" icon concept | Owner review; icon rounds are design work |
 
 **Round 4 (26 Nov), the owner's final clarifications, done. Still not approval:**
@@ -200,7 +200,7 @@ Full detail: `FINANCIAL_RULES.md`.
 - **`main` is unprotected on GitHub:** one accidental merge publishes. Mitigated by the draft "[DO NOT MERGE]" PR; the owner should enable branch protection.
 - **Upgraded account balances need correcting:** they start at zero opening balance, so individual accounts can look wrong (below zero) until users reconcile. This is why Decision B is in Phase 2, before deployment.
 - **R4 (release risk register):** Release 1 would *display* a schema-11-cancelled expected payment as expected (never counted in available money). Mitigated at schema 11, which requires the cancellation test to be re-run on the real DB-5 code.
-- **Single-file growth:** `index.html` is about 175 KB. That is acceptable now; I will propose splitting it if changes start to become risky.
+- **Single-file growth:** `app/index.html` is about 175 KB. That is acceptable now; I will propose splitting it if changes start to become risky.
 
 ## 9. Next steps
 1. **Owner:** review the preview, including the savings behaviour, then approve or hold Release 1.

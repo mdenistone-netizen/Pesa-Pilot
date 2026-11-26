@@ -312,3 +312,16 @@ These need Node and Playwright, which are pre-installed in Claude Code cloud ses
   - strict CSP on the single file: the app doesn't start;
   - strict CSP on a throwaway `app.js` split: 0 violations; the regression suite passes 64/64 against the split.
 - Wrote `specs/DB-7_IMPLEMENTATION_READINESS.md` (exact GitHub steps and checks; `netlify.toml` content; test plan; decisions; safest order) and updated the DB-7 brief choices (7.6 Release 1 scope, 7.7 rollback, 7.8 preview access). Nothing changed in the app, config or settings.
+
+### 2026-11-26 · DB-7 implemented on the branch (CR-008, DEC-031)
+- **Change:**
+  - `index.html` and `fonts/` moved to `app/` (byte-identical, CRLF kept);
+  - `netlify.toml` publishes only `app`, with no build command and 6 interim headers;
+  - 4 test paths updated;
+  - new `tests/publish-check.js` (allowlist guard) and `tests/rollback-check.js` (release and rollback paths under the real headers, plus a negative guard test), both in `npm test`;
+  - prepared rollback build in `release/rollback/` (byte-identical to `8370097`) and a rewritten checklist §8B;
+  - `CLAUDE.md`, checklist, guide, change register, decisions (DEC-031; DEC-018 scope note) and roadmap updated.
+- **Local evidence:** publish guard PASS; 64/64; 4/4; 106/106; release/rollback 6/6; UI snapshots 78/78 identical; UI audit 0.
+  - My first rollback test wrongly assumed Release 1 saves an upgrade on opening; it saves at the next save, which is existing behaviour. The test now saves first.
+- **Pushed `d61fd6c`:** Netlify "Deploy Preview ready"; PR #1 still a draft; `main` `8e33d44`.
+- **Not done:** the workspace network access to the preview domain was declined twice (the second request matched the owner's strict settings), so the real-preview 404 and header checks are now owner phone checks (guide, DB-7 section).
