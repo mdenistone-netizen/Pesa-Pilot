@@ -1,0 +1,5 @@
+<!doctype html><meta charset="utf-8"><p>x</p><script>
+function db(){return new Promise((res,rej)=>{const r=indexedDB.open("pp-keys",1);r.onupgradeneeded=()=>r.result.createObjectStore("k");r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);});}
+async function put(k,v){const d=await db();return new Promise(r=>{const t=d.transaction("k","readwrite");t.objectStore("k").put(v,k);t.oncomplete=r;});}
+navigator.serviceWorker.register("sw.js");
+</script>

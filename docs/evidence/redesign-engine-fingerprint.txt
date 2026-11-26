@@ -1,0 +1,2 @@
+# Engine fingerprint vs pre-redesign baseline
+106/106 engine functions and constants unchanged

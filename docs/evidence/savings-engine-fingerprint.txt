@@ -1,0 +1,6 @@
+# Engine fingerprint vs baseline before CR-007 (only the intended linked-record functions may change)
+CHANGED  function linkedRecord
+CHANGED  function syncLinkedFromTransaction
+CHANGED  function removeLinkedForTransaction
+CHANGED  function isLinkedReference
+102/106 engine functions and constants unchanged

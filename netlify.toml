@@ -1,0 +1,17 @@
+# Netlify settings for PesaPilot (DB-7, DEC-031). This file is read by Netlify and is NOT published.
+# Only the app/ folder goes online. Everything else in the repository (docs/, tests/, CLAUDE.md, ...) stays private to the repo.
+# No build command: Netlify serves the files exactly as they are (DEC-002, no build step).
+[build]
+  publish = "app"
+
+# Interim security headers (DB-7 7.3, tested: no violations by the current single-file app).
+# The strict policy (no inline script) is deferred to the PWA stage, because it would stop today's app from starting.
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Content-Security-Policy = "default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:; connect-src 'self'; manifest-src 'self'; worker-src 'self'; form-action 'none'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "no-referrer"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+    X-Frame-Options = "DENY"
+    Cross-Origin-Opener-Policy = "same-origin"

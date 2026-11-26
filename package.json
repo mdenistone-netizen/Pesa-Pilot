@@ -1,0 +1,17 @@
+{
+  "name": "pesapilot",
+  "private": true,
+  "description": "PesaPilot personal finance app. The app itself is app/index.html (no build step; Netlify publishes only app/, see netlify.toml); this file only defines the test commands.",
+  "scripts": {
+    "test": "node tests/publish-check.js && node tests/run.js && node tests/migration.js && node tests/engine-fingerprint.js compare && node tests/rollback-check.js",
+    "test:regression": "node tests/run.js",
+    "test:migration": "node tests/migration.js",
+    "test:ui-snapshot": "node tests/snapshot.js compare",
+    "test:ui-snapshot:save": "node tests/snapshot.js save",
+    "demo:backup": "node tests/make-demo-backup.js",
+    "test:engine": "node tests/engine-fingerprint.js compare",
+    "test:ui-audit": "node tests/ui-audit.js",
+    "test:publish": "node tests/publish-check.js",
+    "test:release-paths": "node tests/rollback-check.js"
+  }
+}

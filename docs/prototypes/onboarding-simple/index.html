@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#183B35">
+<meta name="robots" content="noindex">
+<title>PesaPilot simple onboarding prototype (B)</title>
+<style>
+  /* PROTOTYPE B (simplified onboarding). Not the PesaPilot app. Saves nothing: memory only, no storage, no network. */
+  @font-face { font-family:"Inter"; font-weight:100 900; font-display:swap; src:url("../../../fonts/inter-latin-wght-normal.woff2") format("woff2"); }
+  :root { --primary:#183B35; --sage:#E8F0E9; --bg:#FAF9F6; --card:#fff; --text:#253238; --text-2:#56656A; --border:#E8E6E0; --border-2:#D6D3CB; --amber-soft:#FBF2E4; --green:#1F6E4B; --green-soft:#E5F2EA; --red:#A8443F; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:400 16px/1.5 Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; -webkit-font-smoothing:antialiased; }
+  button, input { font:inherit; color:inherit; }
+  .bar { position:sticky; top:0; z-index:5; display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:6px; padding:8px 12px; background:#2B2B2B; color:#fff; font-size:12px; }
+  .bar button { min-height:32px; border:1px solid rgba(255,255,255,.4); border-radius:999px; padding:4px 10px; background:transparent; color:#fff; font-size:12px; }
+  .wrap { width:min(460px,100%); margin:0 auto; padding:20px 16px 40px; }
+  .dots { display:flex; gap:6px; margin-bottom:18px; }
+  .dots i { flex:1; height:4px; border-radius:4px; background:var(--border); }
+  .dots i.on { background:var(--primary); }
+  h1 { font-size:24px; line-height:1.25; margin:0 0 8px; }
+  .sub { color:var(--text-2); margin:0 0 18px; }
+  .money { display:flex; align-items:center; gap:8px; border:2px solid var(--border-2); border-radius:16px; padding:6px 14px; background:#fff; }
+  .money span { font-size:22px; font-weight:600; color:var(--text-2); }
+  .money input { flex:1; min-width:0; border:0; outline:none; font-size:32px; font-weight:700; padding:8px 0; background:transparent; }
+  .money:focus-within { border-color:#27845B; box-shadow:0 0 0 3px rgba(39,132,91,.25); }
+  .btn { display:flex; align-items:center; justify-content:center; width:100%; min-height:56px; margin-top:16px; border:1px solid var(--border-2); border-radius:14px; background:#fff; font-weight:600; font-size:17px; }
+  .btn.primary { background:var(--primary); border-color:var(--primary); color:#fff; }
+  .btn.quiet { border:0; background:transparent; color:var(--primary); text-decoration:underline; min-height:48px; margin-top:6px; font-size:16px; }
+  .btn:disabled { opacity:.45; }
+  .opt { display:flex; align-items:center; gap:12px; width:100%; min-height:68px; margin-top:10px; padding:12px 14px; border:2px solid var(--border); border-radius:16px; background:#fff; text-align:left; font-size:17px; font-weight:600; }
+  .opt.on { border-color:var(--primary); background:var(--sage); }
+  .opt .ico { font-size:24px; width:32px; text-align:center; }
+  .opt small { display:block; font-weight:400; color:var(--text-2); font-size:14px; }
+  input[type=date] { width:100%; min-height:52px; margin-top:10px; border:2px solid var(--border-2); border-radius:14px; padding:10px 12px; font-size:17px; background:#fff; }
+  .chips { display:flex; flex-wrap:wrap; gap:10px; }
+  .chip { min-height:48px; padding:8px 16px; border:2px solid var(--border-2); border-radius:999px; background:#fff; font-size:16px; font-weight:500; }
+  .chip.on { background:var(--primary); border-color:var(--primary); color:#fff; }
+  .pay { display:flex; align-items:center; gap:10px; margin-top:10px; padding:10px 12px; border-radius:14px; background:#fff; border:1px solid var(--border); }
+  .pay b { flex:1; min-width:0; }
+  .pay input { width:44%; min-height:46px; border:1px solid var(--border-2); border-radius:10px; padding:8px 10px; font-size:17px; }
+  .card { background:#fff; border:1px solid var(--border); border-radius:18px; padding:18px; margin-bottom:12px; }
+  .hero { background:var(--primary); color:#fff; border:0; }
+  .hero .light { color:#CFE0D8; }
+  .big { font-size:36px; font-weight:700; line-height:1.15; margin:4px 0; font-variant-numeric:tabular-nums; }
+  .sum { margin:0; font-size:16px; line-height:1.7; }
+  .sum b { font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .warn { background:var(--amber-soft); border-radius:14px; padding:12px 14px; font-size:15px; }
+  .todo { display:flex; align-items:center; gap:12px; width:100%; min-height:60px; padding:10px 0; border:0; border-bottom:1px solid var(--border); background:none; text-align:left; font-size:16px; }
+  .todo:last-child { border-bottom:0; }
+  .todo .box { width:26px; height:26px; flex:0 0 auto; border:2px solid var(--border-2); border-radius:8px; display:grid; place-items:center; color:#fff; }
+  .todo.done .box { background:var(--green); border-color:var(--green); }
+  .two { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px; }
+  .two button { min-height:64px; border:1px solid var(--border); border-radius:16px; background:#fff; font-weight:600; font-size:16px; }
+  .owner { border:2px dashed #8A5A17; border-radius:14px; padding:10px 12px; font-size:13px; margin-bottom:14px; color:var(--text-2); }
+  .pinrow { display:flex; justify-content:center; gap:12px; margin:16px 0; }
+  .pinrow i { width:14px; height:14px; border-radius:50%; border:2px solid var(--border-2); }
+  .pinrow i.f { background:var(--primary); border-color:var(--primary); }
+  .keys { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
+  .keys button { min-height:56px; border:0; border-radius:14px; background:#fff; font-size:22px; font-weight:600; border:1px solid var(--border); }
+  .sheet-bg { position:fixed; inset:0; z-index:10; background:rgba(16,29,26,.45); display:none; align-items:flex-end; }
+  .sheet-bg.open { display:flex; }
+  .sheet { width:100%; max-height:90dvh; overflow:auto; background:#fff; border-radius:20px 20px 0 0; padding:18px 16px calc(18px + env(safe-area-inset-bottom)); }
+  .x { float:right; width:44px; height:44px; border:0; border-radius:50%; background:var(--sage); font-size:22px; }
+</style>
+</head>
+<body>
+<div class="bar" role="note"><span>PROTOTYPE B · nothing is saved · <span id="timer">0:00</span></span><span><button type="button" id="langBtn">Kiswahili</button> <button type="button" id="restartBtn">Restart</button></span></div>
+<main class="wrap" id="app"></main>
+<div class="sheet-bg" id="sheetBg"><div class="sheet" id="sheet" role="dialog" aria-modal="true"></div></div>
+<script>
+(() => {
+  "use strict";
+  // Memory only. No localStorage, cookies or network. Simplified prototype maths, explained on screen.
+  const TODAY = new Date(); TODAY.setHours(12,0,0,0);
+  let lang = "en", pinRequired = true /* DEC-026: PIN required at first run; no switch */, s, startedAt = null, firstSeconds = null;
+  const reset = () => { s = { step:"have", total:"", when:"", date:"", pays:{}, pin:"", pinDone:false, split:false, goal:false, backup:false, sheet:null }; startedAt = null; firstSeconds = null; };
+
+  // Everyday words. Kiswahili is a DRAFT for testing only and needs review by a fluent speaker.
+  const T = {
+    en: { q1:"How much money do you have right now?", q1sub:"Add up your M-Pesa and cash. A rough figure is fine.", next:"Next", later:"You can split it into M-Pesa, cash and bank later.",
+      q2:"When will your next money come in?", known:"On a date I know", knownSub:"Like salary or a payment you're waiting for", daily:"Every day or most days", dailySub:"Like boda, kiosk or casual work", unsure:"I'm not sure", unsureSub:"We'll plan one week at a time",
+      q3:"Anything you must pay before then?", q3sub:"Tap what applies, then type how much.", nothing:"Nothing urgent", show:"Show me",
+      pays:{ rent:"Rent", school:"School fees", loan:"Loan / Fuliza", chama:"Chama", stima:"KPLC tokens", water:"Water", other:"Other" },
+      planOn:u=>`To make your money last ${u}, plan on about`, aDay:"a day", guide:(a,u)=>`This is a planning guide, not a fixed daily allowance. Some days cost more than others.`, homeLeft:u=>`Left to use ${u}`, aDayGuide:a=>`About ${a} a day, as a guide`, until:d=>`until ${d}`, week:"for the next 7 days", pickLater:"Please pick a date after today.", missingAmt:n=>`Type how much for ${n}, or tap it again to remove it.`, haveLine:(a)=>`You have <b>${a}</b>.`, mustLine:(a)=>`You must pay <b>${a}</b>.`, leftLine:(a)=>`That leaves <b>${a}</b> to use.`,
+      short:(a)=>`What you must pay is more than the money you have, by <b>${a}</b>.`, notCounted:"Money you're waiting for is not counted until it arrives.", toHome:"Continue",
+      pinTitle:"Lock PesaPilot with a PIN", pinSub:"So only you can open it on this phone.", pinSet:"Set PIN", pinLater:"Later",
+      homeHave:(a,b)=>`You have ${a} · must pay ${b}`, recordOut:"− I spent", recordIn:"+ I received", next5:"Next steps (do any time)",
+      todo:{ split:"Split your money: M-Pesa, cash, bank", goal:"Put money aside for something", pin:"Lock with a PIN", backup:"Save a backup copy" },
+      took:(m,s)=>`You got your answer in ${m} min ${s} s.` },
+    sw: { q1:"Una pesa ngapi sasa hivi?", q1sub:"Jumlisha M-Pesa na pesa taslimu. Kiasi cha kukadiria ni sawa.", next:"Endelea", later:"Unaweza kuigawa kuwa M-Pesa, taslimu na benki baadaye.",
+      q2:"Pesa yako inayofuata itaingia lini?", known:"Tarehe ninayoijua", knownSub:"Kama mshahara au malipo unayosubiri", daily:"Kila siku au siku nyingi", dailySub:"Kama boda, kibanda au kibarua", unsure:"Sina uhakika", unsureSub:"Tutapanga wiki moja moja",
+      q3:"Kuna kitu lazima ulipe kabla ya hapo?", q3sub:"Gusa kinachohusika, kisha andika kiasi.", nothing:"Hakuna cha haraka", show:"Nionyeshe",
+      pays:{ rent:"Kodi ya nyumba", school:"Karo ya shule", loan:"Mkopo / Fuliza", chama:"Chama", stima:"Tokeni za stima", water:"Maji", other:"Nyingine" },
+      planOn:u=>`Ili pesa yako idumu ${u}, panga kutumia karibu`, aDay:"kwa siku", guide:(a,u)=>`Huu ni mwongozo wa kupanga, si kiasi cha lazima kila siku. Siku zingine hugharimu zaidi kuliko nyingine.`, homeLeft:u=>`Pesa ya kutumia ${u}`, aDayGuide:a=>`Karibu ${a} kwa siku, kama mwongozo`, until:d=>`hadi ${d}`, week:"kwa siku 7 zijazo", pickLater:"Tafadhali chagua tarehe baada ya leo.", missingAmt:n=>`Andika kiasi cha ${n}, au kiguse tena kukiondoa.`, haveLine:(a)=>`Una <b>${a}</b>.`, mustLine:(a)=>`Lazima ulipe <b>${a}</b>.`, leftLine:(a)=>`Inabaki <b>${a}</b> ya kutumia.`,
+      short:(a)=>`Unachopaswa kulipa ni zaidi ya pesa uliyonayo, kwa <b>${a}</b>.`, notCounted:"Pesa unayosubiri haihesabiwi hadi iingie.", toHome:"Endelea",
+      pinTitle:"Funga PesaPilot kwa PIN", pinSub:"Ili wewe peke yako uweze kuifungua kwenye simu hii.", pinSet:"Weka PIN", pinLater:"Baadaye",
+      homeHave:(a,b)=>`Una ${a} · lazima ulipe ${b}`, recordOut:"− Nimetumia", recordIn:"+ Nimepokea", next5:"Hatua zinazofuata (wakati wowote)",
+      todo:{ split:"Gawa pesa yako: M-Pesa, taslimu, benki", goal:"Weka pesa kando kwa ajili ya kitu", pin:"Funga kwa PIN", backup:"Hifadhi nakala" },
+      took:(m,s)=>`Umepata jibu lako kwa dakika ${m} sekunde ${s}.` }
+  };
+  const t = () => T[lang];
+  const $ = id => document.getElementById(id);
+  const num = v => { const n = Number(String(v).replace(/[^0-9]/g,"")); return Number.isFinite(n) ? n : 0; };
+  const ksh = n => (n < 0 ? "−" : "") + "KSh " + Math.abs(Math.round(n)).toLocaleString("en-KE");
+  const localISO = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+  const tomorrowISO = () => { const d = new Date(TODAY); d.setDate(d.getDate() + 1); return localISO(d); };
+  const dateOk = v => Boolean(v) && v >= tomorrowISO();
+  const dayName = d => d.toLocaleDateString(lang === "sw" ? "sw-KE" : "en-KE", { weekday:"short", day:"numeric", month:"short" });
+
+  // ---- Prototype maths (the real app would map these to accounts, bills and the plan; see the comparison doc) ----
+  function picture() {
+    let days = 7, untilText = t().week;
+    if (s.when === "known" && s.date) {
+      const d = new Date(s.date + "T12:00:00");
+      days = Math.max(1, Math.round((d - TODAY) / 86400000));
+      const lastDay = new Date(d); lastDay.setDate(lastDay.getDate() - 1);
+      untilText = t().until(dayName(d));
+    }
+    const have = num(s.total), must = Object.values(s.pays).reduce((a, v) => a + num(v), 0), left = have - must;
+    return { days, untilText, have, must, left, perDay: left / days };
+  }
+
+  setInterval(() => { if (startedAt) { const x = Math.floor((Date.now() - startedAt) / 1000); $("timer").textContent = `${Math.floor(x/60)}:${String(x%60).padStart(2,"0")}`; } }, 500);
+  const dots = n => `<div class="dots">${[1,2,3].map(i => `<i class="${i <= n ? "on" : ""}"></i>`).join("")}</div>`;
+
+  const screens = {
+    have: () => `${dots(1)}<h1>${t().q1}</h1><p class="sub">${t().q1sub}</p>
+      <div class="money"><span>KSh</span><input id="total" inputmode="numeric" autocomplete="off" placeholder="0" value="${s.total}"></div>
+      <button class="btn primary" data-go="when" ${num(s.total) || s.total === "0" ? "" : "disabled"}>${t().next}</button>
+      <p class="sub" style="margin-top:12px;font-size:14px">${t().later}</p>`,
+    when: () => `${dots(2)}<h1>${t().q2}</h1>
+      <button class="opt ${s.when === "known" ? "on" : ""}" data-when="known"><span class="ico">📅</span><span>${t().known}<small>${t().knownSub}</small></span></button>
+      ${s.when === "known" ? `<input id="date" type="date" min="${tomorrowISO()}" value="${s.date}"><p id="dateMsg" class="sub" style="font-size:14px;margin:6px 0 0;color:var(--red)">${s.date && !dateOk(s.date) ? t().pickLater : ""}</p>` : ""}
+      <button class="opt ${s.when === "daily" ? "on" : ""}" data-when="daily"><span class="ico">☀️</span><span>${t().daily}<small>${t().dailySub}</small></span></button>
+      <button class="opt ${s.when === "unsure" ? "on" : ""}" data-when="unsure"><span class="ico">🤷</span><span>${t().unsure}<small>${t().unsureSub}</small></span></button>
+      <button class="btn primary" data-go="pay" ${s.when && (s.when !== "known" || dateOk(s.date)) ? "" : "disabled"}>${t().next}</button>`,
+    pay: () => `${dots(3)}<h1>${t().q3}</h1><p class="sub">${t().q3sub}</p>
+      <div class="chips">${Object.entries(t().pays).map(([k, label]) => `<button class="chip ${k in s.pays ? "on" : ""}" data-pay="${k}">${label}</button>`).join("")}</div>
+      ${Object.keys(s.pays).map(k => `<div class="pay"><b>${t().pays[k]}</b><input data-amt="${k}" inputmode="numeric" placeholder="KSh" value="${s.pays[k]}"></div>`).join("")}
+      <p class="warn" id="payMsg" role="alert" style="display:none"></p>
+      <button class="btn primary" data-go="picture">${t().show}</button>
+      ${Object.keys(s.pays).length ? "" : `<button class="btn quiet" data-go="picture">${t().nothing}</button>`}`,
+    picture: () => { const p = picture(); return `
+      <div class="card hero"><div class="light">${t().planOn(p.untilText)}</div><div class="big" data-figure="perDay">${ksh(Math.max(0, p.perDay))}</div><div class="light">${t().aDay}</div></div>
+      <div class="card"><p class="sum">${t().haveLine(ksh(p.have))}${p.must ? ` ${t().mustLine(ksh(p.must))}` : ""} ${p.left >= 0 ? t().leftLine(ksh(p.left)) : ""}</p>
+      ${p.left < 0 ? `<p class="warn" style="margin:10px 0 0">${t().short(ksh(-p.left))}</p>` : ""}
+      ${p.left > 0 ? `<p class="sub" data-figure="guide" style="margin:10px 0 0;font-size:14px">${t().guide(ksh(p.left), p.untilText)}</p>` : ""}
+      ${s.when === "known" ? `<p class="sub" style="margin:10px 0 0;font-size:14px">${t().notCounted}</p>` : ""}</div>
+      ${firstSeconds !== null ? `<p class="sub" style="font-size:14px">${t().took(Math.floor(firstSeconds/60), firstSeconds%60)}</p>` : ""}
+      <button class="btn primary" data-go="${pinRequired ? "pin" : "home"}">${t().toHome}</button>`; },
+    pin: () => `<h1>${t().pinTitle}</h1><p class="sub">${t().pinSub}</p>
+      <div class="pinrow">${[0,1,2,3].map(i => `<i class="${i < s.pin.length ? "f" : ""}"></i>`).join("")}</div>
+      <div class="keys">${[1,2,3,4,5,6,7,8,9,"",0,"⌫"].map(k => k === "" ? "<span></span>" : `<button type="button" data-key="${k}">${k}</button>`).join("")}</div>
+      <button class="btn primary" data-pinset="1" ${s.pin.length >= 4 ? "" : "disabled"}>${t().pinSet}</button>
+      ${pinRequired ? "" : `<button class="btn quiet" data-go="home">${t().pinLater}</button>`}`,
+    home: () => { const p = picture(); const todos = [["split", s.split], ["goal", s.goal], ...(s.pinDone ? [] : [["pin", false]]), ["backup", s.backup]]; return `
+      <div class="card hero"><div class="light">${t().homeLeft(p.untilText)}</div><div class="big" data-figure="left">${ksh(Math.max(0, p.left))}</div><div class="light">${t().aDayGuide(ksh(Math.max(0, p.perDay)))}</div>
+      <p class="light" style="margin:10px 0 0;font-size:14px">${t().homeHave(ksh(p.have), ksh(p.must))}</p></div>
+      <div class="two"><button data-note="out">${t().recordOut}</button><button data-note="in">${t().recordIn}</button></div>
+      <div class="card"><b>${t().next5}</b>${todos.map(([k, d]) => `<button class="todo ${d ? "done" : ""}" data-todo="${k}"><span class="box">${d ? "✓" : ""}</span>${t().todo[k]}</button>`).join("")}</div>`; }
+  };
+
+  function render() { $("app").innerHTML = screens[s.step](); $("langBtn").textContent = lang === "en" ? "Kiswahili" : "English"; }
+  function read() { const tt = $("total"); if (tt) s.total = tt.value; const d = $("date"); if (d) s.date = d.value; document.querySelectorAll("[data-amt]").forEach(i => s.pays[i.dataset.amt] = i.value); }
+  function go(step) { read();
+    if (step === "picture") { const miss = Object.keys(s.pays).find(k => !num(s.pays[k])); if (miss) { const m = $("payMsg"); m.textContent = t().missingAmt(t().pays[miss]); m.style.display = "block"; const i = document.querySelector(`[data-amt="${miss}"]`); if (i) i.focus(); return; } }
+    if (!startedAt) startedAt = Date.now(); if (step === "picture" && firstSeconds === null) firstSeconds = Math.round((Date.now() - startedAt) / 1000); s.step = step; render(); window.scrollTo(0, 0); }
+  function sheet(html) { $("sheet").innerHTML = `<button class="x" data-close="1" aria-label="Close">×</button>${html}`; $("sheetBg").classList.add("open"); }
+
+  document.addEventListener("input", e => {
+    if (e.target.id === "total") { if (!startedAt) startedAt = Date.now(); const ok = e.target.value !== ""; document.querySelector('[data-go="when"]').disabled = !ok; }
+    if (e.target.id === "date") { s.date = e.target.value; const ok = dateOk(s.date); document.querySelector('[data-go="pay"]').disabled = !ok; $("dateMsg").textContent = s.date && !ok ? t().pickLater : ""; }
+  });
+  document.addEventListener("click", e => {
+    const b = e.target.closest("button"); if (!b) { if (e.target === $("sheetBg")) $("sheetBg").classList.remove("open"); return; }
+    if (b.dataset.go && !b.disabled) go(b.dataset.go);
+    if (b.dataset.when) { read(); s.when = b.dataset.when; render(); }
+    if (b.dataset.pay) { read(); const k = b.dataset.pay; if (k in s.pays) delete s.pays[k]; else s.pays[k] = ""; render(); const inp = document.querySelector(`[data-amt="${k}"]`); if (inp) inp.focus(); }
+    if (b.dataset.key !== undefined) { const k = b.dataset.key; s.pin = k === "⌫" ? s.pin.slice(0, -1) : (s.pin + k).slice(0, 8); render(); }
+    if (b.dataset.pinset && !b.disabled) { s.pinDone = true; s.pin = ""; s.step = "home"; render(); }
+    if (b.dataset.close) $("sheetBg").classList.remove("open");
+    if (b.dataset.note) sheet(`<h1>${b.dataset.note === "out" ? t().recordOut : t().recordIn}</h1><p class="sub">Prototype: in the real app this opens a short form (amount, what for, M-Pesa or cash).</p>`);
+    if (b.dataset.todo) { const k = b.dataset.todo; if (k === "pin") { s.step = "pin"; render(); return; } s[k] = true; render(); sheet(`<h1>${t().todo[k]}</h1><p class="sub">Prototype: in the real app this opens a short, optional step. Marked as done for this demo.</p>`); }
+  });
+  $("restartBtn").onclick = () => { reset(); $("timer").textContent = "0:00"; render(); };
+  $("langBtn").onclick = () => { read(); lang = lang === "en" ? "sw" : "en"; render(); };
+  reset(); render();
+})();
+</script>
+</body>
+</html>

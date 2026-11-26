@@ -1,0 +1,29 @@
+# Test run AFTER Phase 0.5 changes
+
+PASS          fresh install shows the welcome/onboarding form
+PASS          every screen renders without errors
+PASS          home balance equals all-time income minus all-time expenses (current rule)
+PASS          adding an expense through the form reduces the balance
+PASS          recording a debt repayment creates exactly one linked expense and updates the debt
+PASS          paying a bill creates exactly one linked expense for that occurrence
+PASS          backup export -> import round-trips every record unchanged
+PASS          legacy data: debt repayments without transactions are rebuilt once, not duplicated
+PASS          a safety backup is stored before an older schema is upgraded
+PASS          migration keeps fields it does not recognise on every record type
+PASS          migration keeps transaction types it does not recognise (e.g. transfer)
+PASS          migration is idempotent: loading migrated data again changes nothing
+PASS          migration normalises legacy types: missing -> expense, 'Income' -> income
+PASS          migration still repairs invalid values (negative amounts, unknown frequency)
+KNOWN DEFECT  [D2] savings contributions are not counted as spending
+              (The input did not match the regular expression /KSh 25,900/. Input:)
+KNOWN DEFECT  [D4] deleting a goal's linked savings entry also reverses the goal progress
+              (goal still shows the deleted 3,000)
+KNOWN DEFECT  [D6] exported backups never contain the PIN in plain text
+              (PIN 4821 found in backup)
+KNOWN DEFECT  [D3] the app can record money other people owe me
+              (The input did not match the regular expression /owed to me|owe me|lent/i. Input:)
+
+14 passed, 0 failed, 4 known defects open, 0 known defects now fixed
+
+# UI snapshot comparison vs baseline taken on unmodified index.html
+58/58 UI snapshots identical to baseline

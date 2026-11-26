@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#183B35">
+<meta name="robots" content="noindex">
+<title>PesaPilot onboarding prototype</title>
+<style>
+  /* PROTOTYPE ONLY (P1). Not the PesaPilot app. Saves nothing: no localStorage, no cookies, no network. */
+  @font-face { font-family: "Inter"; font-weight: 100 900; font-display: swap; src: url("../../../fonts/inter-latin-wght-normal.woff2") format("woff2"); }
+  :root { --primary:#183B35; --primary-2:#234F47; --sage:#E8F0E9; --bg:#FAF9F6; --card:#FFFFFF; --text:#253238; --text-2:#56656A; --border:#E8E6E0; --border-2:#D6D3CB; --amber:#8A5A17; --amber-soft:#FBF2E4; --green:#1F6E4B; --green-soft:#E5F2EA; --red:#A8443F; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:400 15px/1.55 Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; -webkit-font-smoothing:antialiased; }
+  button, input, select { font:inherit; color:inherit; }
+  .proto-bar { position:sticky; top:0; z-index:5; display:flex; align-items:center; justify-content:space-between; gap:8px; padding:8px 12px; background:#2B2B2B; color:#fff; font-size:12px; }
+  .proto-bar button { min-height:32px; border:1px solid rgba(255,255,255,.4); border-radius:999px; padding:4px 10px; background:transparent; color:#fff; font-size:12px; }
+  .wrap { width:min(480px, 100%); margin:0 auto; padding:16px 16px 40px; }
+  .card { background:var(--card); border:1px solid var(--border); border-radius:16px; padding:16px; box-shadow:0 1px 2px rgba(24,59,53,.05),0 2px 10px rgba(24,59,53,.04); margin-bottom:12px; }
+  .hero { background:var(--primary); color:#fff; border:0; }
+  .hero .muted { color:#CFE0D8; }
+  h1 { font-size:22px; line-height:1.25; margin:8px 0 6px; }
+  h2 { font-size:17px; margin:0 0 4px; }
+  p { margin:0 0 10px; }
+  .muted { color:var(--text-2); font-size:13px; }
+  .step { color:var(--text-2); font-size:13px; font-weight:500; }
+  .big { font-size:30px; font-weight:700; line-height:1.15; margin:4px 0; font-variant-numeric:tabular-nums; }
+  label { display:block; font-size:13px; font-weight:500; margin:12px 0 6px; }
+  input, select { width:100%; min-height:48px; border:1px solid var(--border-2); border-radius:12px; padding:10px 12px; background:#fff; font-size:16px; }
+  input:focus, select:focus { outline:none; border-color:#27845B; box-shadow:0 0 0 3px rgba(39,132,91,.25); }
+  .btn { display:flex; align-items:center; justify-content:center; width:100%; min-height:50px; margin-top:14px; border:1px solid var(--border-2); border-radius:12px; background:#fff; font-weight:600; }
+  .btn.primary { background:var(--primary); border-color:var(--primary); color:#fff; }
+  .btn.link { border:0; background:transparent; color:var(--primary); text-decoration:underline; min-height:44px; margin-top:4px; }
+  .row { display:flex; gap:8px; }
+  .row > * { flex:1; min-width:0; }
+  .choice { display:block; width:100%; text-align:left; min-height:64px; padding:12px 14px; margin-top:10px; border:2px solid var(--border); border-radius:14px; background:#fff; }
+  .choice.on { border-color:var(--primary); background:var(--sage); }
+  .choice strong { display:block; }
+  .chips { display:flex; flex-wrap:wrap; gap:8px; margin-top:6px; }
+  .chip { min-height:40px; padding:6px 14px; border:1px solid var(--border-2); border-radius:999px; background:#fff; font-size:14px; }
+  .chip.on { background:var(--primary); border-color:var(--primary); color:#fff; }
+  .note { background:var(--amber-soft); color:var(--text); border-radius:12px; padding:10px 12px; font-size:13px; margin-top:10px; }
+  .good { background:var(--green-soft); }
+  .kv { display:flex; justify-content:space-between; gap:12px; padding:6px 0; font-size:14px; }
+  .kv strong { white-space:nowrap; font-variant-numeric:tabular-nums; }
+  .kv.total { border-top:1px solid var(--border); margin-top:4px; padding-top:8px; font-weight:600; }
+  .check { display:flex; align-items:center; gap:12px; width:100%; min-height:56px; padding:10px 0; border:0; border-bottom:1px solid var(--border); background:none; text-align:left; }
+  .check:last-child { border-bottom:0; }
+  .box { width:26px; height:26px; flex:0 0 auto; border:2px solid var(--border-2); border-radius:8px; display:grid; place-items:center; color:#fff; font-size:15px; }
+  .check.done .box { background:var(--green); border-color:var(--green); }
+  .check span.t { flex:1; min-width:0; }
+  .check small { display:block; color:var(--text-2); font-size:12px; }
+  .progress { height:8px; border-radius:999px; background:var(--sage); overflow:hidden; margin:8px 0 4px; }
+  .progress > i { display:block; height:100%; background:#27845B; }
+  .sheet-bg { position:fixed; inset:0; z-index:10; background:rgba(16,29,26,.45); display:none; align-items:flex-end; }
+  .sheet-bg.open { display:flex; }
+  .sheet { width:100%; max-height:92dvh; overflow:auto; background:#fff; border-radius:20px 20px 0 0; padding:18px 16px calc(18px + env(safe-area-inset-bottom)); }
+  .sheet-head { display:flex; justify-content:space-between; align-items:center; }
+  .x { width:44px; height:44px; border:0; border-radius:50%; background:var(--sage); font-size:22px; }
+  .pin { display:flex; justify-content:center; gap:12px; margin:14px 0; }
+  .pin i { width:14px; height:14px; border-radius:50%; border:2px solid var(--border-2); }
+  .pin i.f { background:var(--primary); border-color:var(--primary); }
+  .keys { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
+  .keys button { min-height:54px; border:0; border-radius:14px; background:var(--bg); font-size:20px; font-weight:600; }
+  .timer { font-variant-numeric:tabular-nums; }
+  .owner { border:2px dashed #8A5A17; }
+  .hidden { display:none; }
+  .list-item { display:flex; justify-content:space-between; gap:8px; font-size:14px; padding:6px 0; border-bottom:1px solid var(--border); }
+  .list-item:last-child { border-bottom:0; }
+</style>
+</head>
+<body>
+<div class="proto-bar" role="note"><span>PROTOTYPE · not the real app · nothing is saved · <span class="timer" id="timer">0:00</span></span><span><button type="button" id="restartBtn">Restart</button></span></div>
+<main class="wrap" id="app"></main>
+<div class="sheet-bg" id="sheetBg"><div class="sheet" id="sheet" role="dialog" aria-modal="true"></div></div>
+<script>
+(() => {
+  "use strict";
+  // Everything lives in memory only. Reloading or closing the page clears it. No storage APIs are used.
+  const TODAY = new Date(); TODAY.setHours(12,0,0,0);
+  let s, startedAt = null, firstValueSeconds = null, pinRequired = true /* DEC-026: PIN required at first run; no switch */;
+  const reset = () => { s = { step:"welcome", name:"", pin:"", mpesa:"", cash:"", extra:[], pattern:"", payday:"", period:7, expAmount:"", expDate:"", bills:[], loans:[], goals:[], buffer:0, sources:[], backup:false, checklistHidden:false }; startedAt = null; firstValueSeconds = null; };
+  const $ = id => document.getElementById(id);
+  const num = v => { const n = Number(String(v).replace(/[^0-9.]/g,"")); return Number.isFinite(n) ? Math.round(n) : 0; };
+  const ksh = n => (n < 0 ? "−" : "") + "KSh " + Math.abs(Math.round(n)).toLocaleString("en-KE");
+  const esc = t => String(t).replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+  const fmtDate = d => d.toLocaleDateString("en-KE", { weekday:"short", day:"numeric", month:"short" });
+
+  // ---- Simplified prototype maths (the real app follows FINANCIAL_RULES.md) ----
+  function period() {
+    if (s.pattern === "fixed" && num(s.payday)) {
+      const day = Math.min(31, Math.max(1, num(s.payday)));
+      let pay = new Date(TODAY.getFullYear(), TODAY.getMonth(), day, 12);
+      if (pay <= TODAY) pay = new Date(TODAY.getFullYear(), TODAY.getMonth() + 1, day, 12);
+      const days = Math.max(1, Math.round((pay - TODAY) / 86400000));
+      const end = new Date(pay); end.setDate(end.getDate() - 1);
+      return { days, end, label:`until payday on ${fmtDate(pay)}` };
+    }
+    const days = Number(s.period) || 7, end = new Date(TODAY); end.setDate(end.getDate() + days - 1);
+    return { days, end, label:`for the next ${days} days` };
+  }
+  function dueInPeriod(dueDay, p) {
+    if (!num(dueDay)) return true; // no day given: assume due within the period (cautious)
+    for (let d = new Date(TODAY); d <= p.end; d.setDate(d.getDate() + 1)) if (d.getDate() === num(dueDay)) return true;
+    return false;
+  }
+  function figures() {
+    const p = period();
+    const spendingAccounts = num(s.mpesa) + num(s.cash) + s.extra.filter(a => a.spending).reduce((t, a) => t + num(a.amount), 0);
+    const savingsAccounts = s.extra.filter(a => !a.spending).reduce((t, a) => t + num(a.amount), 0);
+    const setAside = s.goals.reduce((t, g) => t + num(g.setAside), 0);
+    const free = spendingAccounts - setAside;
+    const bills = s.bills.filter(b => dueInPeriod(b.day, p)).reduce((t, b) => t + num(b.amount), 0);
+    const loans = s.loans.reduce((t, l) => t + Math.min(num(l.monthly), num(l.owed)), 0);
+    const buffer = num(s.buffer);
+    const left = free - bills - loans - buffer;
+    const expected = num(s.expAmount) && (!s.expDate || new Date(s.expDate + "T12:00:00") <= p.end) ? num(s.expAmount) : 0;
+    return { p, spendingAccounts, savingsAccounts, setAside, free, bills, loans, buffer, left, perDay: left / p.days, expected, perDayIf: (left + expected) / p.days };
+  }
+
+  // ---- Timer ----
+  setInterval(() => { if (startedAt) { const sec = Math.floor((Date.now() - startedAt) / 1000); $("timer").textContent = `${Math.floor(sec/60)}:${String(sec%60).padStart(2,"0")}`; } }, 500);
+
+  // ---- Screens ----
+  const screens = {
+    welcome: () => `
+      <div class="card hero"><div class="step muted">Welcome</div><h1>Know what's truly free</h1><p class="muted">PesaPilot shows how much of your money is really free to spend, so you don't run out before the next money comes. Your records stay on this phone.</p></div>
+      <div class="card"><label for="name">Your first name <span class="muted">(optional)</span></label><input id="name" autocomplete="given-name" value="${esc(s.name)}" placeholder="e.g. Achieng">
+      <button class="btn primary" data-go="pin">Start</button></div>`,
+    pin: () => `
+      
+      <div class="card"><div class="step">Step 1 of 3 · Protect your records</div><h1>${pinRequired ? "Create a PIN" : "Protect with a PIN?"}</h1>
+      <p class="muted">A 4–8 digit PIN locks PesaPilot on this phone. ${pinRequired ? "" : "Recommended, especially if others use your phone."}</p>
+      <div class="pin">${[0,1,2,3].map(i => `<i class="${i < s.pin.length ? "f" : ""}"></i>`).join("")}</div>
+      <div class="keys">${[1,2,3,4,5,6,7,8,9,"",0,"⌫"].map(k => k === "" ? "<span></span>" : `<button type="button" data-key="${k}">${k}</button>`).join("")}</div>
+      <button class="btn primary" data-go="have" ${s.pin.length >= 4 ? "" : "disabled style=\"opacity:.5\""}>Set PIN and continue</button>
+      ${pinRequired ? "" : `<button class="btn link" data-go="have" data-skip-pin="1">Later</button>`}
+      <p class="muted" style="margin-top:8px">Prototype: the PIN isn't stored anywhere.</p></div>`,
+    have: () => `
+      <div class="card"><div class="step">Step 2 of 3 · What do you have right now?</div><h1>How much is in your M-Pesa?</h1>
+      <p class="muted">Dial *334# or check the M-Pesa app if you're not sure. A rough figure is fine.</p>
+      <label for="mpesa">M-Pesa balance now (KSh)</label><input id="mpesa" inputmode="numeric" value="${esc(s.mpesa)}" placeholder="e.g. 6500">
+      <label for="cash">Cash in your pocket or at home (KSh) <span class="muted">(optional)</span></label><input id="cash" inputmode="numeric" value="${esc(s.cash)}" placeholder="e.g. 500">
+      ${s.extra.map((a, i) => `<div class="list-item"><span>${esc(a.name)} <span class="muted">${a.spending ? "spending" : "savings, not counted"}</span></span><strong>${ksh(num(a.amount))}</strong></div>`).join("")}
+      <button class="btn" data-sheet="account">＋ I also have a bank, M-Shwari or SACCO account</button>
+      <button class="btn primary" data-go="next">Continue</button></div>`,
+    next: () => `
+      <div class="card"><div class="step">Step 3 of 3 · Your next money</div><h1>When does your next money come?</h1>
+      <button class="choice ${s.pattern === "fixed" ? "on" : ""}" data-pattern="fixed"><strong>On a fixed day each month</strong><span class="muted">Salary or a regular payment</span></button>
+      <button class="choice ${s.pattern === "varies" ? "on" : ""}" data-pattern="varies"><strong>It varies</strong><span class="muted">Business, casual work, freelance, boda…</span></button>
+      ${s.pattern === "fixed" ? `<label for="payday">Which day of the month?</label><input id="payday" inputmode="numeric" value="${esc(s.payday)}" placeholder="e.g. 28">` : ""}
+      ${s.pattern === "varies" ? `<label>Plan my money for</label><div class="chips">${[[7,"1 week"],[14,"2 weeks"],[30,"1 month"]].map(([d,l]) => `<button class="chip ${Number(s.period) === d ? "on" : ""}" data-period="${d}">${l}</button>`).join("")}</div>
+        <label for="expAmount">Expecting a specific payment? (KSh) <span class="muted">(optional)</span></label><div class="row"><input id="expAmount" inputmode="numeric" value="${esc(s.expAmount)}" placeholder="Amount"><input id="expDate" type="date" value="${esc(s.expDate)}"></div>
+        <p class="muted">Expected money is shown separately and <strong>never counted</strong> until it arrives.</p>` : ""}
+      <button class="btn primary" data-go="result" ${s.pattern && (s.pattern === "varies" || num(s.payday)) ? "" : "disabled style=\"opacity:.5\""}>Show me what's free</button></div>`,
+    result: () => { const f = figures(); return `
+      <div class="card hero"><div class="muted">${s.name ? esc(s.name) + ", you" : "You"} have</div><div class="big">${ksh(f.free)}</div><div class="muted">free to use right now</div>
+      <p style="margin:12px 0 0">That's about <strong>${ksh(f.perDay)} a day</strong> ${f.p.label} (${f.p.days} day${f.p.days === 1 ? "" : "s"}).</p></div>
+      ${f.expected ? `<div class="card"><p class="muted" style="margin:0">If the ${ksh(f.expected)} you expect arrives in time: about ${ksh(f.perDayIf)} a day. <strong>Not counted until it arrives.</strong></p></div>` : ""}
+      <div class="note">This doesn't include rent, loans or other bills yet. Add them so PesaPilot can protect that money.</div>
+      <div class="card good" style="margin-top:12px"><strong>Your first answer took ${firstValueSeconds !== null ? `${Math.floor(firstValueSeconds/60)} min ${firstValueSeconds%60} s` : "—"}.</strong><div class="muted">Target in the design: under 2 minutes.</div></div>
+      <button class="btn primary" data-go="home">Go to Home</button>`; },
+    home: () => { const f = figures(); const items = checklist(); const done = items.filter(i => i.done).length; return `
+      <div class="card hero"><div class="muted">${s.name ? "Hi " + esc(s.name) + " · " : ""}Available to spend</div><div class="big">${ksh(f.free)}</div>
+      <div class="muted">In spending accounts ${ksh(f.spendingAccounts)}${f.setAside ? ` · set aside for goals − ${ksh(f.setAside)}` : ""}${f.savingsAccounts ? ` · savings accounts ${ksh(f.savingsAccounts)} (not counted)` : ""}</div></div>
+      <div class="card"><div class="muted">Safe to spend today</div><div class="big" style="color:${f.perDay < 0 ? "var(--red)" : "var(--primary)"}">${ksh(f.perDay)}</div><div class="muted">a day ${f.p.label}</div>
+        <details style="margin-top:8px"><summary class="muted" style="min-height:40px;display:flex;align-items:center">How this is worked out</summary>
+        <div class="kv"><span>Money free to use</span><strong>${ksh(f.free)}</strong></div><div class="kv"><span>Bills due</span><strong>− ${ksh(f.bills)}</strong></div><div class="kv"><span>Loan payments due</span><strong>− ${ksh(f.loans)}</strong></div>${f.buffer ? `<div class="kv"><span>Safety buffer</span><strong>− ${ksh(f.buffer)}</strong></div>` : ""}<div class="kv total"><span>Left to spend</span><strong>${ksh(f.left)}</strong></div>${f.expected ? `<p class="muted">Expected ${ksh(f.expected)} is not counted.</p>` : ""}<p class="muted">Prototype maths, simplified.</p></details></div>
+      ${s.checklistHidden ? `<button class="btn" data-show-checklist="1">Show setup checklist (${done} of ${items.length})</button>` : `<div class="card"><div style="display:flex;justify-content:space-between;align-items:center"><h2>Finish setting up</h2><span class="muted">${done} of ${items.length}</span></div><div class="progress"><i style="width:${done / items.length * 100}%"></i></div><p class="muted">Each takes under a minute. Do them now, later, or never.</p>
+        ${items.map(i => `<button class="check ${i.done ? "done" : ""}" data-sheet="${i.key}"><span class="box">${i.done ? "✓" : ""}</span><span class="t"><strong>${i.title}</strong><small>${i.sub}</small></span></button>`).join("")}
+        <button class="btn link" data-hide-checklist="1">I'll do this later</button></div>`}`; }
+  };
+  function checklist() {
+    return [
+      { key:"bill", title:"Your big regular payments", sub: s.bills.length ? s.bills.map(b => `${esc(b.name)} ${ksh(num(b.amount))}`).join(" · ") : "Rent, school fees, chama, KPLC…", done: s.bills.length > 0 },
+      { key:"loan", title:"Loans you're repaying", sub: s.loans.length ? s.loans.map(l => `${esc(l.name)} ${ksh(num(l.monthly))}/month`).join(" · ") : "Fuliza, M-Shwari, KCB M-Pesa, a friend…", done: s.loans.length > 0 },
+      { key:"goal", title:"Something you're saving for", sub: s.goals.length ? s.goals.map(g => `${esc(g.name)}: ${ksh(num(g.setAside))} set aside`).join(" · ") : "Emergency fund, school fees…", done: s.goals.length > 0 },
+      { key:"buffer", title:"A safety buffer", sub: num(s.buffer) ? `Keep ${ksh(num(s.buffer))} untouched` : "Always keep some money untouched", done: num(s.buffer) > 0 },
+      { key:"sources", title:"Your income sources", sub: s.sources.length ? s.sources.join(", ") : "Salary, business, side jobs…", done: s.sources.length > 0 },
+      { key:"backup", title:"Back up your records", sub: s.backup ? "Done (prototype)" : "Keep a copy off this phone", done: s.backup }
+    ];
+  }
+  const sheets = {
+    account: () => `<h2>Add an account</h2><label for="aName">Name</label><input id="aName" placeholder="e.g. Equity, M-Shwari, Stima SACCO"><label for="aType">Type</label><select id="aType"><option value="bank">Bank account (spending money)</option><option value="savings">Savings: M-Shwari, SACCO, savings account (not counted as spending)</option></select><label for="aAmt">Balance now (KSh)</label><input id="aAmt" inputmode="numeric"><button class="btn primary" data-save="account">Add</button>`,
+    bill: () => `<h2>A regular payment</h2><div class="chips">${["Rent","KPLC tokens","School fees","Chama","Water","Internet"].map(n => `<button class="chip" data-fill="bName" data-val="${n}">${n}</button>`).join("")}</div><label for="bName">Name</label><input id="bName"><div class="row"><div><label for="bAmt">Amount (KSh)</label><input id="bAmt" inputmode="numeric"></div><div><label for="bDay">Due day</label><input id="bDay" inputmode="numeric" placeholder="e.g. 5"></div></div><button class="btn primary" data-save="bill">Add payment</button>`,
+    loan: () => `<h2>A loan you're repaying</h2><div class="chips">${["Fuliza","M-Shwari","KCB M-Pesa","Hustler Fund","Friend/family"].map(n => `<button class="chip" data-fill="lName" data-val="${n}">${n}</button>`).join("")}</div><label for="lName">Name</label><input id="lName"><div class="row"><div><label for="lOwed">Still owed (KSh)</label><input id="lOwed" inputmode="numeric"></div><div><label for="lMonthly">Pay per month</label><input id="lMonthly" inputmode="numeric"></div></div><p class="muted">Borrowed money is never counted as income.</p><button class="btn primary" data-save="loan">Add loan</button>`,
+    goal: () => { const f = figures(); return `<h2>Something you're saving for</h2><div class="chips">${["Emergency fund","School fees","Rent deposit","Business stock"].map(n => `<button class="chip" data-fill="gName" data-val="${n}">${n}</button>`).join("")}</div><label for="gName">Goal</label><input id="gName"><label for="gTarget">Target (KSh)</label><input id="gTarget" inputmode="numeric"><label for="gSet">Set aside now from your money (KSh) <span class="muted">(optional, up to ${ksh(Math.max(0, f.free))})</span></label><input id="gSet" inputmode="numeric"><p class="muted">Setting money aside keeps it in M-Pesa but stops it showing as free to spend.</p><button class="btn primary" data-save="goal">Add goal</button>`; },
+    buffer: () => `<h2>A safety buffer</h2><p class="muted">An amount you always want left untouched, for emergencies.</p><label for="buf">Keep at least (KSh)</label><input id="buf" inputmode="numeric" value="${num(s.buffer) || ""}"><button class="btn primary" data-save="buffer">Save</button>`,
+    sources: () => `<h2>How does money come to you?</h2><p class="muted">Pick all that apply. This helps your reports; it doesn't change what's free.</p><div class="chips">${["Salary","Business","Casual work","Freelance","Chama payout","Support from family","Farming"].map(n => `<button class="chip ${s.sources.includes(n) ? "on" : ""}" data-source="${n}">${n}</button>`).join("")}</div><button class="btn primary" data-save="sources">Done</button>`,
+    backup: () => `<h2>Back up your records</h2><p class="muted">Your records live only on this phone. A backup file, kept somewhere safe such as Google Drive or your email, is the only way to get them back if the phone is lost.</p><button class="btn primary" data-save="backup">Download backup (prototype: nothing is downloaded)</button>`
+  };
+
+  // ---- Rendering & events ----
+  function render() { $("app").innerHTML = screens[s.step](); window.scrollTo(0, 0); }
+  function openSheet(key) { $("sheet").innerHTML = `<div class="sheet-head"><span class="step">Setup</span><button class="x" type="button" data-close="1" aria-label="Close">×</button></div>${sheets[key]()}`; $("sheetBg").classList.add("open"); }
+  function closeSheet() { $("sheetBg").classList.remove("open"); }
+  function readInputs() { ["name","mpesa","cash","payday","expAmount","expDate"].forEach(k => { const el = $(k); if (el) s[k] = el.value; }); }
+  function go(step) {
+    readInputs();
+    if (step === "pin" && !startedAt) startedAt = Date.now();
+    if (step === "next" && !num(s.mpesa) && s.mpesa === "") { $("mpesa").focus(); return; }
+    if (step === "result" && firstValueSeconds === null) firstValueSeconds = Math.round((Date.now() - startedAt) / 1000);
+    s.step = step; render();
+  }
+  document.addEventListener("click", e => {
+    const t = e.target.closest("button"); if (!t) { if (e.target === $("sheetBg")) closeSheet(); return; }
+    if (t.dataset.go && !t.disabled) { if (t.dataset.skipPin) s.pin = ""; go(t.dataset.go); }
+    if (t.dataset.key !== undefined) { const k = t.dataset.key; s.pin = k === "⌫" ? s.pin.slice(0, -1) : (s.pin + k).slice(0, 8); render(); }
+    if (t.dataset.pattern) { readInputs(); s.pattern = t.dataset.pattern; render(); }
+    if (t.dataset.period) { readInputs(); s.period = Number(t.dataset.period); render(); }
+    if (t.dataset.sheet) { readInputs(); openSheet(t.dataset.sheet); }
+    if (t.dataset.close) closeSheet();
+    if (t.dataset.fill) { $(t.dataset.fill).value = t.dataset.val; }
+    if (t.dataset.source) { const n = t.dataset.source; s.sources = s.sources.includes(n) ? s.sources.filter(x => x !== n) : [...s.sources, n]; t.classList.toggle("on"); }
+    if (t.dataset.hideChecklist) { s.checklistHidden = true; render(); }
+    if (t.dataset.showChecklist) { s.checklistHidden = false; render(); }
+    if (t.dataset.save) {
+      const k = t.dataset.save;
+      if (k === "account" && $("aName").value.trim()) s.extra.push({ name:$("aName").value.trim(), spending:$("aType").value === "bank", amount:$("aAmt").value });
+      if (k === "bill" && $("bName").value.trim() && num($("bAmt").value)) s.bills.push({ name:$("bName").value.trim(), amount:$("bAmt").value, day:$("bDay").value });
+      if (k === "loan" && $("lName").value.trim()) s.loans.push({ name:$("lName").value.trim(), owed:$("lOwed").value, monthly:$("lMonthly").value });
+      if (k === "goal" && $("gName").value.trim()) { const free = figures().free; s.goals.push({ name:$("gName").value.trim(), target:$("gTarget").value, setAside: Math.min(num($("gSet").value), Math.max(0, free)) }); }
+      if (k === "buffer") s.buffer = $("buf").value;
+      if (k === "backup") s.backup = true;
+      closeSheet(); render();
+    }
+  });
+  // Re-check the "Show me what's free" button as the payday is typed.
+  document.addEventListener("input", e => {
+    if (e.target.id === "payday") { const btn = document.querySelector('[data-go="result"]'); const ok = num(e.target.value) >= 1 && num(e.target.value) <= 31; btn.disabled = !ok; btn.style.opacity = ok ? "" : ".5"; }
+  });
+  $("restartBtn").onclick = () => { reset(); $("timer").textContent = "0:00"; render(); };
+  reset(); render();
+})();
+</script>
+</body>
+</html>
