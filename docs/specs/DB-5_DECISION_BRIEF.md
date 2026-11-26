@@ -21,18 +21,61 @@
 | 5.13 | Approved | — |
 | 5.14 | Approved **for user testing** | Not permanently final wording; revisit after testing. |
 
-### How 5.11's condition will be met (design; no new stored field)
+### How 5.11's condition will be met (reducing needs no new field; restoring on reversal: D14 proposal)
 - **Today (defect D14):** planned spending is one amount the user maintains. Recording the real expense doesn't reduce it, so it can be deducted twice. That errs on the cautious side, but is inaccurate.
 - **When recording an expense while planned spending is above zero,** the form asks: "Was this part of your planned spending (KSh 2,000 left)?"
   - **Yes** (the default when the expense comes from Before You Spend's saved plan) reduces planned spending by the expense amount, never below zero.
   - **No** leaves it.
-- **Reversing that expense** asks: "Add KSh 2,000 back to planned spending?" A user choice: storing a link between the expense and the plan would need a new field.
+- **Reversing or deleting that expense:** see the D14 proposal below (for owner decision).
 - **At the start of a new planning period,** leftover planned spending is shown for the user to keep or clear. It is never silently carried over.
-- **Required tests:**
-  - planned 2,000 + an expense of 2,000 marked "planned" → Left to spend falls by 2,000 once, not 4,000;
-  - a partial expense (1,500 of 2,000) → 500 stays planned;
-  - an expense marked "not planned" → both stay;
-  - a reversal offers to add the amount back, and does so only if the user agrees.
+
+### D14 proposal: restore planned spending when a planned expense is reversed (for owner decision, 26 Nov)
+**Goal (owner):**
+- planned spending is **reduced** when an expense is confirmed as part of the plan;
+- it is **restored appropriately** if that expense is reversed or deleted;
+- **no unnecessary stored data**.
+
+**Why something must be stored:**
+- Planned spending is one amount. After the fact, nothing in the records says which expenses used it, or how much.
+- Asking the user at reversal time ("add it back?") stores nothing, but relies on memory and can be answered wrongly.
+- **The minimum that makes it automatic and exact is one optional number on the expense:** `plannedUsed`, how much of the plan this expense used.
+  - No new list, no ids, no links.
+  - Expenses not marked as planned carry nothing.
+
+**Proposed behaviour**
+
+| Event | What happens to planned spending | Stored |
+|---|---|---|
+| **Record an expense, confirmed "part of my plan"** | Reduced by `min(expense amount, planned left)` | `plannedUsed` = that amount, on the expense |
+| **Reverse it, or delete it** (same planning period) | **Restored** by `plannedUsed`. Toast: "Planned spending back to KSh 2,000. [Undo]" | — (the expense is reversed or removed) |
+| **Reverse or delete it in a later planning period** | **Not restored**, because the old plan has ended. Message: "This was part of an earlier plan, so your current planned spending isn't changed." | — |
+| **Edit the amount down** (e.g. 2,000 → 1,500, `plannedUsed` 2,000) | Restored by the difference (500); `plannedUsed` becomes 1,500 | updated |
+| **Edit the amount up** | No automatic extra reduction. "Use more of your plan?" asks | updated only if yes |
+| **Edit to "not part of my plan"** | Restored by `plannedUsed`; the field is removed | removed |
+| **The user changed planned spending by hand in between** | Restoring adds `plannedUsed` to whatever it is now, with **Undo**. The app never guesses what the user meant. | — |
+| **Reversal pairs** (DEC-016) | Restored **once**, when the original becomes reversed. Never again for the same entry. | — |
+
+**"Same planning period"** is worked out, not stored: it means the expense's date falls inside the current planning period (DEC-015 as amended by DEC-027).
+
+**Tests:**
+1. planned 2,000, an expense of 2,000 confirmed → Left to spend falls once (not twice) → reversed → planned back to 2,000;
+2. a partial expense (1,500 of 2,000) → 500 left → deleted → 2,000;
+3. a reversal in the next period → planned unchanged, with the message;
+4. edit down / up / unmark;
+5. double reversal → restored once only;
+6. Undo after a restore;
+7. an expense not marked as planned → nothing stored, nothing restored.
+
+**Data and compatibility**
+- **This is a fifth optional field**, so it **amends DB-5.12** (approved with 4 fields). It needs your approval.
+- It goes into schema 11 with the others. No extra migration: old entries simply don't have it.
+- Release 1 keeps unknown fields on entries (`index.html:778`), so the field survives.
+- **Mixed-version limit:** if Release 1 (an old tab or a rollback) reverses such an expense, it won't restore planned spending, because it doesn't know the field. Planned spending then stays too low and Left to spend **too high** by that amount, until the user corrects it. This is the less cautious direction, so it is covered by the same safeguards as R4 (D13 first; never roll back to Release 1 after schema 11) and noted with R4.
+
+**Alternative (no stored data):** at reversal, ask "Add KSh 2,000 back to planned spending?". The user must remember what the expense was for.
+
+**Recommendation:** the `plannedUsed` field. It is the smallest addition that meets your "restored appropriately" requirement automatically and exactly.
+
 - **If itemised planned spending** (several named items) is wanted later, that would need a stored list and its own approval.
 
 

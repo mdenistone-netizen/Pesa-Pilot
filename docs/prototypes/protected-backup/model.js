@@ -123,7 +123,22 @@ async function repairFromFile(fileText, secret, passwordNow) {
   return phone;
 }
 
-module.exports = { setUp, backup, open, changePassword, restoreOntoPhone, repairFromFile, verifyProtection, newRecoveryCode, normaliseCode };
+/** Repair on a device (owner condition, DEC-028): ONLY the protection items are replaced, ONLY after the user confirms.
+ *  The financial records on the phone are never read from or replaced by the backup file used for repair. */
+async function repairDevice(device, fileText, secret, passwordNow, userConfirmed) {
+  if (!userConfirmed) return device;                                           // nothing changes without confirmation
+  const protection = await repairFromFile(fileText, secret, passwordNow);
+  return { ...device, protection };                                            // records untouched
+}
+/** Monthly check (owner condition, DEC-028): optional and skippable; never forces a password change, never blocks
+ *  backups or the app. A failed check only reports, and offers the recovery code or a new password via the code. */
+async function monthlyCheck(phone, typed) {
+  if (typed === null) return { result: "skipped", backupsStillWork: true };    // "Not now"
+  try { await verifyProtection(phone, typed); return { result: "ok" }; }
+  catch { return { result: "not-confirmed", offer: ["Try again", "Use recovery code", "Set a new password with the recovery code", "Start new protection"], backupsStillWork: true }; }
+}
+
+module.exports = { setUp, backup, open, changePassword, restoreOntoPhone, repairFromFile, repairDevice, monthlyCheck, verifyProtection, newRecoveryCode, normaliseCode };
 
 if (require.main === module) {
   const assert = require("assert");
@@ -250,6 +265,25 @@ if (require.main === module) {
     err = null; try { await verifyProtection(swapped, { password: C }); } catch (e) { err = e.message; }
     assert.ok(err);                                                      // …but the user's next password check FAILS → swap detected
     L(`D-e deliberate swap: integrity check passes (it can't catch this), but the next password check fails (${err}) → detected; backups made in between are locked to the attacker's key`);
+
+    // ===== Owner conditions (DEC-028) =====
+    // C1 repair never replaces newer records, and changes nothing without confirmation
+    const newer = { schemaVersion: 10, transactions: [{ id: 1, amount: 100 }, { id: 2, amount: 250 }, { id: 3, amount: 900 }] };  // newer than any backup
+    let device = { records: newer, protection: { ...ph, publicKey: flip(ph.publicKey) } };                                     // damaged protection
+    const notConfirmed = await repairDevice(device, b2, { code: CODE }, C, false);
+    assert.strictEqual(notConfirmed, device);                                                    // nothing changed
+    device = await repairDevice(device, b2, { code: CODE }, C, true);                           // b2 holds OLDER records (backup 2)…
+    assert.deepEqual(device.records, newer);                                                     // …but the phone's newer records are untouched
+    assert.deepEqual((await open(await backup(device.protection, device.records), { password: C })).records, newer); // the next backup holds the newer records
+    L("C1 repair: nothing changes until confirmed; only protection items replaced; the newer records stay exactly as they were");
+    // C2 the monthly check never forces a password change and never blocks backups
+    const skip = await monthlyCheck(device.protection, null);
+    const wrong = await monthlyCheck(device.protection, { password: "not remembered" });
+    const ok = await monthlyCheck(device.protection, { password: C });
+    assert.equal(skip.result, "skipped"); assert.equal(wrong.result, "not-confirmed"); assert.equal(ok.result, "ok");
+    assert.ok(await backup(device.protection, rec(11)));                                         // backups still work after a failed check
+    assert.equal((await verifyProtection(device.protection, { password: C })), true);            // the password is unchanged
+    L("C2 monthly check: skippable; a failed check only offers help; backups keep working; no password change is forced");
     console.log("Example recovery code:", code);
     console.log("All DB-4 key-architecture checks pass (Q1–Q7 + 'the phone alone cannot open any backup').");
   })().catch(e => { console.error(e); process.exit(1); });

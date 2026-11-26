@@ -1,6 +1,24 @@
 # DB-4 Decision Brief: protected (encrypted) backup files
 
-**Status:** **Proposed, for owner decision.** Planning only. Nothing is implemented. Local-first stays the default (DEC-023).
+**Status:** **Design approved by the owner: DEC-028 (26 Nov), with the conditions below. Not implemented.** Implementation needs separate authorisation after Release 1 and D13. Local-first stays the default (DEC-023).
+
+## Owner decisions (DEC-028)
+
+| # | Decision | Condition to honour in the build |
+|---|---|---|
+| 4.1 | Approved | After Release 1 and D13 |
+| 4.2 | Approved **conditionally** | Subject to **real low-end Android performance testing**, an **implementation review** and **successful recovery testing** |
+| 4.3 | Approved | Password and recovery code must **each independently** restore a protected backup, **including on a replacement phone**. The consequences of losing both are explained clearly before protection is chosen (§5). |
+| 4.4 | Approved | Protected offered first; plain kept, with a clear warning |
+| 4.5 | Approved with clarification | Exactly what stays on the phone, what goes in backups, and what happens if local items are damaged or lost: **§3c** |
+| 4.6 | Approved | Five randomly generated words; a user-created password only if it passes a **robust** strength check; **recovery codes with sufficient randomness** (§3c: 80 bits) |
+| 4.7 | Approved with conditions | The monthly verification **never forces a password change and never locks the user out** (§3c) |
+| 4.8 | Approved | Share sheet + download fallback, **subject to real device testing** |
+| 4.9 | Approved | Existing Forgot-PIN process kept, with prominent **NOT protected** warnings and deletion reminders (§5a) |
+| 4.10 | Approved | No automatic Drive backup and no PesaPilot cloud for now |
+| 4.11 | Approved with conditions | Integrity checks, verification and repair **never silently overwrite newer financial records**. Repair is understandable and **needs the user's confirmation** before replacing anything (§3c). |
+
+
 
 **Builds on:**
 - `BACKUP_ASSESSMENT.md` (P5), which compared 4 options;
@@ -235,6 +253,99 @@ This catches deliberate swaps (D-e) within a month at most. Accidental damage (D
 **What changed in revision 3** (found by these lifecycle tests):
 1. Repair re-locks with the **current** password. The first version would have brought back an old password.
 2. The two locks are no longer part of the content's shared authentication, so one damaged lock no longer makes the whole file unopenable. Each lock keeps its own tamper check, and swapped locks are still refused [D-d].
+
+## 3c. Clarifications requested with DEC-028 (26 Nov)
+
+### 1. Exact contents: on the phone and in each backup file
+These are the field names from the reference model (`../prototypes/protected-backup/model.js`). Sizes are for the chosen algorithms.
+
+**On the phone:** one record in **IndexedDB**, separate from the records (localStorage). It is **never** included in any backup, export or download.
+
+| Field | What it is | Size | Secret? |
+|---|---|---|---|
+| `keyId` | Random id linking the phone, its files and the paper code | 8 bytes | No |
+| `publicKey` | Backup **public** key (ECDH P-256, uncompressed point) | 65 bytes | No. Can only *lock* new backups. |
+| `passwordLock.salt` / `.iv` / `.wrapped` | Private key (PKCS#8) encrypted with AES-GCM under the key derived from the **password** (PBKDF2-SHA-256, 600,000 rounds, this salt) | 16 / 12 / ~150 bytes | Only useful with the password |
+| `codeLock.salt` / `.iv` / `.wrapped` | The same private key, encrypted under the key derived from the **recovery code** | 16 / 12 / ~150 bytes | Only useful with the code |
+| `check` | SHA-256 over the four items above, to detect accidental damage | 32 bytes | No |
+
+**Never stored anywhere:** the password, the recovery code, the keys derived from them, the unlocked private key, and any file key.
+
+**In each protected backup file:** one JSON file, e.g. `PesaPilot-backup-2026-11-25.json`.
+
+| Field | What it is | Readable without a secret? | Authenticated with the records? |
+|---|---|---|---|
+| `app`, `backupVersion` (5), `encrypted`, `scheme`, `kdf` | Labels: which app, which format, which algorithms and rounds | Yes (no personal data) | Yes |
+| `keyId`, `publicKey` | As on the phone | Yes (not secret) | Yes |
+| `oneTimePublicKey` | Public half of this backup's one-time key; its private half was discarded straight after locking | Yes (not secret) | Yes |
+| `salt`, `iv` | For this file's key (HKDF) and encryption (AES-GCM) | Yes (not secret) | Yes |
+| `passwordLock`, `codeLock` | Copies of the phone's two locks | Locked | **No.** Each lock carries its own tamper check, so one damaged lock leaves the other usable (§3b, D-d). |
+| `payload` | **All the financial records**, encrypted with AES-GCM-256 | **No** | — (it is what's protected) |
+
+Not in the file: the PIN or its hash (DEC-019), device ids, the integrity `check`, the password, the code.
+
+**If phone items are damaged or lost** (summary of §3b):
+- **damaged:** the `check` fails;
+- **missing:** the record is absent.
+
+Either way, **one-tap backup is refused**, so a file nobody could open is never written. The user then:
+- **repairs** from any earlier backup file, with the password or code; or
+- **starts new protection** (new key pair and code; old backups still open with the old secrets).
+
+**Records on the phone are never affected** by either.
+
+### 2. Recovery code randomness and resistance to offline guessing
+- **Randomness:** 16 bytes from the phone's cryptographically secure generator (`crypto.getRandomValues`).
+  - Each byte is mapped to one of 32 symbols (Crockford base32: no I, L, O, U). 256 is an exact multiple of 32, so every symbol is **equally likely**.
+  - That gives 16 × 5 = **80 bits**, about 1.2 × 10²⁴ possible codes.
+  - The model checks the format. The build adds a statistical test of symbol frequencies.
+- **Offline guessing** (someone with a copy of a file or of the phone's locks):
+  - each guess must go through PBKDF2-SHA-256 at 600,000 rounds, so roughly 15,000–20,000 guesses per second on a high-end graphics card [E];
+  - trying all codes would take **about 2 × 10¹² years per card**: far beyond any attacker.
+  - The 5-word password (≈ 2⁵⁵) is the weaker of the two secrets, ~600 years on 100 cards [E], and still strong.
+- **Inside the app:** each attempt takes about 1–2 seconds by design.
+  - There is **no lockout**: a lockout would risk shutting people out of their own backups, and the guessing cost already protects them.
+
+### 3. Repair never silently replaces newer data (DEC-028 condition)
+- **Repair only replaces the protection items** in IndexedDB. The backup file is opened **only to prove** the password or code and to unlock the private key. **Its records are not read into the phone.** The phone's records (localStorage) are not touched [model C1: a backup older than the phone's records was used for repair, and the newer records stayed exactly as they were].
+- **Nothing changes until the user confirms:**
+  > **Repair backup protection?** This fixes the lock used for new backups. **Your records on this phone stay exactly as they are**: nothing is replaced. You'll need your backup password or recovery code, and any earlier backup file. [Repair] · [Cancel]
+
+  Cancelling changes nothing [model C1].
+- **Bringing records back from a backup is a different action** (Import). It always:
+  - shows the backup's date and contents;
+  - makes a safety copy first;
+  - asks for confirmation (as today).
+
+  Repair can never trigger it.
+
+### 4. The monthly check never forces a password change or locks anyone out (DEC-028 condition)
+- **It is optional:**
+  > **Do you still remember your backup password?** [Check now] · [Not now]
+
+  "Not now" just closes it.
+- **Correct password:** "Your backups can be opened." Nothing else happens.
+- **Not confirmed:** it offers:
+  - Try again;
+  - Use recovery code;
+  - Set a new password **with** the recovery code;
+  - Start new protection.
+
+  **It never forces any of them.**
+- **Backups keep working whatever the result.** One-tap backup never needs the password [model C2]. If the password isn't confirmed, backups show a gentle note: "You may not be able to open new backups with your password. Your recovery code still works."
+- **Never** a lockout, a countdown or a forced change.
+
+### 5. Release requirements (kept from DEC-028)
+Before any DB-4 release is offered for approval, all of these are required:
+1. **Real low-end Android performance:** unlock time with 600,000 rounds measured on at least one low-end and one mid-range phone. Rounds adjusted only with owner approval if too slow.
+2. **Restoration tests on real phones:**
+   - password restore and code-only restore, onto a phone that has never had PesaPilot;
+   - several backups from before and after a password change;
+   - a repair;
+   - a damaged-file refusal.
+3. **Share sheet** tested with WhatsApp, Google Drive and Gmail, plus the download fallback.
+4. **Implementation review** of the cryptography against this design (4.2 condition).
+5. The full regression, migration, engine fingerprint and UI audit suites.
 
 ## 4. Passwords
 

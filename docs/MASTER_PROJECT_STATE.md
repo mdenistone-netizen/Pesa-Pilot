@@ -100,7 +100,7 @@ Full detail: `FINANCIAL_RULES.md`.
 | D3 | No "money owed to me" (receivables) | Phase 3 |
 | D9 | No PWA manifest / service worker (install & offline don't work) | Phase 4 |
 | D13 | Opening data saved by a *newer* version keeps it intact but re-labels it as schema 10 when saving, so a future version could re-run its upgrade. Found in P6. No effect on Release 1. | Fix before PWA/any later release (DB-6 §3.4) |
-| D14 | **Planned spending can be deducted twice** (found 26 Nov during the DB-5 review). Planned spending is one amount the user maintains. Recording the actual expense doesn't reduce it, so if the user forgets to lower it, the money is deducted twice. **Cautious direction** (Left to spend too low, never too high), but inaccurate. Present in the live app and Release 1. | Open, minor, **not blocking** Release 1. Fixed by DB-5.11's no-double-counting design (DEC-027), built with DB-5. |
+| D14 | **Planned spending can be deducted twice** (found 26 Nov during the DB-5 review). Planned spending is one amount the user maintains. Recording the actual expense doesn't reduce it, so if the user forgets to lower it, the money is deducted twice. **Cautious direction** (Left to spend too low, never too high), but inaccurate. Present in the live app and Release 1. | Open, minor, **not blocking** Release 1. Fixed by DB-5.11's no-double-counting design (DEC-027), built with DB-5. **Reversal behaviour proposed 26 Nov** (one optional `plannedUsed` number on planned expenses): waiting for the owner's decision. |
 | D10 | Dates use the phone's clock and zone | Assessed: upgrade identical across timezones; not blocking (checklist §4) |
 | — | Fixed so far | D1, D2, D4, D5, D6, D7, D8, D11, D12 |
 
@@ -124,6 +124,7 @@ Full detail: `FINANCIAL_RULES.md`.
 - DEC-022: savings behaviour: available = balance − set aside; linked use-from-goal; corrections never create income or spending. **Owner-specified.**
 - DEC-021: UI/UX redesign: modern, calm, clean and welcoming; presentation only. **Owner-requested.**
 - DEC-020: data protection & recovery strategy (`DATA_RECOVERY.md`), with an in-app backup reminder. **Owner-required.**
+- DEC-028: **DB-4 protected backups: design approved** with conditions (real-Android performance, recovery and share-sheet testing; crypto implementation review; password and code each restore independently; a monthly check that never forces or locks; repair needs confirmation and never touches records). Extends DEC-020. Not implementation. **Owner-approved.**
 - DEC-027: **DB-5 rules and design approved** with conditions (payday note, unexplained shortfalls kept distinct, Fuliza disclosure, no planned/actual double counting, schema 11 only after D13 with full tests, 5.14 wording for testing). **Amends DEC-015** (missed payday; one-cycle late pay). Not implementation. **Owner-approved.**
 - DEC-026: onboarding prototype B preferred for Stage A (subject to a real-user test; not implemented); first-run test design approved (running it isn't); **PIN stays required at first run**; the daily figure is a planning guide, not an allowance. **Owner-decided.**
 
@@ -139,7 +140,7 @@ Full detail: `FINANCIAL_RULES.md`.
 | 4 | ~~DB-1 M-Pesa capture~~ | **Closed: declined by owner (DEC-024)** |
 | 5 | **DB-6** PWA install/offline and update strategy (D9) | **Brief ready:** `specs/DB-6_DECISION_BRIEF.md`, 9 choices. **Not approved** |
 | 6 | **DB-3** Fuliza, chama and family-support rules | Brief exists (strategy §8) |
-| 7 | **DB-4** Protected (encrypted) backup files | **Brief ready:** `specs/DB-4_DECISION_BRIEF.md`, 10 choices. **Not approved** |
+| 7 | ~~**DB-4**~~ | **Decided: DEC-028** (design approved with conditions; not implementation). Previously: **Brief ready:** `specs/DB-4_DECISION_BRIEF.md`, 10 choices. **Not approved** |
 | 8 | **DB-2** Paid tier and measurement | Waits for customer evidence (P4) |
 | 9 | ~~Onboarding design (P1)~~ | **Decided (DEC-026):** B preferred subject to a real-user test; PIN required. Stage A build needs its own approval |
 | 10 | **D13 schema guard**: scope and Option B approved in principle (DEC-025). **Implementation needs a separate go-ahead** after Release 1 | Open defect |
@@ -166,7 +167,7 @@ Full detail: `FINANCIAL_RULES.md`.
 - **DB-5.5:** recorded-day definition, confidence levels, reconcile spreading, and Count it / Undo for one-offs (4th optional field).
 - **Schema 11:** end-to-end test passes with the real Release 1 build. Release 1 *displays* a cancelled payment while it runs, but never counts it.
 
-**Systematic review:** DB-5 **decided (DEC-027, 26 Nov)**. **Next: DB-4 (11 choices)**, then DB-6 (9).
+**Systematic review:** DB-5 **decided (DEC-027)** · DB-4 **decided (DEC-028)** · **Next: DB-6 (9 choices).** Also waiting: the **D14 reversal proposal** (DB-5 brief; a 5th optional field, amending DB-5.12).
 
 **Round 4 (26 Nov), the owner's final clarifications, done. Still not approval:**
 - **DB-4 full lifecycle** model-checked (L1–L6, D-a to D-e). Two flaws found and fixed: repair re-locks with the current password; one damaged lock no longer breaks a file.
@@ -234,7 +235,7 @@ Status words: **Proposed → Designed → Approved → Implemented → Verified 
 | P4 interview pack | **Designed and refined (10 files incl. a research data notice, budget and first-run onboarding test), waiting for owner approval.** No recruiting, pilot or data collection until approved. | Owner: approve the pack, the data notice and the budget; Kiswahili parity check |
 | P1 onboarding | **Two prototypes ready for review, neither part of the app** (memory only, verified): A `prototypes/onboarding/` (original design) and **B `prototypes/onboarding-simple/`** (one total; next money incl. "not sure"; urgent payments before the answer; Home next steps; EN + draft Kiswahili). Compared in `specs/ONBOARDING_COMPARISON.md`: B needs 5 taps vs 9 and 100 words vs 174, uses no finance jargon, and its first answer already protects urgent payments. **Recommended: B, subject to a real first-run test** (`interview-pack/09_FIRST_RUN_TEST.md`, pending pack approval). No financial rules changed. | Owner tries both on Android; approves the first-run test; decides the PIN policy; chooses A or B for Stage A |
 | P3 / DB-5 Will I make it? + Before You Spend | **Approved (rules + design): DEC-027, 26 Nov**, with conditions. Brief: `specs/DB-5_DECISION_BRIEF.md`; evidence: `prototypes/will-i-make-it/model.js`, `prototypes/schema11/`. **Not implemented.** | Separate implementation go-ahead after Release 1 and D13 are completed and verified (Stage B). Before release: the schema 11 cancellation test re-run on the real code. |
-| P5 / DB-4 encrypted user-controlled backup | **Proposed: decision brief ready** (`specs/DB-4_DECISION_BRIEF.md`): password + recovery code, AES-GCM-256 / PBKDF2 600k, share sheet, plain backups kept, a what-if-lost table, restore steps. **Tested:** the live app and Release 1 both refuse an encrypted-style file safely (no data change); tampering is detected; key derivation timing measured | Owner review with DB-5 and DB-6 |
+| P5 / DB-4 encrypted user-controlled backup | **Design approved: DEC-028, 26 Nov**, with conditions. Brief: `specs/DB-4_DECISION_BRIEF.md` (design B; §3c clarifications); evidence: `prototypes/protected-backup/`. **Not implemented.** | Separate authorisation after Release 1 and D13. Release requirements: real-Android performance and restoration tests, share-sheet device tests, crypto implementation review. |
 | P6 / DB-6 installable and offline | **Proposed: decision brief ready** (`specs/DB-6_DECISION_BRIEF.md`): network first with a 3 s limit, per-version caches, reload banner, self-removing kill switch, app files only. **Tested** with a throw-away proof (scratchpad only): offline open, update, kill switch, data untouched. It caught a stale-copy bug, and the fix is in the design | Owner review with DB-5 and DB-4 |
 | D13 schema guard | **Open defect.** Fix scope + Option B **approved in principle (DEC-025)**; not implemented. `specs/D13_FIX_PROPOSAL.md`. Scope: read-only if data is newer, never lower the label; about 10–15 lines; no rule changes | Go-ahead to implement as a small release right after Release 1 |
 

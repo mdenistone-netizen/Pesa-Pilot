@@ -29,8 +29,9 @@ Approving one approves none of the others. Production is untouched until you exp
 ## Owner decisions so far
 - **DB-5: decided 26 Nov (DEC-027).** All 14 choices approved: rules and design only, several with conditions (see each entry). **Not implemented.** DB-5 implementation needs a separate go-ahead after Release 1 and D13 are completed and verified.
   - DEC-015 is amended by 5.7 and 5.8 (recorded in `DECISIONS.md` and `FINANCIAL_RULES.md` §6 as approved, not yet implemented).
-- **DB-4: under review next.** 11 choices.
-- **DB-6: after DB-4.** 9 choices.
+- **DB-4: decided 26 Nov (DEC-028).** All 11 choices approved: design only, several with conditions (see each entry). **Not implemented.** Clarifications requested with the decision are answered in DB-4 brief §3c (exact contents, code randomness, repair without overwriting records, a non-forcing monthly check, release requirements). Implementation needs separate authorisation after Release 1 and D13.
+- **D14 reversal proposal:** DB-5 brief, "D14 proposal". Waiting for your decision; it would amend DB-5.12 with a 5th optional field.
+- **DB-6: under review next.** 9 choices.
 
 ## Changes after your review (26 Nov, round 4)
 These are clarifications only. **Nothing is approved for implementation.**
@@ -86,17 +87,17 @@ Your review position is recorded in `MASTER_PROJECT_STATE.md`. **Nothing is appr
 | DB-5.12 | Four optional stored fields | **Approved conditionally: after D13, with migration, rollback, backup-compatibility and cancellation-recovery tests** (DEC-027) | **Data structure + migration (schema 11)** |
 | DB-5.13 | Timing scenarios | **Approved** (DEC-027) | New rule |
 | DB-5.14 | Short vs Already short wording | **Approved for user testing, not as final wording** (DEC-027) | No |
-| DB-4.1 | Add protected backups | Yes, after Release 1 and D13 | **Extends DEC-020** |
-| DB-4.2 | Encryption method | ECDH P-256 key pair + one-time keys → HKDF → AES-GCM-256; PBKDF2 600k locks | No |
-| DB-4.3 | Recovery | Password + recovery code | No |
-| DB-4.4 | Default | Offer protection; plain stays available | No |
-| DB-4.5 | One-tap backups (public key + locks on phone; phone can't open backups) | Yes | **New on-phone items** (DEC-019 style: never exported) |
-| DB-4.6 | Backup password | Generated 5 random words; user-made only if rated as strong | No |
-| DB-4.7 | Monthly password check | Yes, with the backup reminder | Extends DEC-020 reminder |
-| DB-4.8 | How the file is saved | Share sheet; download as fallback | No |
-| DB-4.9 | Forgot-PIN path | Process unchanged; plain copy labelled "NOT protected" + delete reminder | No (wording only) |
-| DB-4.10 | Drive auto-backup / PesaPilot cloud | Not now | No (keeps DEC-005, DEC-023) |
-| DB-4.11 | Integrity, verification and repair | Check before every backup; verify at key moments and monthly; repair from any earlier file | No |
+| DB-4.1 | Add protected backups | **Approved: protected backups after Release 1 and D13** (DEC-028) | **Extends DEC-020** |
+| DB-4.2 | Encryption method | **Approved conditionally: subject to real low-end Android performance testing, implementation review and successful recovery testing** (DEC-028) | No |
+| DB-4.3 | Recovery | **Approved: password and recovery code each independently restore a protected backup, including on a replacement phone; the consequences of losing both are explained clearly** (DEC-028) | No |
+| DB-4.4 | Default | **Approved: protected offered first; plain kept with a clear warning** (DEC-028) | No |
+| DB-4.5 | One-tap backups (public key + locks on phone; phone can't open backups) | **Approved with clarification (exact contents and damage handling: DB-4 brief §3c)** (DEC-028) | **New on-phone items** (DEC-019 style: never exported) |
+| DB-4.6 | Backup password | **Approved: five randomly generated words; user-created only if it passes a robust strength check; recovery codes with sufficient randomness** (DEC-028) | No |
+| DB-4.7 | Monthly password check | **Approved with conditions: never forces a password change, never locks the user out** (DEC-028) | Extends DEC-020 reminder |
+| DB-4.8 | How the file is saved | **Approved, subject to real device testing** (DEC-028) | No |
+| DB-4.9 | Forgot-PIN path | **Approved: existing Forgot-PIN process, with prominent NOT protected warnings and deletion reminders** (DEC-028) | No (wording only) |
+| DB-4.10 | Drive auto-backup / PesaPilot cloud | **Approved: no automatic Drive backup or PesaPilot cloud for now** (DEC-028) | No (keeps DEC-005, DEC-023) |
+| DB-4.11 | Integrity, verification and repair | **Approved with conditions: never silently overwrite newer financial records; repair understandable and needs user confirmation** (DEC-028) | No |
 | DB-6.1 | Build a full PWA | Yes, Stage C, after Release 1 and D13 | Fixes D9; **extends release process (DEC-017)** |
 | DB-6.2 | Page update method | Network first, 3-second limit | No |
 | DB-6.3 | Switching versions | Reload banner; never mid-form; all tabs | No |
@@ -482,6 +483,8 @@ Details and the backup-version scope: DB-5 brief §7.
 
 ### DB-4.1 · Add protected backups
 
+> **Owner decision (DEC-028, 26 Nov): Approved: protected backups after Release 1 and D13.**
+
 **Decision:** Add password-protected backup files as a future build stage, **after Release 1 and the D13 release**.
 
 **Recommendation:** Yes.
@@ -504,6 +507,8 @@ DEC-019 is unchanged: no PIN or hash in any file. The wording stays accurate: "y
 
 ### DB-4.2 · Encryption method
 
+> **Owner decision (DEC-028, 26 Nov): Approved conditionally: subject to real low-end Android performance testing, implementation review and successful recovery testing.**
+
 **Decision** (updated 26 Nov to match design B, DB-4 brief §3a/§3b):
 - a **backup key pair** (ECDH P-256): the public half on the phone, the private half only inside the two locks;
 - **for each backup:** a one-time key pair → ECDH with the backup public key → HKDF-SHA-256 → an **AES-GCM-256** file key with a random IV;
@@ -525,6 +530,8 @@ DEC-019 is unchanged: no PIN or hash in any file. The wording stays accurate: "y
 ---
 
 ### DB-4.3 · Recovery approach
+
+> **Owner decision (DEC-028, 26 Nov): Approved: password and recovery code each independently restore a protected backup, including on a replacement phone; the consequences of losing both are explained clearly.**
 
 **Decision:** What opens a protected backup.
 
@@ -549,6 +556,8 @@ DEC-019 is unchanged: no PIN or hash in any file. The wording stays accurate: "y
 
 ### DB-4.4 · Default choice
 
+> **Owner decision (DEC-028, 26 Nov): Approved: protected offered first; plain kept with a clear warning.**
+
 **Decision:** What happens the first time a user taps Back up.
 
 **Recommendation:** Offer protection first ("recommended"). "Save without protection" stays available, with a clear warning.
@@ -568,6 +577,8 @@ DEC-019 is unchanged: no PIN or hash in any file. The wording stays accurate: "y
 ---
 
 ### DB-4.5 · One-tap backups
+
+> **Owner decision (DEC-028, 26 Nov): Approved with clarification (exact contents and damage handling: DB-4 brief §3c).**
 
 **Decision (revision 2, 26 Nov):**
 - The phone keeps the backup **public key** and the two password/code **locks** in IndexedDB.
@@ -603,6 +614,8 @@ Full architecture: DB-4 brief §3a.
 
 ### DB-4.6 · Backup password (revised 26 Nov)
 
+> **Owner decision (DEC-028, 26 Nov): Approved: five randomly generated words; user-created only if it passes a robust strength check; recovery codes with sufficient randomness.**
+
 **Decision:** Whether PesaPilot generates the backup password or the user creates it, and what strength is required.
 
 **Recommendation:**
@@ -629,6 +642,8 @@ Full architecture: DB-4 brief §3a.
 
 ### DB-4.7 · Monthly password check
 
+> **Owner decision (DEC-028, 26 Nov): Approved with conditions: never forces a password change, never locks the user out.**
+
 **Decision:** With the monthly backup reminder, ask "Do you still remember your backup password?" and check it on the phone.
 
 **Recommendation:** Yes.
@@ -647,6 +662,8 @@ Full architecture: DB-4 brief §3a.
 
 ### DB-4.8 · How the file is saved
 
+> **Owner decision (DEC-028, 26 Nov): Approved, subject to real device testing.**
+
 **Decision:** Use the phone's share sheet (Drive, Gmail, WhatsApp, Files…), with a normal download as the fallback.
 
 **Recommendation:** Approve. Test the file type with WhatsApp and Drive on common Kenyan Android phones first.
@@ -664,6 +681,8 @@ Full architecture: DB-4 brief §3a.
 ---
 
 ### DB-4.9 · Forgot-PIN path
+
+> **Owner decision (DEC-028, 26 Nov): Approved: existing Forgot-PIN process, with prominent NOT protected warnings and deletion reminders.**
 
 **Decision:** Keep today's "Forgot your PIN?" path unchanged: it saves a copy, resets the phone and re-imports.
 
@@ -685,6 +704,8 @@ Full architecture: DB-4 brief §3a.
 ---
 
 ### DB-4.10 · Automatic Drive backup and PesaPilot cloud
+
+> **Owner decision (DEC-028, 26 Nov): Approved: no automatic Drive backup or PesaPilot cloud for now.**
 
 **Decision:** Whether to pursue:
 - (Option 2) automatic backups to the user's own Google Drive; or
@@ -710,6 +731,8 @@ Full architecture: DB-4 brief §3a.
 ---
 
 ### DB-4.11 · Integrity, verification and repair (new, 26 Nov)
+
+> **Owner decision (DEC-028, 26 Nov): Approved with conditions: never silently overwrite newer financial records; repair understandable and needs user confirmation.**
 
 **Decision:** How PesaPilot detects lost, damaged or swapped backup-protection items on the phone, and how users recover.
 

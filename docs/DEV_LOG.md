@@ -225,3 +225,16 @@ These need Node and Playwright, which are pre-installed in Claude Code cloud ses
 - **Found D14** (minor, cautious direction, not blocking): planned spending isn't reduced when the real expense is recorded, so it can be deducted twice. The 5.11 design fixes it without a new stored field.
 - DB-5 brief: owner-decision table + 5.11 design. Decision pack: decisions marked on all 14 DB-5 entries.
 - No implementation, schema change, merge or deployment. Next: DB-4 review.
+
+### 2026-11-26 · DB-4 decided (DEC-028) + D14 reversal proposal
+- The owner approved all 11 DB-4 choices (design only, with conditions). Recorded DEC-028; DEC-020 marked as extended.
+- DB-4 brief §3c answers the clarifications:
+  - exact phone and file contents (field sizes measured from the model);
+  - recovery code = 80 bits from a CSPRNG with an unbiased mapping (~2 × 10¹² years per GPU offline);
+  - repair replaces only protection items, after confirmation, never records;
+  - the monthly check is optional and never forces or locks;
+  - release requirements.
+- Model: added C1 (repair with an older file leaves newer records untouched; no change without confirmation) and C2 (a skipped or failed monthly check keeps backups working, with no forced change). Fixed a meaningless assertion I had written in C1.
+- **D14 proposal:** one optional `plannedUsed` number on planned expenses; restore on reversal or delete within the same period; edits adjust; restore once; Undo. It would be a 5th optional field (amends DB-5.12). Mixed-version limit noted with R4.
+- Roadmap: protected backups as Stage G with release requirements.
+- No implementation, schema change, merge or deployment. Next: DB-6 review.

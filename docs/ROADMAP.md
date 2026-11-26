@@ -36,7 +36,8 @@
 | ~~D~~ | ~~Paste/Share M-Pesa capture~~ **Declined (DEC-024).** Manual recording is the supported approach; quick manual entry is improved instead (see below). | — | — |
 | E | Weekly check-in | Stage B | Read-only |
 | F | Receivables, family support, Fuliza & chama rules | DB-3 approved | Financial-rule change: migration + full verification |
-| Later | Encrypted user-owned backup; paid tier | DB-4, then DB-2 **with customer evidence** | Infrastructure: separate approvals |
+| G | **Protected (encrypted) backups** (DB-4 design B) | DEC-028 ✅ (design); Release 1 and D13 done; separate implementation authorisation. **Before release:** real low-end Android performance and restoration tests, share-sheet device tests, crypto implementation review | New on-phone items (IndexedDB); new backup format v5; records unchanged |
+| Later | Paid tier | DB-2 **with customer evidence** | Separate approval |
 
 **Never (owner decision DEC-024):** SMS access, M-Pesa message capture or import, direct access to users' M-Pesa accounts.
 
