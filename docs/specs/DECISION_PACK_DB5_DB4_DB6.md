@@ -26,6 +26,12 @@ Approving one approves none of the others. Production is untouched until you exp
 
 ---
 
+## Owner decisions so far
+- **DB-5: decided 26 Nov (DEC-027).** All 14 choices approved: rules and design only, several with conditions (see each entry). **Not implemented.** DB-5 implementation needs a separate go-ahead after Release 1 and D13 are completed and verified.
+  - DEC-015 is amended by 5.7 and 5.8 (recorded in `DECISIONS.md` and `FINANCIAL_RULES.md` §6 as approved, not yet implemented).
+- **DB-4: under review next.** 11 choices.
+- **DB-6: after DB-4.** 9 choices.
+
 ## Changes after your review (26 Nov, round 4)
 These are clarifications only. **Nothing is approved for implementation.**
 
@@ -66,20 +72,20 @@ Your review position is recorded in `MASTER_PROJECT_STATE.md`. **Nothing is appr
 
 | # | Question | Recommendation | Changes an existing rule? |
 |---|---|---|---|
-| DB-5.1 | Principles and four verdicts | Approve | New rule |
-| DB-5.2 | How expected income is shown | One line per payment; remove the combined line | No rule; **removes a display line** |
-| DB-5.3 | Planning horizon for irregular income | Always the planning period | No (confirms DEC-015) |
-| DB-5.4 | A bill due on payday itself | Keep DEC-015; show a note | No (alternative changes DEC-015) |
-| DB-5.5 | Usual daily spending estimate | 28 calendar days; confidence shown; no figure from incomplete records; one-offs with Count it | New rule |
-| DB-5.6 | Cushion for "Tight" | Safety buffer if set; else max(500, 10%) | New rule |
-| DB-5.7 | Late or missing income | Late status; Received / New date / Won't come; "Waiting for your pay" | **Extends DEC-015** + new data value |
-| DB-5.8 | Salary late this month | One-cycle "my pay is late" | **Extends DEC-015** + new setting |
-| DB-5.9 | Savings in the verdict | Never automatic; suggest a smaller set-aside; offer "use from goal" | No (uses DEC-022) |
-| DB-5.10 | Fuliza and auto-repaid loans | Decide in DB-3; warning only until then | No |
-| DB-5.11 | Before You Spend actions | Record / Not now / Save as planned | No |
-| DB-5.12 | Four optional stored fields | Approve, after D13, with schema 11 | **Data structure + migration (schema 11)** |
-| DB-5.13 | Timing scenarios | No-income (30 days) + one per expected payment | New rule |
-| DB-5.14 | Short vs Already short wording | As drafted; test with users | No |
+| DB-5.1 | Principles and four verdicts | **Approved** (DEC-027) | New rule |
+| DB-5.2 | How expected income is shown | **Approved** (DEC-027) | No rule; **removes a display line** |
+| DB-5.3 | Planning horizon for irregular income | **Approved** (DEC-027) | No (confirms DEC-015) |
+| DB-5.4 | A bill due on payday itself | **Approved, provided the payday exclusion is clearly explained** (DEC-027) | No (alternative changes DEC-015) |
+| DB-5.5 | Usual daily spending estimate | **Approved, with confidence levels, transparent reconcile adjustments and Count it/Undo; unexplained shortfalls stay distinguishable from recorded spending** (DEC-027) | New rule |
+| DB-5.6 | Cushion for "Tight" | **Approved: a warning threshold only, never deducted** (DEC-027) | New rule |
+| DB-5.7 | Late or missing income | **Approved, with the DEC-015 amendment and clear treatment of late, cancelled and received payments** (DEC-027) | **Extends DEC-015** + new data value |
+| DB-5.8 | Salary late this month | **Approved: one cycle only** (DEC-027) | **Extends DEC-015** + new setting |
+| DB-5.9 | Savings in the verdict | **Approved: savings never automatically released or used** (DEC-027) | No (uses DEC-022) |
+| DB-5.10 | Fuliza and auto-repaid loans | **Approved deferral to DB-3; until then, disclose that Fuliza repayments are not fully modelled** (DEC-027) | No |
+| DB-5.11 | Before You Spend actions | **Approved, provided actual and planned spending can't be double counted (design in DB-5 brief; also fixes D14)** (DEC-027) | No |
+| DB-5.12 | Four optional stored fields | **Approved conditionally: after D13, with migration, rollback, backup-compatibility and cancellation-recovery tests** (DEC-027) | **Data structure + migration (schema 11)** |
+| DB-5.13 | Timing scenarios | **Approved** (DEC-027) | New rule |
+| DB-5.14 | Short vs Already short wording | **Approved for user testing, not as final wording** (DEC-027) | No |
 | DB-4.1 | Add protected backups | Yes, after Release 1 and D13 | **Extends DEC-020** |
 | DB-4.2 | Encryption method | AES-GCM-256; PBKDF2 600k | No |
 | DB-4.3 | Recovery | Password + recovery code | No |
@@ -106,6 +112,8 @@ Your review position is recorded in `MASTER_PROJECT_STATE.md`. **Nothing is appr
 # DB-5 · "Will I make it to my next income?" + Before You Spend
 
 ### DB-5.1 · Principles and the four verdicts
+
+> **Owner decision (DEC-027, 26 Nov): Approved.**
 
 **Decision:** Adopt the principles in brief §2:
 - expected income never counted;
@@ -136,6 +144,8 @@ Also adopt the four verdicts in brief §3 (On track / Tight / Short / Already sh
 
 ### DB-5.2 · How expected income is shown
 
+> **Owner decision (DEC-027, 26 Nov): Approved.**
+
 **Decision:** Show each expected payment as its own "If [payment] arrives on [date]" line, **never added together**. **Remove** today's combined Plan line, "If expected income arrives: KSh X a day".
 
 **Recommendation:** Approve both parts.
@@ -156,6 +166,8 @@ Also adopt the four verdicts in brief §3 (On track / Tight / Short / Already sh
 
 ### DB-5.3 · Planning horizon for irregular income
 
+> **Owner decision (DEC-027, 26 Nov): Approved.**
+
 **Decision:** For irregular income, the verdict always covers the user's planning period (7, 14 or 30 days), **never shortened** to the date of an expected payment.
 
 **Recommendation:** Approve.
@@ -174,6 +186,8 @@ Also adopt the four verdicts in brief §3 (On track / Tight / Short / Already sh
 
 ### DB-5.4 · A bill due on payday itself
 
+> **Owner decision (DEC-027, 26 Nov): Approved, provided the payday exclusion is clearly explained.**
+
 **Decision:** Under DEC-015 the period ends the day *before* payday, so a bill due *on* payday isn't counted in this period. Choose whether to keep that and add a warning note, or count such bills in this period.
 
 **Recommendation:** Keep DEC-015 and show a note: "Rent is due on your payday. If your pay comes late, …"
@@ -191,6 +205,8 @@ Also adopt the four verdicts in brief §3 (On track / Tight / Short / Already sh
 ---
 
 ### DB-5.5 · Usual daily spending estimate
+
+> **Owner decision (DEC-027, 26 Nov): Approved, with confidence levels, transparent reconcile adjustments and Count it/Undo; unexplained shortfalls stay distinguishable from recorded spending.**
 
 **Decision:** How PesaPilot estimates "usual spending per day" (D), and how it shows how sure it is.
 
@@ -226,6 +242,8 @@ Also adopt the four verdicts in brief §3 (On track / Tight / Short / Already sh
 
 ### DB-5.6 · Cushion for "Tight"
 
+> **Owner decision (DEC-027, 26 Nov): Approved: a warning threshold only, never deducted.**
+
 **Decision:** What separates "On track" from "Tight".
 
 **Recommendation:** The user's safety buffer if set; otherwise max(KSh 500, 10% of usual spending for the period). The default cushion only labels the verdict; it is never deducted.
@@ -245,6 +263,8 @@ Also adopt the four verdicts in brief §3 (On track / Tight / Short / Already sh
 ---
 
 ### DB-5.7 · Late or missing income
+
+> **Owner decision (DEC-027, 26 Nov): Approved, with the DEC-015 amendment and clear treatment of late, cancelled and received payments.**
 
 **Decision:**
 - **(a)** An expected payment whose date has passed shows **"Late"** (worked out, not stored). The user is asked once: **Received** / **New date** / **It won't come**. "It won't come" is kept in history as *cancelled*, not deleted. Partly paid: the remainder can stay expected.
@@ -271,6 +291,8 @@ Also adopt the four verdicts in brief §3 (On track / Tight / Short / Already sh
 
 ### DB-5.8 · Salary late this month
 
+> **Owner decision (DEC-027, 26 Nov): Approved: one cycle only.**
+
 **Decision:** Add "My pay is late this month", which sets a new payday **for this cycle only**. The usual payday is unchanged.
 
 **Recommendation:** Approve.
@@ -289,6 +311,8 @@ Also adopt the four verdicts in brief §3 (On track / Tight / Short / Already sh
 ---
 
 ### DB-5.9 · Savings in the verdict
+
+> **Owner decision (DEC-027, 26 Nov): Approved: savings never automatically released or used.**
 
 **Decision:**
 - Money set aside is never counted, and is shown separately.
@@ -312,6 +336,8 @@ Also adopt the four verdicts in brief §3 (On track / Tight / Short / Already sh
 
 ### DB-5.10 · Fuliza and loans repaid automatically
 
+> **Owner decision (DEC-027, 26 Nov): Approved deferral to DB-3; until then, disclose that Fuliza repayments are not fully modelled.**
+
 **Decision:** How to treat debts that M-Pesa repays automatically from incoming money.
 
 **Recommendation:** Decide this in **DB-3** (Fuliza, chama and family-support rules). Until then:
@@ -330,6 +356,8 @@ Also adopt the four verdicts in brief §3 (On track / Tight / Short / Already sh
 ---
 
 ### DB-5.11 · Before You Spend actions
+
+> **Owner decision (DEC-027, 26 Nov): Approved, provided actual and planned spending can't be double counted (design in DB-5 brief; also fixes D14).**
 
 **Decision:** The buttons after a Before You Spend check.
 
@@ -350,6 +378,8 @@ Also adopt the four verdicts in brief §3 (On track / Tight / Short / Already sh
 ---
 
 ### DB-5.12 · Four optional stored fields
+
+> **Owner decision (DEC-027, 26 Nov): Approved conditionally: after D13, with migration, rollback, backup-compatibility and cancellation-recovery tests.**
 
 **Decision:** Allow three new, optional, additive pieces of stored data:
 1. a usual-spending override with an end date (DB-5.5);
@@ -405,6 +435,8 @@ Details and the backup-version scope: DB-5 brief §7.
 
 ### DB-5.13 · Timing scenarios
 
+> **Owner decision (DEC-027, 26 Nov): Approved.**
+
 **Decision:**
 - **"If no money comes in"** is always shown and checks the **next 30 days**, including payments **after** an expected payday. It shows the first payment that couldn't be fully paid, and how long the money lasts.
 - **One "if [payment] arrives" scenario per expected payment.** On the day money is expected, payments due that day are taken *before* the money arrives.
@@ -427,6 +459,8 @@ Details and the backup-version scope: DB-5 brief §7.
 ---
 
 ### DB-5.14 · Short vs Already short wording
+
+> **Owner decision (DEC-027, 26 Nov): Approved for user testing, not as final wording.**
 
 **Decision:** Plain explanations:
 - **Already short** = "the bills alone don't fit". Spending less can't fix it.

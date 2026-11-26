@@ -115,6 +115,13 @@ Money already set aside is excluded from "money free to use". This month's savin
 - **Expected income** (source, amount, expected date, account) is listed separately with "if it arrives" figures.
 - Marking it received creates a normal income entry for the amount and date actually received.
 
+**Approved amendments: not yet implemented (DEC-027, 26 Nov)**
+The current app behaves exactly as described above. When DB-5 is built and released (separate go-ahead, after Release 1 and D13):
+- **Missed payday:** the planning period does **not** roll over when a fixed payday passes with no income recorded. It shows "Waiting for your pay" and keeps counting days and bills.
+- **"My pay is late this month":** moves **this cycle's** period end only. The usual payday is unchanged.
+- **The formula is unchanged:** spending money − deductions; expected income never counted.
+- New, read-only rules (the verdict, timing scenarios, usual-spending estimate, Before You Spend) are defined in `specs/DB-5_DECISION_BRIEF.md` and become part of this document when implemented.
+
 ## 7. Upgrade from schema 9 (one time, reversible)
 
 | Before (schema 9) | After (schema 10) |

@@ -218,3 +218,10 @@ These need Node and Playwright, which are pre-installed in Claude Code cloud ses
 - **DB-5.5 revision 3:** difference = actual − recorded; only shortfalls count; unexplained shortfalls are counted but reported separately, with the figure without them; possible-transfer pairs flagged; explanations go through the DEC-016 tick or reversal. Tests R1–R5.
 - **Schema 11:** retest on the actual DB-5 code required before release (DB-5 brief §7, ROADMAP Stage B). Added **R4** to the RELEASE_1_CHECKLIST risk register and to MASTER §8.
 - No app code, schema or production change.
+
+### 2026-11-26 · DB-5 decided (DEC-027)
+- The owner approved all 14 DB-5 choices: rules and design only, with conditions (payday exclusion explained; unexplained shortfalls distinct; Fuliza disclosure; no planned/actual double counting; schema 11 only after D13 with migration, rollback, backup-compatibility and cancellation-recovery tests; 5.14 wording for testing).
+- Recorded DEC-027. DEC-015 marked as amended by DEC-027 (missed payday no longer rolls over; one-cycle late pay). FINANCIAL_RULES §6 gains an "approved, not yet implemented" note.
+- **Found D14** (minor, cautious direction, not blocking): planned spending isn't reduced when the real expense is recorded, so it can be deducted twice. The 5.11 design fixes it without a new stored field.
+- DB-5 brief: owner-decision table + 5.11 design. Decision pack: decisions marked on all 14 DB-5 entries.
+- No implementation, schema change, merge or deployment. Next: DB-4 review.

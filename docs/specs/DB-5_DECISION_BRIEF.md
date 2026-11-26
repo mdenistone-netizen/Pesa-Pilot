@@ -1,6 +1,41 @@
 # DB-5 Decision Brief: "Will I make it to my next income?" + Before You Spend
 
-**Status:** **Proposed, for owner decision.** Planning only. Nothing is implemented, and no financial rule changes until you approve.
+**Status:** **Rules and design approved by the owner: DEC-027 (26 Nov), with the conditions below. Not implemented.** Implementation needs a separate go-ahead after Release 1 and D13 are completed and verified.
+
+## Owner decisions (DEC-027)
+
+| # | Decision | Condition to honour in the build |
+|---|---|---|
+| 5.1 | Approved | — |
+| 5.2 | Approved | — |
+| 5.3 | Approved | — |
+| 5.4 | Approved | **The payday exclusion must be clearly explained** on screen ("Your plan runs until the day before payday. Rent due on payday isn't included; if your pay comes late, …"). |
+| 5.5 | Approved | Confidence levels, transparent reconcile adjustments, Count it/Undo. **Unexplained shortfalls stay distinguishable from recorded spending:** shown separately, with the figure without them. |
+| 5.6 | Approved | The cushion is a warning threshold only, never deducted (model property). |
+| 5.7 | Approved, **amends DEC-015** | Clear treatment of each state: **late** (worked out from the date; Received / New date / Won't come), **cancelled** (`cancelledAt`; kept in history; never in lists, forecasts or reminders), **received** (recorded as real income on the actual date and amount). |
+| 5.8 | Approved, **amends DEC-015** | One cycle only; removed automatically after that payday. |
+| 5.9 | Approved | Savings are never automatically released or used. |
+| 5.10 | Approved (deferral to DB-3) | **Disclose** on Plan / "How this is worked out": "Fuliza and loans that M-Pesa repays automatically aren't fully included yet. Money coming in may be taken for them first." |
+| 5.11 | Approved | **No double counting of actual and planned spending** (design below; also fixes defect D14). |
+| 5.12 | Approved conditionally | Only after D13 is released, with migration, rollback, backup-compatibility and cancellation-recovery tests. The last is re-run on the real DB-5 code. |
+| 5.13 | Approved | — |
+| 5.14 | Approved **for user testing** | Not permanently final wording; revisit after testing. |
+
+### How 5.11's condition will be met (design; no new stored field)
+- **Today (defect D14):** planned spending is one amount the user maintains. Recording the real expense doesn't reduce it, so it can be deducted twice. That errs on the cautious side, but is inaccurate.
+- **When recording an expense while planned spending is above zero,** the form asks: "Was this part of your planned spending (KSh 2,000 left)?"
+  - **Yes** (the default when the expense comes from Before You Spend's saved plan) reduces planned spending by the expense amount, never below zero.
+  - **No** leaves it.
+- **Reversing that expense** asks: "Add KSh 2,000 back to planned spending?" A user choice: storing a link between the expense and the plan would need a new field.
+- **At the start of a new planning period,** leftover planned spending is shown for the user to keep or clear. It is never silently carried over.
+- **Required tests:**
+  - planned 2,000 + an expense of 2,000 marked "planned" → Left to spend falls by 2,000 once, not 4,000;
+  - a partial expense (1,500 of 2,000) → 500 stays planned;
+  - an expense marked "not planned" → both stay;
+  - a reversal offers to add the amount back, and does so only if the user agrees.
+- **If itemised planned spending** (several named items) is wanted later, that would need a stored list and its own approval.
+
+
 
 **Builds on:**
 - `DB-5_WILL_I_MAKE_IT.md` (first design);
