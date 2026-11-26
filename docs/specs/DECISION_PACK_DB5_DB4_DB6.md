@@ -87,14 +87,14 @@ Your review position is recorded in `MASTER_PROJECT_STATE.md`. **Nothing is appr
 | DB-5.13 | Timing scenarios | **Approved** (DEC-027) | New rule |
 | DB-5.14 | Short vs Already short wording | **Approved for user testing, not as final wording** (DEC-027) | No |
 | DB-4.1 | Add protected backups | Yes, after Release 1 and D13 | **Extends DEC-020** |
-| DB-4.2 | Encryption method | AES-GCM-256; PBKDF2 600k | No |
+| DB-4.2 | Encryption method | ECDH P-256 key pair + one-time keys → HKDF → AES-GCM-256; PBKDF2 600k locks | No |
 | DB-4.3 | Recovery | Password + recovery code | No |
 | DB-4.4 | Default | Offer protection; plain stays available | No |
 | DB-4.5 | One-tap backups (public key + locks on phone; phone can't open backups) | Yes | **New on-phone items** (DEC-019 style: never exported) |
 | DB-4.6 | Backup password | Generated 5 random words; user-made only if rated as strong | No |
 | DB-4.7 | Monthly password check | Yes, with the backup reminder | Extends DEC-020 reminder |
 | DB-4.8 | How the file is saved | Share sheet; download as fallback | No |
-| DB-4.9 | Forgot-PIN path | Unchanged | No |
+| DB-4.9 | Forgot-PIN path | Process unchanged; plain copy labelled "NOT protected" + delete reminder | No (wording only) |
 | DB-4.10 | Drive auto-backup / PesaPilot cloud | Not now | No (keeps DEC-005, DEC-023) |
 | DB-4.11 | Integrity, verification and repair | Check before every backup; verify at key moments and monthly; repair from any earlier file | No |
 | DB-6.1 | Build a full PWA | Yes, Stage C, after Release 1 and D13 | Fixes D9; **extends release process (DEC-017)** |
@@ -504,10 +504,11 @@ DEC-019 is unchanged: no PIN or hash in any file. The wording stays accurate: "y
 
 ### DB-4.2 · Encryption method
 
-**Decision:**
-- AES-GCM with a 256-bit key and a random IV for each backup;
-- the password turned into a key with PBKDF2-SHA-256 at **600,000 rounds** and a random salt;
-- everything in standard browser features.
+**Decision** (updated 26 Nov to match design B, DB-4 brief §3a/§3b):
+- a **backup key pair** (ECDH P-256): the public half on the phone, the private half only inside the two locks;
+- **for each backup:** a one-time key pair → ECDH with the backup public key → HKDF-SHA-256 → an **AES-GCM-256** file key with a random IV;
+- **locks:** the private key is wrapped with AES-GCM under keys derived from the password and from the recovery code (PBKDF2-SHA-256, **600,000 rounds**, random salts);
+- everything in standard browser features (Web Crypto).
 
 **Recommendation:** Approve. Confirm the rounds after timing on a real low-end Android phone (target: unlock in about 2 seconds or less).
 
@@ -516,7 +517,7 @@ DEC-019 is unchanged: no PIN or hash in any file. The wording stays accurate: "y
 **For an ordinary user:** Opening a protected backup takes a second or two. Everything else is unchanged.
 
 **Risks:**
-- **Security:** strong, standard choices. **Tested:** tampering is detected.
+- **Security:** strong, standard choices. **Model-checked:** tampering detected; the phone alone can't open backups; the full lifecycle (L1–L6, D-a to D-e).
 - **Performance:** 77 ms in this environment; estimated 1–2 s on a low-end phone (to verify).
 
 **Changes an existing rule?** **No.** The PIN keeps its own setting (DEC-019).
