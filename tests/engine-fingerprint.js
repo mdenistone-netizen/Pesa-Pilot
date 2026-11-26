@@ -1,5 +1,5 @@
 // Proves a change did not touch the financial engine: hashes the exact source of every
-// calculation, storage, migration, PIN and backup function in index.html.
+// calculation, storage, migration, PIN and backup function in app/index.html.
 //   node tests/engine-fingerprint.js save    -> tests/snapshots/engine-fingerprint.json
 //   node tests/engine-fingerprint.js compare -> exit 1 if any engine function changed
 const fs = require("fs"), path = require("path"), crypto = require("crypto");
@@ -42,7 +42,7 @@ function extractConst(src, name) {
   for (; i < src.length; i++) { const c = src[i]; if ("{([".includes(c)) depth++; else if ("})]".includes(c)) depth--; else if (c === ";" && depth === 0) break; }
   return src.slice(m.index, i + 1);
 }
-const src = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8").replace(/\r\n/g, "\n");
+const src = fs.readFileSync(path.join(__dirname, "..", "app", "index.html"), "utf8").replace(/\r\n/g, "\n");
 const hash = text => text === null ? "MISSING" : crypto.createHash("sha256").update(text).digest("hex").slice(0, 16);
 const current = {};
 FUNCTIONS.forEach(n => { current["function " + n] = hash(extract(src, n)); });

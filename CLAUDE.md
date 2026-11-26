@@ -20,7 +20,7 @@
    - Describe PIN hashing as PIN-storage protection only, never as encryption of records.
    - Backup and recovery guidance lives in `docs/DATA_RECOVERY.md`; keep the in-app wording consistent with it.
 3b. **Release 1 gate (DEC-018):** deploy only after every item in `docs/RELEASE_1_CHECKLIST.md` is done **and** the owner has explicitly said to deploy. Preparing a release is not approval to deploy it.
-4. **Code:** everything is in `index.html` (single file, no build). Keep its CRLF line endings (DEC-007). Migrations must stay non-destructive and idempotent (DEC-004).
+4. **Code:** everything is in `app/index.html` (single file, no build). **Netlify publishes only `app/` (DB-7, DEC-031, `netlify.toml`). Never put documents, tests or tools in `app/`;** `npm test` fails if anything unapproved appears there. Keep its CRLF line endings (DEC-007). Migrations must stay non-destructive and idempotent (DEC-004).
 5. **Test before claiming anything:** `npm test` and `npm run test:ui-snapshot`. Re-save the snapshot (`npm run test:ui-snapshot:save`) only after intended UI changes.
 6. **Docs are part of the work:**
    - After each change, update `CHANGE_REGISTER.md`, `DEV_LOG.md`, `DECISIONS.md` and `FINANCIAL_RULES.md` as relevant.

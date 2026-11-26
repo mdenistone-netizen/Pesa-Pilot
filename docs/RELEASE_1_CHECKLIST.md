@@ -1,6 +1,10 @@
 # Release 1: Deployment Checklist & Recovery Procedure
 
 **Scope:** Phases 0.5, 1, 2, PIN protection, the UI/UX redesign and the D12 fix (CR-001 to CR-006), released as one upgrade (DEC-018, DEC-021).
+
+**Also included:**
+- CR-007 (savings);
+- **CR-008, the DB-7 public deployment boundary** (DEC-031): the app moves to `app/`, Netlify publishes only `app/`, interim security headers, and a prepared rollback build. It is configuration only; the app's behaviour is unchanged.
 **From:** live `main` @ `8e33d44` (schema 9).
 **To:** the work-branch head at approval time (schema 10).
 **Status: NOT DEPLOYED. Waiting for the owner's preview review and explicit approval.**
@@ -37,7 +41,7 @@ The preview is **https://deploy-preview-1--pesa-pilot.netlify.app**. It is a sep
 
 1. Open the preview. Complete the welcome screen with any name and a test PIN, e.g. 1234.
 2. **Load the demo data.**
-   - Download https://raw.githubusercontent.com/mdenistone-netizen/Pesa-Pilot/claude/pesapilot-master-handover-0z1xae/docs/demo/pesapilot-demo-schema9.json. In the browser menu choose Download, or long-press → Download link.
+   - **Claude sends you the demo file directly in the chat** (it's made-up data). Save it to your phone. Since DB-7 it is no longer published on the preview, and once the repository is private the GitHub link won't work either.
    - In the preview: Settings (under **More** on a phone) → **Import backup** → choose that file.
    - This is made-up data in the *old* format, so importing it also exercises the upgrade.
 3. **Check, and note anything confusing:**
@@ -68,7 +72,8 @@ The preview is **https://deploy-preview-1--pesa-pilot.netlify.app**. It is a sep
 - [ ] Preview rebuilt from the exact commit being released, and its status is "Deploy Preview ready".
 - [ ] Record the release commit hash here: `________`.
 - [ ] Confirm `main` is still `8e33d44`, so nothing slipped in.
-- [ ] **Decide how to keep `docs/` (research, prototypes, demo data) off the live site.** → Proposed as **DB-7** (`specs/DB-7_PUBLIC_DEPLOYMENT_BRIEF.md`; recommended: publish an app folder only). Verified 26 Nov: `main` serves only `index.html` today; merging PR #1 unchanged would publish `docs/`, `tests/`, `CLAUDE.md` and `package.json`. Netlify publishes the whole repository. Options: a Netlify rule that blocks `/docs/*`, or publishing only the app files. It's an infrastructure-config change, so it gets its own small approval before the merge.
+- [x] **Keep `docs/` (research, prototypes, demo data) off the live site:** **DB-7 implemented on the branch (DEC-031, CR-008).** Netlify publishes only `app/`. Verify on the preview before merge: internal addresses return 404, and the 6 headers are present (see CR-008 evidence).
+- [ ] **Repository made private by the owner** after DB-7 passes preview testing, then access re-verified (Claude, Netlify, PR #1, history, production unchanged). **Required before any production deployment** (owner, 26 Nov).
 - [ ] Owner has completed §3 and **explicitly approved**.
 
 ## 6. Deployment steps
@@ -96,8 +101,19 @@ The preview is **https://deploy-preview-1--pesa-pilot.netlify.app**. It is a sep
 
 **B. A serious bug: the app must be taken back quickly**
 - **Do not** redeploy the original version (R2).
-- Deploy the **safe rollback build**, commit `8370097` (Phase 0.5). It looks like the old app and is proven to keep upgraded data intact (accounts, allocations, transfers and adjustments survive unchanged and reappear when Release 1 is redeployed).
-  - In GitHub, create a branch from `8370097` and open a PR to `main`. Claude prepares it; the owner approves the merge.
+- **Never deploy commit `8370097` directly** (DB-7 7.7). Its tree contains `docs/` and `tests/` and has no `netlify.toml`, so it would publish internal files.
+- **Deploy the prepared rollback build** (`release/rollback/`):
+  - **What it is:** the safe app from `8370097` (byte-identical), placed in the **current** layout.
+  - **What it's proven to do:** keep upgraded data intact (accounts, allocations, transfers and adjustments survive unchanged and reappear when Release 1 is redeployed). It also runs under the security headers with no violations.
+  - **Steps:**
+    1. Create a branch from the current `main`.
+    2. Replace `app/index.html` with `release/rollback/schema10-safe-index.html`, keeping its CRLF line endings. Change nothing else.
+    3. Run `node tests/rollback-check.js` and check the PR preview.
+    4. The owner approves the merge.
+
+    Claude prepares it.
+  - **Tested** by `tests/rollback-check.js`, which is part of `npm test`: the guard passes; nothing internal is published; the data is unchanged through rollback and re-release.
+  - **Only valid for schema 10.** After a schema change, prepare a new safe build first (rollback floor, DEC-029 6.8).
 - **Known effects of the rollback build:**
   - Totals are shown with the old rules.
   - The PIN lock is off: it doesn't read protected PINs. Users can set a temporary PIN.

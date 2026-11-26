@@ -1,4 +1,4 @@
-// Test harness: drives the real index.html in headless Chromium.
+// Test harness: drives the real app/index.html in headless Chromium.
 // Black-box by design: tests seed localStorage, use the UI, and read results
 // from the screen or from an exported backup. No app code is imported.
 const path = require("path");
@@ -6,7 +6,7 @@ const fs = require("fs");
 const { chromium } = require("playwright");
 
 // PESAPILOT_APP lets a tool point the harness at another build (e.g. an older version for comparisons).
-const APP_URL = "file://" + (process.env.PESAPILOT_APP || path.resolve(__dirname, "..", "index.html"));
+const APP_URL = "file://" + (process.env.PESAPILOT_APP || path.resolve(__dirname, "..", "app", "index.html"));
 const STORAGE_KEY = "pesapilot_v2";
 const ONBOARDING_KEY = "pesapilot_onboarding_v1";
 // Fixed "now" so results are reproducible: 25 Nov 2026, 10:00 Nairobi time.

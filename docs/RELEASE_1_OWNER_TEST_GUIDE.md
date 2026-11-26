@@ -3,7 +3,7 @@
 **For:** the owner's own review of the Release 1 preview, **before** any decision to deploy.
 
 **Preview:** **https://deploy-preview-1--pesa-pilot.netlify.app**
-- Commit `1325ee9`. Its app code is identical to `5bdcb7b`, the last app change (CR-007).
+- Since DB-7 (CR-008, 26 Nov) the app is served from `app/`, with security headers. The app's code is unchanged from `5bdcb7b` (CR-007). The exact commit is given in Claude's latest report.
 - Verified 26 Nov 2026.
 
 **This is not production.**
@@ -216,7 +216,8 @@
 This uses made-up data in the **old** format, as stored by today's live app, so it exercises the upgrade. **It replaces your test data,** so do it last.
 
 ### T17 · Import the demo data
-- **Tap:** open **https://deploy-preview-1--pesa-pilot.netlify.app/docs/demo/pesapilot-demo-schema9.json** → Chrome menu (⋮) → **Download**. Or long-press the link → Download link.
+- **Get the file:** I'll send `pesapilot-demo-schema9.json` to you in the chat. Save it to your phone (Downloads).
+  - Since DB-7 the preview no longer publishes `/docs/`. That address now correctly shows "Not found".
 - **Tap:** back in the preview: More → Settings → **Import backup** → choose `pesapilot-demo-schema9.json` → confirm.
 - **Expect, on Home:** Available to spend **KSh 58,259** · Set aside for goals **KSh 3,000** · Total money **KSh 73,259**.
   - Safe to spend depends on today's date and the demo's payday (the 28th), so it isn't a pass/fail figure here.

@@ -945,7 +945,7 @@ test("timezone (D10): the upgrade gives identical records whatever timezone the 
     const ctx = await browser.newContext({ acceptDownloads: true, timezoneId });
     const p = await ctx.newPage(); p.on("dialog", d => d.accept());
     await p.clock.setFixedTime(h.FIXED_NOW);
-    await p.goto("file://" + require("path").resolve(__dirname, "..", "index.html"));
+    await p.goto("file://" + require("path").resolve(__dirname, "..", "app", "index.html"));
     await p.evaluate(seed => { localStorage.clear(); localStorage.setItem("pesapilot_onboarding_v1", "done"); localStorage.setItem("pesapilot_v2", JSON.stringify(seed)); }, realisticMonth());
     await p.reload(); await h.settle(p);
     const d = (await h.exportBackup(p)).data;
@@ -960,7 +960,7 @@ test("[D12 fixed] month pickers and the trend chart include the current month in
     const browser = await require("playwright").chromium.launch();
     const p = await (await browser.newContext({ timezoneId })).newPage();
     await p.clock.setFixedTime(h.FIXED_NOW);
-    await p.goto("file://" + require("path").resolve(__dirname, "..", "index.html"));
+    await p.goto("file://" + require("path").resolve(__dirname, "..", "app", "index.html"));
     await p.evaluate(seed => { localStorage.setItem("pesapilot_onboarding_v1", "done"); localStorage.setItem("pesapilot_v2", JSON.stringify(seed)); }, realisticMonth());
     await p.reload(); await h.settle(p);
     await h.goView(p, "reports");

@@ -300,3 +300,32 @@ D12: the Reports month picker and trend chart skip the current month in Kenyan t
 | Migration (4 data sets, rollback) | 4/4 (`evidence/savings-migration.txt`) |
 | UI audit (incl. the new forms) | 0 issues (`evidence/savings-ui-audit.txt`) |
 | UI snapshots | New baseline (78) after the intended changes |
+
+## CR-008 · DB-7 · Public deployment boundary (configuration only)
+| | |
+|---|---|
+| Approved by owner | DEC-031: DB-7 7.1, 7.3, 7.5, 7.6, 7.7, 7.8 |
+| Part of | **Release 1** (DEC-018 scope amended by 7.6) |
+| App behaviour / financial rules / schema | **Unchanged** (`app/index.html` is byte-identical to the previous `index.html`) |
+
+**What changed**
+
+| Change | Detail |
+|---|---|
+| App moved | `index.html` and `fonts/` → `app/` (`git mv`; history kept; CRLF kept) |
+| `netlify.toml` (new) | `publish = "app"`; no build command; 6 interim security headers (tested set) |
+| Tests | 4 path lines updated (`harness.js`, `engine-fingerprint.js`, `run.js` ×2) |
+| New guard | `tests/publish-check.js` fails if `app/` holds anything unapproved, if `netlify.toml` stops publishing `app`, adds a build command, loses a header, or switches to the strict script policy |
+| New release/rollback check | `tests/rollback-check.js`: rollback app = `8370097`; rollback tree passes the guard; the guard fails when a document is put in `app/` (negative test); release path and rollback path run under the real headers |
+| Rollback | `release/rollback/` (prepared build + README); RELEASE_1_CHECKLIST §8B rewritten |
+| Docs | `CLAUDE.md` (code location), `package.json` (description, test chain), checklist §1/§3/§5/§8, owner guide T17 |
+
+**Users and data**
+- The web address is unchanged, so browser storage, and every user's data, is unaffected.
+- `main` and production are untouched.
+
+**Evidence (local)**
+- `npm test`: publish guard PASS; regression **64/64**; migration **4/4**; engine **106/106**; release/rollback checks **6/6**.
+- UI snapshots **78/78 identical**; UI audit **0 issues**.
+
+The preview checks (404s, headers, Android) are recorded below once run.
