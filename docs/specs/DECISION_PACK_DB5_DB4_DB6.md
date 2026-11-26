@@ -30,8 +30,9 @@ Approving one approves none of the others. Production is untouched until you exp
 - **DB-5: decided 26 Nov (DEC-027).** All 14 choices approved: rules and design only, several with conditions (see each entry). **Not implemented.** DB-5 implementation needs a separate go-ahead after Release 1 and D13 are completed and verified.
   - DEC-015 is amended by 5.7 and 5.8 (recorded in `DECISIONS.md` and `FINANCIAL_RULES.md` §6 as approved, not yet implemented).
 - **DB-4: decided 26 Nov (DEC-028).** All 11 choices approved: design only, several with conditions (see each entry). **Not implemented.** Clarifications requested with the decision are answered in DB-4 brief §3c (exact contents, code randomness, repair without overwriting records, a non-forcing monthly check, release requirements). Implementation needs separate authorisation after Release 1 and D13.
-- **D14 reversal proposal:** DB-5 brief, "D14 proposal". Waiting for your decision; it would amend DB-5.12 with a 5th optional field.
-- **DB-6: under review next.** 9 choices.
+- **D14: decided 26 Nov (DEC-030).** `plannedUsed` approved as the preferred design: a **proposed 5th optional field** extending DB-5.12. Rules and tests T0–T6 are in the DB-5 brief ("D14 design"). **Open sub-decision:** how to detect deletions by older versions (option A: a 6th optional field `plannedLedger`, recommended; option B: accept the residual risk).
+- **DB-6: decided 26 Nov (DEC-029).** All 9 choices approved: design only, several with conditions. Safeguards in the brief and RELEASE_1_CHECKLIST §9. **Not implemented.**
+- **All three briefs are decided as designs.** None is implemented. Each needs separate implementation authorisation after Release 1 and D13.
 
 ## Changes after your review (26 Nov, round 4)
 These are clarifications only. **Nothing is approved for implementation.**
@@ -98,15 +99,15 @@ Your review position is recorded in `MASTER_PROJECT_STATE.md`. **Nothing is appr
 | DB-4.9 | Forgot-PIN path | **Approved: existing Forgot-PIN process, with prominent NOT protected warnings and deletion reminders** (DEC-028) | No (wording only) |
 | DB-4.10 | Drive auto-backup / PesaPilot cloud | **Approved: no automatic Drive backup or PesaPilot cloud for now** (DEC-028) | No (keeps DEC-005, DEC-023) |
 | DB-4.11 | Integrity, verification and repair | **Approved with conditions: never silently overwrite newer financial records; repair understandable and needs user confirmation** (DEC-028) | No |
-| DB-6.1 | Build a full PWA | Yes, Stage C, after Release 1 and D13 | Fixes D9; **extends release process (DEC-017)** |
-| DB-6.2 | Page update method | Network first, 3-second limit | No |
-| DB-6.3 | Switching versions | Reload banner; never mid-form; all tabs | No |
-| DB-6.4 | Kill switch | Self-removing worker | No |
-| DB-6.5 | What is cached | App files only | No |
-| DB-6.6 | Persistent storage request | Yes | No |
-| DB-6.7 | Install suggestion | Settings + one dismissible Home tip | No |
-| DB-6.8 | Rollback procedure | Add "deploy kill switch" | **Changes the RELEASE_1 recovery procedure** (later releases) |
-| DB-6.9 | Native Android app | Not now | No |
+| DB-6.1 | Build a full PWA | **Approved: installable, offline-capable PesaPilot after Release 1 and D13** (DEC-029) | Fixes D9; **extends release process (DEC-017)** |
+| DB-6.2 | Page update method | **Approved with conditions: failed updates leave the existing working version intact** (DEC-029) | No |
+| DB-6.3 | Switching versions | **Approved: reload banner, no switching during forms, tabs coordinated, no loss of unsaved work** (DEC-029) | No |
+| DB-6.4 | Kill switch | **Approved with conditions: reliably removes the saved app copies when devices reconnect** (DEC-029) | No |
+| DB-6.5 | What is cached | **Approved: app files only; never financial records, demo data or /docs/** (DEC-029) | No |
+| DB-6.6 | Persistent storage request | **Approved with conditions: explain that approval isn't guaranteed and isn't a substitute for backups** (DEC-029) | No |
+| DB-6.7 | Install suggestion | **Approved: Settings install option + one dismissible Home tip** (DEC-029) | No |
+| DB-6.8 | Rollback procedure | **Approved with conditions: emergency switch in rollback procedures after Stage C; never roll back to a version incompatible with the current data** (DEC-029) | **Changes the RELEASE_1 recovery procedure** (later releases) |
+| DB-6.9 | Native Android app | **Approved: no native Android app for now** (DEC-029) | No |
 
 ---
 
@@ -429,6 +430,8 @@ Details: DB-5 brief §7.
 Details and the backup-version scope: DB-5 brief §7.
 
 **Release requirement:** the cancellation test must be **re-run against the actual DB-5 implementation** and pass before any schema 11 release is offered for approval. The Release 1 display issue is recorded as **R4** in the release risk register.
+
+**Extension (DEC-030, 26 Nov):** a **5th optional field** `plannedUsed` (D14) is approved as the preferred design and recorded as a proposed extension of this choice. A possible 6th (`plannedLedger`) is an open sub-decision.
 
 **Changes an existing rule?** **Data structure change:** schema 11, with optional fields. No existing field changes meaning. A production data migration under DEC-017.
 
@@ -762,6 +765,8 @@ Full architecture: DB-4 brief §3a.
 
 ### DB-6.1 · Build a full PWA
 
+> **Owner decision (DEC-029, 26 Nov): Approved: installable, offline-capable PesaPilot after Release 1 and D13.**
+
 **Decision:** Make PesaPilot installable and able to open offline, as **Stage C**, **after Release 1 and the D13 release**.
 
 **Recommendation:** Yes.
@@ -788,6 +793,8 @@ Full architecture: DB-4 brief §3a.
 ---
 
 ### DB-6.2 · Page update method
+
+> **Owner decision (DEC-029, 26 Nov): Approved with conditions: failed updates leave the existing working version intact.**
 
 **Decision:** When online, always fetch the latest app. Use the phone's saved copy if there is no answer within **3 seconds**, or when offline.
 
@@ -818,6 +825,8 @@ Full architecture: DB-4 brief §3a.
 
 ### DB-6.3 · Switching versions
 
+> **Owner decision (DEC-029, 26 Nov): Approved: reload banner, no switching during forms, tabs coordinated, no loss of unsaved work.**
+
 **Decision:** When a new version arrives while the app is open:
 - show "A new version is ready. **Reload**";
 - never switch mid-form;
@@ -837,6 +846,8 @@ Full architecture: DB-4 brief §3a.
 ---
 
 ### DB-6.4 · Kill switch
+
+> **Owner decision (DEC-029, 26 Nov): Approved with conditions: reliably removes the saved app copies when devices reconnect.**
 
 **Decision:** How to switch the offline feature off on every phone in an emergency.
 
@@ -861,6 +872,8 @@ Full architecture: DB-4 brief §3a.
 
 ### DB-6.5 · What is cached
 
+> **Owner decision (DEC-029, 26 Nov): Approved: app files only; never financial records, demo data or /docs/.**
+
 **Decision:** Cache **only** the app files (page, font, icons, manifest). **Never** `/docs/`, prototypes, demo data or any records.
 
 **Recommendation:** Approve.
@@ -883,6 +896,8 @@ Full architecture: DB-4 brief §3a.
 
 ### DB-6.6 · Persistent storage request
 
+> **Owner decision (DEC-029, 26 Nov): Approved with conditions: explain that approval isn't guaranteed and isn't a substitute for backups.**
+
 **Decision:** Ask the browser to keep PesaPilot's data ("persistent storage") after installing or after the first backup.
 
 **Recommendation:** Yes.
@@ -899,6 +914,8 @@ Full architecture: DB-4 brief §3a.
 ---
 
 ### DB-6.7 · Install suggestion
+
+> **Owner decision (DEC-029, 26 Nov): Approved: Settings install option + one dismissible Home tip.**
 
 **Decision:** How PesaPilot suggests installing.
 
@@ -920,6 +937,8 @@ Full architecture: DB-4 brief §3a.
 
 ### DB-6.8 · Rollback procedure
 
+> **Owner decision (DEC-029, 26 Nov): Approved with conditions: emergency switch in rollback procedures after Stage C; never roll back to a version incompatible with the current data.**
+
 **Decision:** Once Stage C exists, emergency rollback must also deploy the kill switch.
 
 **Recommendation:** Approve. Update the release checklist's recovery steps when Stage C is built.
@@ -936,6 +955,8 @@ Full architecture: DB-4 brief §3a.
 ---
 
 ### DB-6.9 · Native Android app
+
+> **Owner decision (DEC-029, 26 Nov): Approved: no native Android app for now.**
 
 **Decision:** Whether to build a Play Store app.
 

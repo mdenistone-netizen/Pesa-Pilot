@@ -16,7 +16,7 @@
 | 5.8 | Approved, **amends DEC-015** | One cycle only; removed automatically after that payday. |
 | 5.9 | Approved | Savings are never automatically released or used. |
 | 5.10 | Approved (deferral to DB-3) | **Disclose** on Plan / "How this is worked out": "Fuliza and loans that M-Pesa repays automatically aren't fully included yet. Money coming in may be taken for them first." |
-| 5.11 | Approved | **No double counting of actual and planned spending** (design below; also fixes defect D14). |
+| 5.11 | Approved | **No double counting of actual and planned spending** (design below; also fixes defect D14). Reversal behaviour: D14 design, DEC-030. |
 | 5.12 | Approved conditionally | Only after D13 is released, with migration, rollback, backup-compatibility and cancellation-recovery tests. The last is re-run on the real DB-5 code. |
 | 5.13 | Approved | — |
 | 5.14 | Approved **for user testing** | Not permanently final wording; revisit after testing. |
@@ -29,52 +29,39 @@
 - **Reversing or deleting that expense:** see the D14 proposal below (for owner decision).
 - **At the start of a new planning period,** leftover planned spending is shown for the user to keep or clear. It is never silently carried over.
 
-### D14 proposal: restore planned spending when a planned expense is reversed (for owner decision, 26 Nov)
-**Goal (owner):**
-- planned spending is **reduced** when an expense is confirmed as part of the plan;
-- it is **restored appropriately** if that expense is reversed or deleted;
-- **no unnecessary stored data**.
+### D14 design: planned spending reduced and restored (DEC-030, 26 Nov)
+**Owner decision:** the `plannedUsed` field is approved as the **preferred design**. It is recorded as a **proposed extension of the approved DB-5.12** (a 5th optional field).
+- Design only: no implementation, schema change or deployment.
+- Kept separate from DB-4.
+- Evidence: `../prototypes/planned-spending/model.js`, tests T0–T6, all pass. My first version of the old-tab check counted an edited-down amount twice; the test caught it, and it is fixed.
 
-**Why something must be stored:**
-- Planned spending is one amount. After the fact, nothing in the records says which expenses used it, or how much.
-- Asking the user at reversal time ("add it back?") stores nothing, but relies on memory and can be answered wrongly.
-- **The minimum that makes it automatic and exact is one optional number on the expense:** `plannedUsed`, how much of the plan this expense used.
-  - No new list, no ids, no links.
-  - Expenses not marked as planned carry nothing.
+**Stored:** one optional number on an expense confirmed as planned: `plannedUsed`, the part of the plan it still holds. Nothing on other expenses.
 
-**Proposed behaviour**
+**The rules**
 
-| Event | What happens to planned spending | Stored |
-|---|---|---|
-| **Record an expense, confirmed "part of my plan"** | Reduced by `min(expense amount, planned left)` | `plannedUsed` = that amount, on the expense |
-| **Reverse it, or delete it** (same planning period) | **Restored** by `plannedUsed`. Toast: "Planned spending back to KSh 2,000. [Undo]" | — (the expense is reversed or removed) |
-| **Reverse or delete it in a later planning period** | **Not restored**, because the old plan has ended. Message: "This was part of an earlier plan, so your current planned spending isn't changed." | — |
-| **Edit the amount down** (e.g. 2,000 → 1,500, `plannedUsed` 2,000) | Restored by the difference (500); `plannedUsed` becomes 1,500 | updated |
-| **Edit the amount up** | No automatic extra reduction. "Use more of your plan?" asks | updated only if yes |
-| **Edit to "not part of my plan"** | Restored by `plannedUsed`; the field is removed | removed |
-| **The user changed planned spending by hand in between** | Restoring adds `plannedUsed` to whatever it is now, with **Undo**. The app never guesses what the user meant. | — |
-| **Reversal pairs** (DEC-016) | Restored **once**, when the original becomes reversed. Never again for the same entry. | — |
+| # | Situation | Rule | Test |
+|---|---|---|---|
+| — | Expense confirmed "part of my plan" | Planned spending falls by min(amount, planned left); `plannedUsed` = that amount. **Left to spend falls once, not twice** (the D14 fix). | T0 |
+| 1 | **Partial reversal** | Restore only the **planned share of what is actually reversed**: reversed amount × `plannedUsed` ÷ the amount still unreversed, never more than `plannedUsed`. The example uses 2,500 so the share is visible; ordinary refunds would usually be smaller. Expense 2,500 (2,000 planned), 1,000 refunded → **800** restored; the remaining 1,500 refunded → the remaining **1,200**. Total = exactly the 2,000 used. | T1 |
+| 2 | **Repeated or duplicate reversal** | Each restoration is **taken out of `plannedUsed`**, so the same amount can never come back twice. A fully reversed expense restores nothing more ("already fully reversed"). | T2 |
+| 3 | **Plan changed by hand after the expense** | Restoring is **never silent**. The reversal confirmation shows the result first: "Planned spending is KSh 1,000 now. This expense used KSh 2,000 of your plan. **Add it back (→ KSh 3,000)** · Keep KSh 1,000". If the user keeps 1,000, that 2,000 is used up and **can't come back later by accident**. Undo is available straight after. | T3 |
+| 4 | **Reversal after the planning period has ended** | **Nothing restored:** that plan is over. "This was part of an earlier plan, so your current planned spending isn't changed." The period comes from the expense date vs the current planning period (DEC-015 as amended by DEC-027); nothing is stored for it. | T4 |
+| 5 | **Edit down / remove the planned label** | Editing down restores the planned share no longer spent (2,000 → 1,500 restores **500**). Removing "part of my plan" restores what it still holds (**1,500**). Editing up never takes more of the plan without asking. The same confirmation applies. | T5 |
+| 6 | **Old tabs and rollbacks** (Release 1 doesn't know `plannedUsed`) | When the new version opens the data, it looks for amounts an older version left unresolved, and **deducts them from Left to spend until the user decides** ("An older version reversed an expense that used KSh 2,000 of your plan. Add it back to planned spending? · Let it go"). It asks once. **It never silently shows an optimistic figure.** | T6a–d |
 
-**"Same planning period"** is worked out, not stored: it means the expense's date falls inside the current planning period (DEC-015 as amended by DEC-027).
+**How the original plan and later plan changes interact** (so nobody ends up with more planned spending than intended)
+- Planned spending stays **one amount the user owns**. The app only ever (a) takes from it when an expense is confirmed as planned, and (b) offers to give that same amount back.
+- **The offer is capped:** it can never exceed what that expense still holds (rules 1 and 2), and it never applies to an earlier plan (rule 4).
+- **It is shown as "now → after" before anything changes** (rule 3), so a hand-made change is never silently stacked on.
+- **At the start of each new planning period,** any planned spending left over is shown for the user to keep or clear. Nothing is carried over silently.
 
-**Tests:**
-1. planned 2,000, an expense of 2,000 confirmed → Left to spend falls once (not twice) → reversed → planned back to 2,000;
-2. a partial expense (1,500 of 2,000) → 500 left → deleted → 2,000;
-3. a reversal in the next period → planned unchanged, with the message;
-4. edit down / up / unmark;
-5. double reversal → restored once only;
-6. Undo after a restore;
-7. an expense not marked as planned → nothing stored, nothing restored.
+**Rule 6 needs one more decision: deletions by an old version**
+- The new version can see when an old version **reversed** or **edited** a planned expense, because the entry and its `plannedUsed` remain [T6a, T6c].
+- But if an old version **deletes** the expense, the entry and its `plannedUsed` disappear. **Nothing is left to detect** [T6b: without a record, Left to spend silently rises by 2,000].
+- **Option A, recommended:** a small **period total** on the profile, `plannedLedger { periodStart, used }`, the planned amount used this period. If the entries account for less than it, an old version deleted something, and the difference is held back until the user decides [T6b]. That would be a **6th optional field**, and needs your approval.
+- **Option B:** accept the residual risk. It applies only when Release 1 code runs against schema 11 data (an old tab left open, or a forbidden rollback). The R4 safeguards make that rare, and Release 1 reloads when another tab saves (R1).
 
-**Data and compatibility**
-- **This is a fifth optional field**, so it **amends DB-5.12** (approved with 4 fields). It needs your approval.
-- It goes into schema 11 with the others. No extra migration: old entries simply don't have it.
-- Release 1 keeps unknown fields on entries (`index.html:778`), so the field survives.
-- **Mixed-version limit:** if Release 1 (an old tab or a rollback) reverses such an expense, it won't restore planned spending, because it doesn't know the field. Planned spending then stays too low and Left to spend **too high** by that amount, until the user corrects it. This is the less cautious direction, so it is covered by the same safeguards as R4 (D13 first; never roll back to Release 1 after schema 11) and noted with R4.
-
-**Alternative (no stored data):** at reversal, ask "Add KSh 2,000 back to planned spending?". The user must remember what the expense was for.
-
-**Recommendation:** the `plannedUsed` field. It is the smallest addition that meets your "restored appropriately" requirement automatically and exactly.
+**Tests T0–T6 become required release tests,** re-run against the actual code (RELEASE_1_CHECKLIST §9).
 
 - **If itemised planned spending** (several named items) is wanted later, that would need a stored list and its own approval.
 
@@ -408,6 +395,8 @@ So PesaPilot uses **what the user says**, through mechanisms that already exist 
   2. a one-cycle payday change ("my pay is late this month");
   3. an expected-income "cancelled" status, recorded by a `cancelledAt` date and kept in history;
   4. a list of one-off purchases the user chose to "Count it" in the estimate (§5.4.6). Added 26 Nov.
+  5. `plannedUsed` on expenses confirmed as planned (D14, DEC-030): a **proposed extension** of DB-5.12, approved as the preferred design.
+  6. *(Only if approved)* `plannedLedger { periodStart, used }` on the profile, to detect deletions by older versions (D14 rule 6, option A).
 
   **Schema 11 safeguards (tested on a copy, 25 Nov).**
 

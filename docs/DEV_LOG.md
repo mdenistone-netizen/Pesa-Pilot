@@ -238,3 +238,10 @@ These need Node and Playwright, which are pre-installed in Claude Code cloud ses
 - **D14 proposal:** one optional `plannedUsed` number on planned expenses; restore on reversal or delete within the same period; edits adjust; restore once; Undo. It would be a 5th optional field (amends DB-5.12). Mixed-version limit noted with R4.
 - Roadmap: protected backups as Stage G with release requirements.
 - No implementation, schema change, merge or deployment. Next: DB-6 review.
+
+### 2026-11-26 · DB-6 decided (DEC-029); D14 decided (DEC-030); systematic review complete
+- **DB-6:** all 9 choices approved as design, with conditions. The brief gains a decision table showing how each condition is met (failed update keeps the working version; no loss of unsaved work; reliable emergency switch; persistent-storage honesty; rollback floor). RELEASE_1_CHECKLIST gains §9, safeguards for later releases. DEC-017 marked as extended.
+- **D14:** `plannedUsed` approved as the preferred design, recorded as a proposed 5th optional field extending DB-5.12. Rules and tests in `prototypes/planned-spending/model.js` (T0–T6): partial reversals proportional; no double restore; plan changes shown as now → after; nothing restored after the period ends; edit down / unmark; old-tab amounts deducted until the user decides.
+  - The tests caught a double count in my first old-tab check (edited-down amount); fixed.
+  - **Found:** deletions by an older version can't be detected without a period total. Option A (6th field `plannedLedger`) vs B (accept the residual risk) is left to the owner.
+- All three briefs are decided as designs; none implemented. No code, schema, merge or deployment.

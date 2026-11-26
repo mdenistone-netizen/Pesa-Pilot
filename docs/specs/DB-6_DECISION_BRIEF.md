@@ -1,6 +1,27 @@
 # DB-6 Decision Brief: installable and offline PesaPilot (PWA; fixes D9)
 
-**Status:** **Proposed, for owner decision.** Planning only. Nothing is implemented. **Local-first is preserved:** no server, no data upload.
+**Status:** **Design approved by the owner: DEC-029 (26 Nov), with the conditions below. Not implemented.** Implementation needs separate authorisation after Release 1 and D13. Local-first is preserved: no server, no data upload.
+
+## Owner decisions (DEC-029) and how each condition is met
+
+| # | Decision | Condition | How the design meets it |
+|---|---|---|---|
+| 6.1 | Approved | After Release 1 and D13 | Stage C follows C0 (D13) in the roadmap |
+| 6.2 | Approved with conditions | **A failed update leaves the existing working version intact** | All-or-nothing install into a new cache; any failure keeps the current version in charge, online and offline [T, two clean runs]; the empty leftover cache is deleted; retried on the next online open (§3a.1–2) |
+| 6.3 | Approved | Reload banner; no switching during forms; tabs coordinated; **no loss of unsaved work** | The banner never reloads by itself. Tapping Reload while a form has unsaved input asks: "Finish or discard your entry first". Tabs reload together only once each tab reports **no open form**. A tab with a form open shows the banner and reloads after the form is saved or closed. Until then, the D13 guard stops an old tab saving newer data (§3a.3). |
+| 6.4 | Approved with conditions | **The emergency switch reliably removes the saved app copies when devices reconnect** | `sw.js` is never served from the HTTP cache (`updateViaCache: "none"`, always-revalidate header), and the app checks for an update on every open. The switch deletes **all** `pesapilot-*` caches and unregisters itself [T]. Release test: on real phones, after reconnecting, no PesaPilot cache and no worker remain (§3a.4). |
+| 6.5 | Approved | App files only; never records, demo data or `/docs/` | Explicit list of cached files; a test fails if any other path, or any storage API, appears in `sw.js` (§2a, §8) |
+| 6.6 | Approved with conditions | **Explain that the browser may refuse, and that it is not a substitute for backups** | Wording: "PesaPilot asked your browser to keep its data. Your browser decides; it may say no. Either way, **only a backup protects your records** if the phone is lost or reset." If refused: "Your browser didn't agree. Keep backing up regularly." |
+| 6.7 | Approved | Settings + one dismissible Home tip | §5 |
+| 6.8 | Approved with conditions | Emergency switch in rollback procedures after Stage C; **never roll back to a version incompatible with the current data** | **Rollback floor:** for each schema there is a named safe rollback build that understands it (as `8370097` is for schema 10). After schema 11, never Release 1. The recovery procedure gains "deploy the emergency switch with the rollback" (RELEASE_1_CHECKLIST §9). |
+| 6.9 | Approved | No native app for now | — |
+
+**Release requirements kept:**
+- real Android testing (install, offline, update, interrupted update, emergency switch, rollback, slow network);
+- the full test suites;
+- the safeguards in RELEASE_1_CHECKLIST §9.
+
+
 
 **Builds on:**
 - `DB-6_PWA_ASSESSMENT.md` (P6);

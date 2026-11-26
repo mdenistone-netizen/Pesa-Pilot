@@ -111,3 +111,23 @@ The preview is **https://deploy-preview-1--pesa-pilot.netlify.app**. It is a sep
 **D. A user loses their phone or browser data**
 - See `DATA_RECOVERY.md`: restore from their latest backup file.
 - There is no server copy. This is why the backup reminder exists.
+
+## 9. Safeguards for later releases (recorded 26 Nov; DEC-027, DEC-028, DEC-029)
+These **don't apply to Release 1**. They are recorded here so every later release checklist includes them.
+
+**Every release after Stage C (installable / offline, DEC-029)**
+- [ ] **Update integrity:** the worker version is bumped; an install is all-or-nothing; tested that a failed update leaves the current version working, online and offline.
+- [ ] **Offline data protection:** `sw.js` caches app files only. The automated check passes: no storage API, no `/docs/`, no demo data. The records are byte-identical before and after install, update and emergency switch.
+- [ ] **Multi-tab coordination:** tested with two tabs, one with an unsaved form. No reload while a form is open; no unsaved work lost; the D13 guard stops the older tab saving.
+- [ ] **Emergency switch ready:** the self-removing `sw.js` is prepared and tested; on real phones it removes all PesaPilot caches and the worker after reconnecting.
+- [ ] **Rollback floor:** the named safe rollback build for the **current schema** is identified. It is never a build that can't read the current data (after schema 11: never Release 1). The rollback is deployed **together with** the emergency switch.
+- [ ] **Real Android tests:** install, offline open, update with Reload, an interrupted update, the emergency switch, a rollback, and slow-network fallback, on at least one low-end and one mid-range phone.
+
+**The DB-5 / schema 11 release (DEC-027, DEC-030)**
+- [ ] The schema 11 cancellation test re-run against the **actual** DB-5 code (not the reference model), passing.
+- [ ] Migration, rollback and backup-compatibility tests for schema 11 (5 optional fields, or 6 if the ledger is approved).
+- [ ] The D14 rules (`prototypes/planned-spending/model.js`, T0–T6) re-run against the actual code, passing.
+
+**The DB-4 release (DEC-028)**
+- [ ] Real low-end Android unlock timing; restore with the password and with the code alone; several backups across a password change; repair; damaged-file refusal; share sheet (WhatsApp, Drive, Gmail); crypto implementation review.
+
