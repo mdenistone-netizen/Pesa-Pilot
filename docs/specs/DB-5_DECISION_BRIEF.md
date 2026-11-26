@@ -30,7 +30,7 @@
 - **At the start of a new planning period,** leftover planned spending is shown for the user to keep or clear. It is never silently carried over.
 
 ### D14 design: planned spending reduced and restored (DEC-030, 26 Nov)
-**Owner decision:** the `plannedUsed` field is approved as the **preferred design**. It is recorded as a **proposed extension of the approved DB-5.12** (a 5th optional field).
+**Owner decision:** the `plannedUsed` field is approved as the **preferred design**, recorded as a **proposed extension of the approved DB-5.12** (a 5th optional field). **Option A** (`plannedLedger`, a 6th optional field) was chosen on 26 Nov, as a design decision, subject to the clarifications below. **The final D14 design is confirmed separately by the owner; implementation is authorised separately.**
 - Design only: no implementation, schema change or deployment.
 - Kept separate from DB-4.
 - Evidence: `../prototypes/planned-spending/model.js`, tests T0–T6, all pass. My first version of the old-tab check counted an edited-down amount twice; the test caught it, and it is fixed.
@@ -55,13 +55,68 @@
 - **It is shown as "now → after" before anything changes** (rule 3), so a hand-made change is never silently stacked on.
 - **At the start of each new planning period,** any planned spending left over is shown for the user to keep or clear. Nothing is carried over silently.
 
-**Rule 6 needs one more decision: deletions by an old version**
-- The new version can see when an old version **reversed** or **edited** a planned expense, because the entry and its `plannedUsed` remain [T6a, T6c].
-- But if an old version **deletes** the expense, the entry and its `plannedUsed` disappear. **Nothing is left to detect** [T6b: without a record, Left to spend silently rises by 2,000].
-- **Option A, recommended:** a small **period total** on the profile, `plannedLedger { periodStart, used }`, the planned amount used this period. If the entries account for less than it, an old version deleted something, and the difference is held back until the user decides [T6b]. That would be a **6th optional field**, and needs your approval.
-- **Option B:** accept the residual risk. It applies only when Release 1 code runs against schema 11 data (an old tab left open, or a forbidden rollback). The R4 safeguards make that rare, and Release 1 reloads when another tab saves (R1).
+**Rule 6: the `plannedLedger` safeguard (owner chose option A, 26 Nov; design only)**
+Evidence:
+- `../prototypes/planned-spending/model.js`: checks P1–P6 (with the T0–T6 behaviour), all pass;
+- `../prototypes/planned-spending/release1-ledger.js`: the **real Release 1 build**, PASS.
 
-**Tests T0–T6 become required release tests,** re-run against the actual code (RELEASE_1_CHECKLIST §9).
+**1. What it stores, and the rule it keeps**
+- `profile.plannedLedger = { periodStart, used }`
+  - `periodStart`: the first day of the planning period it belongs to;
+  - `used`: the **total** that this period's expenses hold of the plan (the sum of their `plannedUsed`).
+- **It never stores the planned-spending amount itself.**
+- **Invariant:** every action by a version that knows the ledger keeps `used` = the sum of `plannedUsed` on this period's entries:
+  - confirming a planned expense **adds** its `plannedUsed`;
+  - restoring (reversal, partial reversal, edit down, unmark, "keep current plan") **subtracts** exactly what the entry gave up;
+  - resolving a discrepancy subtracts the resolved amount.
+- **Comparison, each time the app opens the data:**
+  - `missing = used − (sum of plannedUsed still written on this period's entries)`;
+  - entries reversed or edited by an older version still carry their `plannedUsed`, so they are found individually (rules for "reversed" and "edited down") and **don't** create a gap;
+  - **only an entry that has disappeared** leaves `missing > 0`.
+
+**2. Deliberate changes to the planned amount are authorised, never "missing"** [P2]
+- Because the ledger tracks what *expenses hold*, not the plan size, setting planned spending to 5,000, to 0, or (in an older version) to 300 **never** produces a discrepancy.
+- Shown on the real build: Release 1 changed planned spending to 1,500, and the new app accepted it without a flag.
+
+**3. Partial reversals and edits are counted once** [P3]
+- Restorations reduce both the entry and the ledger at the same moment. Already-restored amounts can't be flagged or restored again.
+- Expense 2,500 (2,000 planned): refunds of 1,000 then 1,500 restore 800 then 1,200, and the ledger goes 2,000 → 1,200 → 0. A third reversal restores 0.
+- An edit 2,000 → 1,500 restores 500 (ledger 1,500).
+- A "Keep current plan" choice still reduces the ledger, so it is never flagged later.
+
+**4. A deletion by an older version is detected and handled cautiously** [P4, and the real build]
+- Release 1 deleted the planned expense: the entry was gone, and the **ledger was still `{ 2026-11-25, 2000 }`**.
+- The new app found `missing = 2,000` and **held it back**: Left to spend = 10,000 − planned 1,500 − held back 2,000 = **6,500**, not 8,500.
+- Release 1 itself would have shown the optimistic figure. That is release risk R4's mixed-version case.
+- **Combined case:** an older version reversed one planned expense (1,000) and deleted another (600). Two separate items, 1,600 held back in total, with no double counting.
+
+**5. The ledger survives older versions, rollbacks and failed upgrades** [P5, and the real build]
+- **Older versions and rollbacks:** Release 1 keeps unknown profile fields. Shown on the real build through:
+  - a plan edit;
+  - a deletion;
+  - a profile edit (each a full profile save).
+
+  The ledger was unchanged every time. Every profile write in Release 1 copies the existing profile (`index.html:1044, 1899, 2040`). The rollback floor (DEC-029 6.8) still forbids rolling back to Release 1 after schema 11.
+- **Upgrade:** schema 10 → 11 **never resets an existing ledger**, even if the entries no longer match it. Recomputing it would erase the evidence of a deletion. It is created **only if absent**, from the entries. Running it again changes nothing (DEC-004).
+- **Failed upgrade:** the upgrade writes once, only after success. A failure leaves the stored data exactly as it was, and the next attempt works [P5c].
+- **Stated limits:** the ledger *can* legitimately be replaced or removed by a **user-confirmed** action:
+  - deleting all data;
+  - importing a backup (which brings that backup's own consistent ledger);
+  - clearing browser data.
+
+  If a ledger is ever lost, deletions made **before** that point can't be proven [P5e]. Data without a ledger gets a fresh one from its entries, with no false alarm [P5d].
+
+**6. Recovery and the user's choice: never silent in either direction** [P6]
+- **When there is a discrepancy, Plan shows** (one item per cause, each with its amount):
+  > **KSh 2,000 is being held back.** It was tied to planned spending, but the expense it belonged to is no longer in your records. It was probably deleted by an older version of PesaPilot.
+  > [Add it back to planned spending] · [Let it go: I've dealt with it] · [Decide later]
+- **The three choices:**
+  - **Add back:** the 2,000 becomes planned spending again. Left to spend is unchanged (8,000); the item is closed.
+  - **Let it go:** the hold is released, so Left to spend rises (10,000), **because the user chose it**. The item is closed.
+  - **Decide later:** it stays held back **and visible** ("Held back: KSh 2,000, needs your decision").
+- **Not indefinite:** at the end of the planning period, an unresolved item **lapses** with one message ("That plan has ended, so nothing is held back any more"). Planned spending belongs to a period, so nothing is ever deducted beyond it.
+
+**The model checks P1–P6 (with the T0–T6 behaviour) and the real-Release-1 ledger test become required release tests,** re-run against the actual code (RELEASE_1_CHECKLIST §9).
 
 - **If itemised planned spending** (several named items) is wanted later, that would need a stored list and its own approval.
 
@@ -396,7 +451,7 @@ So PesaPilot uses **what the user says**, through mechanisms that already exist 
   3. an expected-income "cancelled" status, recorded by a `cancelledAt` date and kept in history;
   4. a list of one-off purchases the user chose to "Count it" in the estimate (§5.4.6). Added 26 Nov.
   5. `plannedUsed` on expenses confirmed as planned (D14, DEC-030): a **proposed extension** of DB-5.12, approved as the preferred design.
-  6. *(Only if approved)* `plannedLedger { periodStart, used }` on the profile, to detect deletions by older versions (D14 rule 6, option A).
+  6. `plannedLedger { periodStart, used }` on the profile (D14 rule 6): **option A chosen by the owner (DEC-030)**, design only.
 
   **Schema 11 safeguards (tested on a copy, 25 Nov).**
 

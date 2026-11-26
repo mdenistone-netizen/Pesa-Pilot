@@ -245,3 +245,16 @@ These need Node and Playwright, which are pre-installed in Claude Code cloud ses
   - The tests caught a double count in my first old-tab check (edited-down amount); fixed.
   - **Found:** deletions by an older version can't be detected without a period total. Option A (6th field `plannedLedger`) vs B (accept the residual risk) is left to the owner.
 - All three briefs are decided as designs; none implemented. No code, schema, merge or deployment.
+
+### 2026-11-26 · D14 option A: plannedLedger design and evidence (design only)
+- The owner chose option A (`plannedLedger` as the 6th optional field) and asked for 6 clarifications.
+- **Model rewritten** (`prototypes/planned-spending/model.js`, P1–P6):
+  - the ledger stores `{ periodStart, used }`, the total `plannedUsed` held by this period's entries (never the plan amount), kept equal to the entries by every new-version action;
+  - manual plan changes are never flagged;
+  - partial restorations are counted once;
+  - an older version's delete is detected and held back;
+  - Add back / Let it go / Later choices, with lapse at period end;
+  - the upgrade never resets an existing ledger, is idempotent, and a failed upgrade changes nothing.
+  - I removed a meaningless placeholder filter I had left in, and restored the rule 4/5 checks dropped in the rewrite.
+- **Real Release 1 build** (`release1-ledger.js`): the ledger was kept through a plan edit, a delete and a profile edit. The reference model then detected the 2,000 deletion and accepted the manual plan change (Left to spend 6,500, not 8,500).
+- DEC-030, DB-5 brief (rule 6), decision pack, master, RELEASE_1_CHECKLIST §9 and roadmap updated. Final D14 confirmation pending. No code, schema, merge or deployment.

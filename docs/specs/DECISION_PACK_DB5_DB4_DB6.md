@@ -30,7 +30,7 @@ Approving one approves none of the others. Production is untouched until you exp
 - **DB-5: decided 26 Nov (DEC-027).** All 14 choices approved: rules and design only, several with conditions (see each entry). **Not implemented.** DB-5 implementation needs a separate go-ahead after Release 1 and D13 are completed and verified.
   - DEC-015 is amended by 5.7 and 5.8 (recorded in `DECISIONS.md` and `FINANCIAL_RULES.md` §6 as approved, not yet implemented).
 - **DB-4: decided 26 Nov (DEC-028).** All 11 choices approved: design only, several with conditions (see each entry). **Not implemented.** Clarifications requested with the decision are answered in DB-4 brief §3c (exact contents, code randomness, repair without overwriting records, a non-forcing monthly check, release requirements). Implementation needs separate authorisation after Release 1 and D13.
-- **D14: decided 26 Nov (DEC-030).** `plannedUsed` approved as the preferred design: a **proposed 5th optional field** extending DB-5.12. Rules and tests T0–T6 are in the DB-5 brief ("D14 design"). **Open sub-decision:** how to detect deletions by older versions (option A: a 6th optional field `plannedLedger`, recommended; option B: accept the residual risk).
+- **D14: decided 26 Nov (DEC-030).** `plannedUsed` approved as the preferred design: a **proposed 5th optional field** extending DB-5.12. Rules and tests T0–T6 are in the DB-5 brief ("D14 design"). **Option A chosen (26 Nov):** `plannedLedger` is the 6th optional field. Clarifications P1–P6 and the real-Release-1 test are in the DB-5 brief (D14, rule 6). **Final D14 confirmation pending.**
 - **DB-6: decided 26 Nov (DEC-029).** All 9 choices approved: design only, several with conditions. Safeguards in the brief and RELEASE_1_CHECKLIST §9. **Not implemented.**
 - **All three briefs are decided as designs.** None is implemented. Each needs separate implementation authorisation after Release 1 and D13.
 
@@ -431,7 +431,7 @@ Details and the backup-version scope: DB-5 brief §7.
 
 **Release requirement:** the cancellation test must be **re-run against the actual DB-5 implementation** and pass before any schema 11 release is offered for approval. The Release 1 display issue is recorded as **R4** in the release risk register.
 
-**Extension (DEC-030, 26 Nov):** a **5th optional field** `plannedUsed` (D14) is approved as the preferred design and recorded as a proposed extension of this choice. A possible 6th (`plannedLedger`) is an open sub-decision.
+**Extension (DEC-030, 26 Nov):** a **5th optional field** `plannedUsed` (D14) is approved as the preferred design and recorded as a proposed extension of this choice. The 6th, `plannedLedger` (option A), was chosen on 26 Nov; final D14 confirmation pending.
 
 **Changes an existing rule?** **Data structure change:** schema 11, with optional fields. No existing field changes meaning. A production data migration under DEC-017.
 

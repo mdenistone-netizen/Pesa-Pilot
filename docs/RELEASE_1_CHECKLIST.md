@@ -125,8 +125,8 @@ These **don't apply to Release 1**. They are recorded here so every later releas
 
 **The DB-5 / schema 11 release (DEC-027, DEC-030)**
 - [ ] The schema 11 cancellation test re-run against the **actual** DB-5 code (not the reference model), passing.
-- [ ] Migration, rollback and backup-compatibility tests for schema 11 (5 optional fields, or 6 if the ledger is approved).
-- [ ] The D14 rules (`prototypes/planned-spending/model.js`, T0–T6) re-run against the actual code, passing.
+- [ ] Migration, rollback and backup-compatibility tests for schema 11 (6 optional fields, including `plannedUsed` and `plannedLedger`). **The upgrade must never reset an existing `plannedLedger`.**
+- [ ] The D14 rules and ledger checks (`prototypes/planned-spending/model.js`, P1–P6) and the Release 1 ledger test (`release1-ledger.js`) re-run against the actual code, passing.
 
 **The DB-4 release (DEC-028)**
 - [ ] Real low-end Android unlock timing; restore with the password and with the code alone; several backups across a password change; repair; damaged-file refusal; share sheet (WhatsApp, Drive, Gmail); crypto implementation review.
