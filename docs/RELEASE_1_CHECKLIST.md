@@ -68,7 +68,7 @@ The preview is **https://deploy-preview-1--pesa-pilot.netlify.app**. It is a sep
 - [ ] Preview rebuilt from the exact commit being released, and its status is "Deploy Preview ready".
 - [ ] Record the release commit hash here: `________`.
 - [ ] Confirm `main` is still `8e33d44`, so nothing slipped in.
-- [ ] **Decide how to keep `docs/` (research, prototypes, demo data) off the live site.** Netlify publishes the whole repository. Options: a Netlify rule that blocks `/docs/*`, or publishing only the app files. It's an infrastructure-config change, so it gets its own small approval before the merge.
+- [ ] **Decide how to keep `docs/` (research, prototypes, demo data) off the live site.** → Proposed as **DB-7** (`specs/DB-7_PUBLIC_DEPLOYMENT_BRIEF.md`; recommended: publish an app folder only). Verified 26 Nov: `main` serves only `index.html` today; merging PR #1 unchanged would publish `docs/`, `tests/`, `CLAUDE.md` and `package.json`. Netlify publishes the whole repository. Options: a Netlify rule that blocks `/docs/*`, or publishing only the app files. It's an infrastructure-config change, so it gets its own small approval before the merge.
 - [ ] Owner has completed §3 and **explicitly approved**.
 
 ## 6. Deployment steps

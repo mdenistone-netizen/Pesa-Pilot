@@ -31,6 +31,7 @@
 |---|---|---|---|
 | A | Guided onboarding | P1 reviewed by the owner | None: UI over existing features (opening balances, plan settings, bills, goals, debts) |
 | B | "Will I make it?" + Before You Spend (+ D14 fix) | DB-5 design approved (DEC-027, DEC-030) ✅; separate implementation authorisation; D13 fixed and released. **Before release: the schema 11 cancellation test (`prototypes/schema11/e2e-release1.js`) re-run against the actual DB-5 code and passing.** | New read-only calculation; schema 11 with 6 optional stored fields (spending override, one-cycle payday change, `cancelledAt`, restored one-offs, `plannedUsed`, `plannedLedger`): a production data migration under DEC-017 |
+| R1-pre | **DB-7 public deployment boundary** (publish an app folder only; `netlify.toml`; headers). **Before Release 1 is merged.** | DB-7 approval | No app behaviour change; test paths move |
 | C0 | **D13 schema guard** (never lower the schema version; read-only if data is newer) | Owner approval | Small storage-safety fix; full tests |
 | C | PWA install/offline | DB-6 design approved (DEC-029) ✅; C0 done; separate implementation authorisation. **Before release:** RELEASE_1_CHECKLIST §9 safeguards + real-Android tests | Delivery architecture, not money rules |
 | ~~D~~ | ~~Paste/Share M-Pesa capture~~ **Declined (DEC-024).** Manual recording is the supported approach; quick manual entry is improved instead (see below). | — | — |
@@ -96,3 +97,6 @@ Today the app has one number: everything you ever earned minus everything you ev
 - **Fee capture for M-Pesa:** an optional "transaction cost" field on M-Pesa expenses and transfers. Charges add up quickly, and few apps show them.
 - **Reconcile button per account:** "my real balance is …" creates a correcting entry. This is how the app stays trustworthy when people forget to record small items.
 - **Postpone:** cloud sync, SMS import and bank integrations, until Phases 1–2 are verified.
+
+## Launch phases (planning, 26 Nov)
+See `strategy/PWA_AND_LAUNCH_PLAN.md`: **L1** app readiness → **L2** 5–10 trusted testers → **L3** the approved 24-person research (P4) → **L4** wider public access (DB-4 recommended before L4). Identity: `specs/DB-8_IDENTITY_BRIEF.md`.

@@ -284,3 +284,18 @@ These need Node and Playwright, which are pre-installed in Claude Code cloud ses
   - fixed-payday safe-to-spend depends on the date (the guide uses irregular);
   - PIN lockout of 30 s after 5 wrong tries.
 - No code, schema, merge or deployment. Waiting for the owner's test feedback.
+
+### 2026-11-26 · PWA and launch planning (no implementation)
+- The owner asked for planning to make PesaPilot a professional installable, offline Android PWA, and said they are "happy with Release 1 for now" (recorded as **not** a deploy approval).
+- **Verified:**
+  - no manifest, service worker, icons or `netlify.toml`; the theme colour is still the old navy `#0F172A`;
+  - the "Install app" button exists but can never work (D9);
+  - **`main` contains only `index.html`**; merging PR #1 unchanged would publish 62 docs, tests, `CLAUDE.md` and `package.json`;
+  - **the GitHub repo is public**;
+  - no personal data in repo files (only labelled fake numbers in the historical M-Pesa doc).
+- **Wrote:**
+  - `strategy/PWA_AND_LAUNCH_PLAN.md`: assessment, target architecture within DB-6, Android test plan, L1–L4 launch phases, sequence with complexity;
+  - **DB-7** (public deployment boundary + repo visibility + security headers; DEC-002 adjustment for a strict CSP);
+  - **DB-8** (identity and icon: "heading P" concept, colours, asset list).
+- **Recommendation:** DB-7 first, before the Release 1 merge.
+- No code, config, assets or deployment.
