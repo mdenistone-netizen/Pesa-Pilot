@@ -268,3 +268,19 @@ These need Node and Playwright, which are pre-installed in Claude Code cloud ses
   - Two of my own expected figures in R3 were wrong (a reversal returns money *and* restores the plan, so Left to spend is unchanged); the model was right.
 - **Real Release 1 build, part 2:** an old tab opened before the resolution reloaded automatically when the new app saved, and its later profile save kept the resolution (planned 3,500, ledger 0; no discrepancy).
 - Final D14 design recorded as approved in DEC-030, the DB-5 brief, master, pack and RELEASE_1_CHECKLIST §9. Design only; no code, schema, merge or deployment.
+
+### 2026-11-26 · Release 1 owner review: baseline + test guide
+- **Verified:**
+  - work branch `claude/pesapilot-master-handover-0z1xae` at `1325ee9`, in sync with GitHub;
+  - PR #1 open, **draft**, head `1325ee9`;
+  - Netlify status "Deploy Preview ready" for `1325ee9` (https://deploy-preview-1--pesa-pilot.netlify.app);
+  - `main` = `8e33d44` (24 Aug), untouched;
+  - preview app code = `5bdcb7b` (CR-001 to CR-007), with no app change since.
+  - Suites: 64/64 regression, 4/4 migration, 106/106 engine, 78/78 UI snapshots.
+- **Wrote `RELEASE_1_OWNER_TEST_GUIDE.md`** (T1–T19). Every expected figure, label and path was produced by running the steps on this code at 390 px with fake data.
+- **Findings for the owner** (not defects):
+  - Home "Set aside for goals" counts only spending-account set-asides;
+  - the pre-accounts copy appears only on an on-load upgrade, not an import;
+  - fixed-payday safe-to-spend depends on the date (the guide uses irregular);
+  - PIN lockout of 30 s after 5 wrong tries.
+- No code, schema, merge or deployment. Waiting for the owner's test feedback.

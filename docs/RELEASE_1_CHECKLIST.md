@@ -32,6 +32,7 @@
 - A backup reminder appears until they download a backup.
 
 ## 3. Owner preview review (phone, about 20 minutes)
+**Detailed step-by-step guide (verified 26 Nov against preview commit `1325ee9`):** `RELEASE_1_OWNER_TEST_GUIDE.md` (T1–T19, with expected figures and failure conditions). The short list below is kept for reference.
 The preview is **https://deploy-preview-1--pesa-pilot.netlify.app**. It is a separate address with its own empty storage, so **nothing you do there touches the live app or anyone's data**.
 
 1. Open the preview. Complete the welcome screen with any name and a test PIN, e.g. 1234.
