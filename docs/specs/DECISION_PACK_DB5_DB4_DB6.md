@@ -26,6 +26,15 @@ Approving one approves none of the others. Production is untouched until you exp
 
 ---
 
+## Changes after your review (26 Nov, round 3)
+These are clarifications only. **Nothing is approved for implementation.**
+
+| Your point | Where answered | Evidence | Outcome |
+|---|---|---|---|
+| DB-4: "can't export" vs "can use" | DB-4 brief §3a | **Browser test** (page + service worker): a worker retrieved the stored non-extractable key and **decrypted a backup with it** (export was blocked). | The round-2 design is **withdrawn**. **Revision 2:** the phone keeps only a **public** key plus password/code locks. Tested: the worker can retrieve it and make new backups, but **cannot open any**. Model: Q1–Q7 + "the phone alone cannot open any backup" pass. Limits stated: offline guessing against the locks; malicious same-origin code could capture a typed password or swap the public key; records on the phone remain unencrypted. |
+| DB-5.5: recorded day, partial recording, multi-day reconciles, excluded purchases, honest uncertainty | DB-5 brief §5.4 | Model: 16 cases, D1–D11 | Exact recorded-day definition (reversed entries excluded). Four **confidence levels**; **no records-only figure is shown when records are incomplete**. Reconcile gaps spread over each account's own stretch, never double counted, never lowered by "more money found". One-offs listed under "How this is worked out", with **Count it / Undo** (needs a 4th optional stored list in DB-5.12). |
+| Schema 11: end-to-end cancellation, and backup-version scope | DB-5 brief §7 | `prototypes/schema11/e2e-release1.js`: real Release 1 build + schema 11 reference model, **PASS** | `cancelledAt` restored the cancellation; it doesn't reappear in pending payments, forecasts or late reminders; idempotent. **New finding:** while Release 1 is running, it *shows* the cancelled payment as expected (Plan list, Home "if it arrives" line), never in Left to spend. Backup-version safeguard: **protects** imports and safety-backup restores (both refused, tested); **does not protect** data already on the phone, Release 1's display, hand-edited files or copies outside the app. |
+
 ## Changes after your review (25 Nov, round 2)
 Your review position is recorded in `MASTER_PROJECT_STATE.md`. **Nothing is approved for implementation.** The answers to your questions are in the briefs; this list says where.
 
@@ -34,7 +43,7 @@ Your review position is recorded in `MASTER_PROJECT_STATE.md`. **Nothing is appr
 | DB-5.5 divisor, empty days, incomplete records | DB-5 brief §5.4 | Model examples D1–D6 | Divided by **calendar** days; empty days = 0; a coverage check asks the user and uses the higher figure. **Correction:** reconcile gaps are now *included*, spread over time (excluding them made the estimate too low). |
 | DB-5.6 cushion is a threshold only | DB-5 brief §5.5 | Model property for every no-buffer example | Confirmed. Wording made explicit. |
 | DB-5.7/5.8/5.12 Release 1 must not overwrite schema 11 | DB-5 brief §7 | **Tested on a copy:** Release 1 opening schema 11 changes nothing; *saving* relabels it 10 and rewrites "cancelled" to "expected", **but keeps extra fields** | 4 layers: D13 first; schema 11 + backup version; `cancelledAt` date as the source of truth (survives Release 1); rollback floor (never Release 1 after schema 11) |
-| DB-4 key architecture, Q1–Q7 | DB-4 brief §3a | Model: all 7 answers checked. Chromium: non-extractable key survives a reload and can't be exported. | Four items separated (DK, P-key, R-key, on-device secret). **Change:** the phone key is non-extractable in IndexedDB, so changing the password needs the old password **or** the recovery code. This closes the "unlocked phone re-locks the key" gap. |
+| DB-4 key architecture, Q1–Q7 (**superseded in round 3**: the non-extractable design was withdrawn) | DB-4 brief §3a | Model: all 7 answers checked. Chromium: non-extractable key survives a reload and can't be exported. | Four items separated (DK, P-key, R-key, on-device secret). **Change:** the phone key is non-extractable in IndexedDB, so changing the password needs the old password **or** the recovery code. This closes the "unlocked phone re-locks the key" gap. |
 | DB-4.6 example | DB-4 brief §4 | — | `chungwa basi kumi mlango` (4 unrelated words). The example and common passwords are refused. |
 | DB-4.9 plain copy | DB-4 brief §5a | — | "NOT protected" warning, `UNPROTECTED` in the file name, and a delete reminder. The process is unchanged. |
 | DB-6.5 storage claim | DB-6 brief §2a | Chromium: worker sees localStorage `undefined`, IndexedDB and caches available; records identical after every step | **Corrected:** the worker can't reach localStorage (where all records are) but *can* reach IndexedDB and caches. A test forbids storage code in `sw.js`. |
@@ -48,21 +57,21 @@ Your review position is recorded in `MASTER_PROJECT_STATE.md`. **Nothing is appr
 | DB-5.2 | How expected income is shown | One line per payment; remove the combined line | No rule; **removes a display line** |
 | DB-5.3 | Planning horizon for irregular income | Always the planning period | No (confirms DEC-015) |
 | DB-5.4 | A bill due on payday itself | Keep DEC-015; show a note | No (alternative changes DEC-015) |
-| DB-5.5 | Usual daily spending estimate | 28-day average with exclusions; user can override | New rule |
+| DB-5.5 | Usual daily spending estimate | 28 calendar days; confidence shown; no figure from incomplete records; one-offs with Count it | New rule |
 | DB-5.6 | Cushion for "Tight" | Safety buffer if set; else max(500, 10%) | New rule |
 | DB-5.7 | Late or missing income | Late status; Received / New date / Won't come; "Waiting for your pay" | **Extends DEC-015** + new data value |
 | DB-5.8 | Salary late this month | One-cycle "my pay is late" | **Extends DEC-015** + new setting |
 | DB-5.9 | Savings in the verdict | Never automatic; suggest a smaller set-aside; offer "use from goal" | No (uses DEC-022) |
 | DB-5.10 | Fuliza and auto-repaid loans | Decide in DB-3; warning only until then | No |
 | DB-5.11 | Before You Spend actions | Record / Not now / Save as planned | No |
-| DB-5.12 | Three optional stored fields | Approve, after D13, with schema 11 | **Data structure + migration (schema 11)** |
+| DB-5.12 | Four optional stored fields | Approve, after D13, with schema 11 | **Data structure + migration (schema 11)** |
 | DB-5.13 | Timing scenarios | No-income (30 days) + one per expected payment | New rule |
 | DB-5.14 | Short vs Already short wording | As drafted; test with users | No |
 | DB-4.1 | Add protected backups | Yes, after Release 1 and D13 | **Extends DEC-020** |
 | DB-4.2 | Encryption method | AES-GCM-256; PBKDF2 600k | No |
 | DB-4.3 | Recovery | Password + recovery code | No |
 | DB-4.4 | Default | Offer protection; plain stays available | No |
-| DB-4.5 | One-tap backups (key kept on phone) | Yes | **New on-device secret** (DEC-019 style) |
+| DB-4.5 | One-tap backups (public key + locks on phone; phone can't open backups) | Yes | **New on-phone items** (DEC-019 style: never exported) |
 | DB-4.6 | Password rules | 8+ chars; not the PIN; 12+ if only digits | No |
 | DB-4.7 | Monthly password check | Yes, with the backup reminder | Extends DEC-020 reminder |
 | DB-4.8 | How the file is saved | Share sheet; download as fallback | No |
@@ -169,22 +178,20 @@ Also adopt the four verdicts in brief §3 (On track / Tight / Short / Already sh
 
 ### DB-5.5 · Usual daily spending estimate
 
-**Decision:** How PesaPilot estimates "usual spending per day" (D).
+**Decision:** How PesaPilot estimates "usual spending per day" (D), and how it shows how sure it is.
 
-**Recommendation** (exact rules in DB-5 brief §5.4; model-checked):
-- **Total ÷ 28 calendar days:** the last 28 full days before today; today is excluded. A shorter window applies if the user is newer.
-- **Days with no entries count as zero.**
-- **Counted:**
-  - expenses;
-  - unrecorded spending found by reconciling, spread over the days since the previous reconcile.
-- **Not counted:**
-  - bill payments;
-  - goal use;
-  - transfers, savings and debt repayments;
-  - one-offs over 3× the median, when there are ≥ 10 entries. These are listed, and the user can put them back.
-- **Fewer than 7 days of records:** ask the user.
-- **Fewer than half the days recorded, and no reconcile:** "Your records may be incomplete". Ask the user, and use **the higher** figure.
-- **Override:** the user can always override, with an end date.
+**Recommendation** (exact rules in DB-5 brief §5.4; 16 model-checked cases):
+- **Total ÷ 28 calendar days** (the last 28 full days before today). Empty days count as zero.
+- **A recorded day** is a day with ≥ 1 expense above zero that isn't reversed, by the entry's own date. Bills, goal use, transfers and adjustments don't count.
+- **Reconcile gaps:** unrecorded spending is spread evenly over that account's stretch since its previous reconcile. Only the part inside the window counts, and stretches never overlap. "More money than recorded" never lowers the estimate.
+- **One-offs** (over 3× the median, with ≥ 10 entries) are left out and listed under "How this is worked out", with **Count it / Undo**.
+- **Confidence shown:**
+  - **Checked:** every spending account reconciled within 14 days;
+  - **From your records only:** labelled "not yet checked; if anything wasn't recorded, you spend more";
+  - **Incomplete:** under half the days recorded. **No figure from the records is shown**; the app asks, then uses the higher figure;
+  - **Not enough history:** under 7 days; the app asks.
+- Figures are rounded to the nearest KSh 10 and always say "about".
+- The user can override, with an end date.
 
 **Alternatives:**
 - the median of daily totals (more robust, harder to explain);
@@ -194,7 +201,8 @@ Also adopt the four verdicts in brief §3 (On track / Tight / Short / Already sh
 
 **Risks:**
 - **Financial:** too low an estimate makes the verdict optimistic. Mitigated by showing the figure and allowing overrides.
-- **Accuracy:** forgotten entries make it too low. Guarded by the coverage check, by counting reconcile gaps, and by "use the higher figure".
+- **Accuracy:** forgotten entries make it too low. Guarded by the coverage check, reconcile gaps, "use the higher figure", and the confidence label.
+- **Partial recording** (every day has *some* entry) can't be detected except by reconciling. It is labelled "from your records only" until checked.
 - **Too high:** one-offs are listed and excluded; bills are excluded.
 - **Maintenance:** the exclusion rules need tests.
 
@@ -327,12 +335,13 @@ Also adopt the four verdicts in brief §3 (On track / Tight / Short / Already sh
 
 ---
 
-### DB-5.12 · Three optional stored fields
+### DB-5.12 · Four optional stored fields
 
 **Decision:** Allow three new, optional, additive pieces of stored data:
 1. a usual-spending override with an end date (DB-5.5);
 2. a one-cycle payday change (DB-5.8);
-3. a "cancelled" status for expected income (DB-5.7).
+3. a "cancelled" status for expected income, recorded by a `cancelledAt` date (DB-5.7);
+4. a list of one-off purchases the user chose to "Count it" in the estimate (DB-5.5; added 26 Nov).
 
 **Recommendation:** Approve, **only after D13 is fixed and released**, and with a **schema version bump (10 → 11)** plus a new backup version.
 
@@ -365,6 +374,14 @@ Also adopt the four verdicts in brief §3 (On track / Tight / Short / Already sh
 4. a rollback floor (never Release 1 after schema 11).
 
 Details: DB-5 brief §7.
+
+**End-to-end test (26 Nov), real Release 1 + schema 11 reference:** PASS.
+- create → cancel → Release 1 opens and saves → reopen;
+- the cancellation is restored from `cancelledAt`; it is absent from pending payments, forecasts and late reminders;
+- the backup and safety-backup refusals were tested.
+- **Limit:** while Release 1 runs, it displays the payment as expected (never counted).
+
+Details and the backup-version scope: DB-5 brief §7.
 
 **Changes an existing rule?** **Data structure change:** schema 11, with optional fields. No existing field changes meaning. A production data migration under DEC-017.
 
@@ -461,6 +478,8 @@ DEC-019 is unchanged: no PIN or hash in any file. The wording stays accurate: "y
 **Decision:** What opens a protected backup.
 
 **Recommendation:** **Password + recovery code.** The recovery code is 16 characters (like `K7QM-3XRA-9VTE-HW2C`), shown once, written on paper. Either opens the file.
+- **How:** each one unlocks its own locked copy of the backup private key, which then opens that file's key. A replacement phone can be restored with **the code alone**, and the code stays valid afterwards.
+- All 7 of your questions are model-checked (DB-4 brief §3a).
 
 **Alternatives:**
 - password only (one forgotten password = backups lost);
@@ -499,26 +518,35 @@ DEC-019 is unchanged: no PIN or hash in any file. The wording stays accurate: "y
 
 ### DB-4.5 · One-tap backups
 
-**Decision:** The phone keeps a **non-extractable** copy of the data key (DK) in IndexedDB, together with the two locked copies of DK. So later backups need no password. Never put in any export, like the PIN. Full architecture: DB-4 brief §3a.
+**Decision (revision 2, 26 Nov):**
+- The phone keeps the backup **public key** and the two password/code **locks** in IndexedDB.
+- Each backup is locked with a fresh one-time key that only the matching private key can open. That private key exists only inside the locks.
+- So backups are one tap, with no password, but **nothing stored on the phone can open a backup**.
+- Never put in any export.
+
+Full architecture: DB-4 brief §3a.
 
 **Recommendation:** Yes.
 
-**Alternative:** Type the password for every backup. This is better password practice, but more friction, so fewer backups.
+**Alternative:** Type the password for every backup (no stored items at all, but more friction, so fewer backups).
 
-**For an ordinary user:** "Back up" is one tap, which means more frequent backups.
+**Withdrawn alternative:** keep a non-extractable data key on the phone (round 2).
+- **Tested:** same-origin code (a service worker) retrieved it and **decrypted a backup**.
+- "Non-extractable" stops copying the key's value, **not using it**.
+
+**For an ordinary user:** "Back up" is one tap, so backups happen more often. Nothing else changes.
 
 **Risks:**
-- **Security:**
-  - the key can be used but **not read out** [tested];
-  - opening any backup file always needs the password or the recovery code;
-  - changing the password needs the **old password or the code**, not just the PIN.
+- **Security (what is guaranteed):** with only the phone's stored items, **no backup can be opened**. Model-checked, and browser-tested from a worker.
+- **Limits (stated, not hidden):**
+  - the stored items are **reachable** by code on PesaPilot's address;
+  - the locks can be copied and **guessed offline**, as they can from any backup file. Hence 600,000 rounds and the 4-word guidance;
+  - malicious code on PesaPilot's address could capture a password **while it is typed**, or swap the public key so that *future* backups are locked to it. Such code could already read the records directly. Defences: no third-party scripts, a content security policy, and a worker with no storage code.
+- **Maintenance:** new stored items, kept out of every export by tests like DEC-019's.
 
-  So someone using an unlocked phone **cannot** take the key off it, or re-lock it to open old backups. They can make new backups, and can already read the records in the app, as today.
-- **Maintenance:** a new secret on the phone, scrubbed from exports with the same tests as DEC-019.
+**Changes an existing rule?** **New on-phone items** (not secret enough to open anything), handled by DEC-019's rule: never exported.
 
-**Changes an existing rule?** **New on-phone secret,** handled by DEC-019's rule: never exported.
-
-**Proposed storage:** **IndexedDB**, separate from the records (localStorage). It is never part of any backup or export by design, needs no schema change, and older versions ignore it. A service worker could technically reach IndexedDB; DB-6's worker contains no storage code, enforced by a test.
+**Proposed storage:** IndexedDB, separate from the records (localStorage). No schema change; older versions ignore it.
 
 ---
 
@@ -743,7 +771,7 @@ DEC-019 is unchanged: no PIN or hash in any file. The wording stays accurate: "y
   - **Corrected:** a service worker can't reach **localStorage**, where all PesaPilot records are kept [tested]. It *can* reach IndexedDB and Cache Storage.
   - The worker's code only caches app files.
   - A test fails if `sw.js` mentions any storage API.
-  - The DB-4 key in IndexedDB is non-extractable.
+  - **Corrected 26 Nov:** a worker *can* retrieve and **use** CryptoKeys in IndexedDB, even non-extractable ones (tested). DB-4 revision 2 therefore stores there only a public key and locks, which can't open a backup.
 - **Maintenance:** the file list must be updated if app files change; a test checks it.
 
 **Changes an existing rule?** **No.** It complements the open Release 1 checklist item about keeping `/docs/` off the live site.

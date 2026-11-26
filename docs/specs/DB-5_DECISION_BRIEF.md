@@ -170,53 +170,81 @@ A payment due *after* an expected payday is only safe if that money really comes
 | 5,000 | **Tight** | 500 | 600 | "You can pay it, but you'd use half your safety buffer." |
 | 7,000 | **Short** | −1,500 | 200 | "This would leave you about KSh 1,500 short. The KCB loan on 29 Nov would have only about KSh 700 towards KSh 1,500. You have KSh 3,000 set aside for School fees. Using it is your choice." |
 
-### 5.4 Usual spending estimate (D): exact rules (clarified 25 Nov, owner review)
-Checked by the model: `estimateUsualDaily` in `../prototypes/will-i-make-it/model.js`, examples D1–D6.
+### 5.4 Usual spending estimate (D): exact rules (revision 2, 26 Nov)
+Checked by `estimateUsualDaily` in `../prototypes/will-i-make-it/model.js`: 16 cases, D1–D11.
 
-**1. What is divided by what**
-- **Window:** the last **28 full calendar days before today**. Today is left out because it isn't finished.
-- **Shorter history:** if the user started recording less than 28 days ago, the window is the number of full days since they started.
-- **The divisor is calendar days, not days with entries.** 28 days in the window means ÷ 28.
+**Principle:** the app says how sure it is. **It never shows a precise-looking figure from records it can't vouch for.**
 
-**2. Days with no entries**
-- They **count as zero-spending days.** Some days really are zero.
-- Because a missing day could also be a *forgotten* day, the quality checks below decide whether the result can be trusted.
+**1. Window and divisor**
+- **Window:** the last **28 full calendar days before today**. Today is excluded because it isn't finished.
+- **Shorter history:** fewer days if recording started less than 28 days ago.
+- **Divisor:** the number of calendar days in the window. **A day with no entries counts as zero spending.**
 
-**3. What is counted**
+**2. What counts as "a day with an entry" (a recorded day)**
+A calendar day in the window, using the **date on the entry**, not when it was typed, with at least one **qualifying expense**:
+- the type is *expense* (M-Pesa charges included);
+- the amount is above zero;
+- it is **not reversed**. An entry and its reversal count as neither spending nor a recorded day [D7];
+- a large one-off still marks the day as recorded, even when its amount is left out.
 
-| Counted | Not counted (and why) |
-|---|---|
-| Expense entries, including M-Pesa charges | **Bill payments** (already a must-pay) |
-| **Unrecorded spending found by reconciling** (DEC-016), spread over the days since that account's previous reconcile. Only the part inside the window counts. | **Money used from a savings goal** (planned use of saved money) |
-| | **One-offs:** a single expense over 3× the median expense, judged only when there are ≥ 10 expenses in the window. Always **listed** ("Left out: Phone KSh 12,000"), and the user can put it back. |
-| | Transfers, savings, debt repayments, borrowing (never spending: DEC-010) |
+**These do not make a day "recorded":**
+- bill payments;
+- money used from a savings goal;
+- transfers, savings, debt repayments, borrowing;
+- reconcile adjustments.
 
-**Correction:** the first version *excluded* reconcile adjustments. That made the estimate too low for exactly the people who forget to record, so they are now **included, spread over time**.
+**3. What is counted in the total**
+- Qualifying expenses, minus excluded one-offs (point 6).
+- Unrecorded spending measured by reconciling (point 5).
 
-**4. Protection against a wrong figure**
+**4. Partially recorded spending: what the app can and cannot know**
+- **The honest limit:** if someone records lunch every day but forgets matatu fares, every day looks "recorded". Coverage can't see the gap [D8: coverage 100%, real spending 4× higher].
+- **Only checking against the real balance (reconcile, DEC-016) can reveal partial recording.**
+- So the estimate carries a **confidence level**, and the screen says which one applies:
 
-| Risk | Check | What happens |
+| Level | When | What the user sees (draft) | Used in the verdict? |
+|---|---|---|---|
+| **Checked** | Every spending account (e.g. M-Pesa *and* Cash) reconciled in the last 14 days | "About **KSh 450** a day, **checked against your balances** on Fri 20 Nov." | Yes |
+| **From your records only** | Not checked, but at least half the days have entries | "About **KSh 450** a day **from what you've recorded**. Not yet checked against your real balance. If anything wasn't recorded, you spend more." [Check my balances] | Yes, and the verdict says "based on your records, not yet checked" |
+| **Incomplete** | Not checked, and **fewer than half** the days have entries | "Your records cover only **8 of the last 28 days**, so PesaPilot can't tell your usual spending yet. About how much do you spend on a normal day?" **No figure from the records is shown as the answer.** | Only after the user answers. Then **the higher** of their figure and the records' figure. |
+| **Not enough history** | Fewer than 7 full days of records | "About how much do you spend on a normal day?" | Only the user's figure |
+
+- **Figures are rounded to the nearest KSh 10 and always say "about".**
+- **The working is always one tap away:** total, days, recorded days, reconcile gaps and one-offs.
+
+**5. Reconcile adjustments covering several days**
+- **Each reconcile belongs to one account.**
+- **Unrecorded spending** (a positive difference) is **spread evenly** over the days from the day after that account's **previous reconcile** (or the day recording started) up to the reconcile date.
+- **Only the days that fall inside the window count** [D3: 7,000 over 35 days, 28 inside the window = 5,600].
+- **Consecutive reconciles on one account cover separate stretches,** so nothing is counted twice [D11].
+- **More money than recorded** (a negative difference, e.g. forgotten income) is shown in the working but **never lowers** the estimate. This is the cautious choice [D9].
+- **Reversed adjustments are ignored** (DEC-016).
+- **Even spreading is an assumption,** and it is stated in the working: "Unrecorded spending found on 24 Nov is spread over the 35 days since your last check."
+
+**6. Large purchases left out: inspecting and restoring**
+- **Rule:** a single expense over 3× the median expense in the window, applied only when there are at least 10 expenses.
+- **Where the user sees it:** Plan → "How this is worked out" → **"Left out as one-offs"**. Each line shows the item, date and amount, and why it was left out:
+  > Phone · Mon 23 Nov · KSh 12,000 (over 3× your typical expense of KSh 300) [Count it]
+- **"Count it"** puts it back into the average at once [D4b: 214 → 643]. "Undo" leaves it out again.
+- **The choice is remembered** until the purchase leaves the 28-day window. This needs one more optional stored list, the restored entry ids (added to DB-5.12).
+- **Nothing is ever deleted or changed in the records.** This only affects the estimate.
+
+**7. Examples (model-checked)**
+
+| # | Situation | Result |
 |---|---|---|
-| **Too low** because of forgotten entries | **Coverage:** fewer than half the days in the window have any expense, and no reconcile measured the gap | Marked "Your records may be incomplete". The app asks "About how much do you spend on a normal day?" and uses **the higher** of the two figures (the cautious choice). |
-| **Too low or high** because the user is new | Fewer than 7 full days of records | Never guessed: the app asks the user |
-| **Too high** because of a one-off | The 3× median rule (≥ 10 entries) | Left out and listed; the user can put it back |
-| **Too high** because of bills | Bill payments excluded | Already in must-pay |
-| **Unusual week ahead** (travel, a funeral) | User override with an end date | Their figure is used until that date, then the estimate returns |
-| **Today's half-finished day** | Today excluded | — |
-
-**Always shown with its working**, e.g.:
-> "About KSh 450 a day: KSh 12,600 over the last 28 days (21 days had entries). Left out: rent (a bill)."
-
-**Examples (model-checked)**
-
-| # | Records | Result |
-|---|---|---|
-| D1 | 21 of 28 days recorded, 600 each; rent and goal use also recorded | 12,600 ÷ 28 = **450**, trusted |
-| D2 | Only 8 days recorded, 300 each | 2,400 ÷ 28 = 86, **flagged as incomplete**. User says 400, so **400** is used. |
-| D3 | As D2, plus a reconcile that found 7,000 unrecorded spending over 35 days | 28/35 of 7,000 = 5,600 is inside the window. (2,400 + 5,600) ÷ 28 = **286**, trusted (the gap was measured) |
-| D4 | 20 entries of 300 + a 12,000 phone | Phone left out and listed: 6,000 ÷ 28 = **214** |
-| D5 | Recording for 4 days | **Asks the user** |
-| D6 | Good records + a 50,000 expense today | Today ignored: **450** |
+| D1 | 21 of 28 days, 600 each (+ rent bill, goal use) | **About 450**, "from your records only" |
+| D1b | Same, M-Pesa reconciled 5 days ago | **About 450**, "checked" |
+| D2 | 8 of 28 days recorded | **Incomplete:** no figure; asks. User says 400, so the higher figure, **400**, is used. |
+| D3 | D2 + a reconcile finding 7,000 over 35 days | 5,600 counted. **About 290** (286), "checked" |
+| D4 / D4b | 20 × 300 + a 12,000 phone | Phone listed and left out: **about 210** (214). "Count it" → **about 640** (643). |
+| D5 | 4 days of history | Asks |
+| D6 | Big expense today | Ignored until tomorrow |
+| D7 | A reversed 5,000 entry | Not spending, not a recorded day |
+| D8 | Every day recorded at 100; real spending about 400 | **"From your records only", about 100**, with the warning. After a reconcile finds 8,400: **about 400, checked** |
+| D9 | A reconcile found 3,000 *more* than recorded | Estimate unchanged; shown |
+| D10 | M-Pesa reconciled, Cash not | Not "checked" |
+| D11 | Two reconciles on one account | Separate stretches; no double counting |
 
 ### 5.5 Cushion: a warning threshold only
 - The cushion is the safety buffer if set; otherwise max(KSh 500, 10% of N).
@@ -255,7 +283,8 @@ Checked by the model: `estimateUsualDaily` in `../prototypes/will-i-make-it/mode
 - **New stored data (all optional, all additive):**
   1. a usual-spending override with an end date;
   2. a one-cycle payday change ("my pay is late this month");
-  3. an expected-income "cancelled" status, kept in history.
+  3. an expected-income "cancelled" status, recorded by a `cancelledAt` date and kept in history;
+  4. a list of one-off purchases the user chose to "Count it" in the estimate (§5.4.6). Added 26 Nov.
 
   **Schema 11 safeguards (tested on a copy, 25 Nov).**
 
@@ -278,6 +307,31 @@ Checked by the model: `estimateUsualDaily` in `../prototypes/will-i-make-it/mode
   - Release 1 reloads when another tab saves (R1, tested), so it fetches the new version.
   - Layer 3 repairs any status it rewrote.
 
+  **End-to-end cancellation test (26 Nov):** `../prototypes/schema11/e2e-release1.js`. It uses the **real Release 1 build** for steps 1, 3, 4 and 6, and a **schema 11 reference model** (`reference.js`) for the new app, which isn't built. **It must be re-run against the real schema 11 code when DB-5 is built.**
+
+  | Step | Result |
+  |---|---|
+  | 1. Release 1 creates "Client payment" KSh 3,000, expected 24 Nov | Stored, schema 10, status expected |
+  | 2. Schema 11 cancels it ("It won't come") | status cancelled, `cancelledAt` 25 Nov; pending payments 0 |
+  | 3. Release 1 **opens** it | Stored data unchanged. **But while Release 1 is running, it lists the payment as expected on Plan and includes it in Home's "If expected income arrives" line**, because Release 1 knows only "received" and "not received". It is **never** counted in Left to spend or safe to spend. |
+  | 4. Release 1 **saves** (adds "Chama payout") | Schema relabelled 10; the client's status rewritten to "expected"; **`cancelledAt` kept** |
+  | 5. Reopened in the new app | Schema 11; the client is **cancelled again (restored from `cancelledAt`)**; pending: only "Chama payout"; **late reminders: 0** (it was due 24 Nov, so it would have been "Late" if it had come back); **forecast lines: only "Chama payout"**; a second load is identical (idempotent) |
+  | 6. Release 1 imports a schema 11 backup, and restores a schema 11 safety backup | **Both refused** ("created by a newer version"); storage unchanged |
+
+  **Rules the new app must follow** (from the test):
+  - `cancelledAt` is the **only** source of truth. A "cancelled" status **without** a date is not trusted and is shown as expected. The cautious choice is to show it, never to hide money silently.
+  - Every list, forecast and reminder uses the same "pending" rule: not received and no `cancelledAt`.
+
+  **What the backup-version safeguard protects, and what it doesn't**
+
+  | Protects | Does **not** protect |
+  |---|---|
+  | **Importing** a schema 11 backup file into Release 1 or the live 8e33d44: refused, nothing changed [tested] | Data **already on the phone** being opened or saved by Release 1 code (an old open tab, or a rollback to Release 1). That is covered by D13, the rollback floor and `cancelledAt`. |
+  | **Restoring** a schema 11 *safety backup* inside Release 1: refused [tested] | **What Release 1 shows while it runs:** a cancelled payment appears as expected until the new app reopens (step 3) |
+  | | A file whose version number someone **edited by hand** |
+  | | Copies outside PesaPilot: a backup opened in another program, or a plain file forwarded to someone |
+  | | Older backups imported into the new app. Not a risk: the new app upgrades them (DEC-004). |
+
   **Correction (25 Nov): this needs a schema bump (10 → 11).**
   - Release 1 rewrites any expected-income status other than "received" to "expected" (`index.html:853`), so a "cancelled" item would come back if an older version saved the data.
   - With schema 11, **D13's guard** (DEC-025, fixed first) makes older versions read-only for this data.
@@ -293,14 +347,14 @@ Checked by the model: `estimateUsualDaily` in `../prototypes/will-i-make-it/mode
 | 2 | Expected income | Per-payment "if it arrives" lines; **remove the combined line** on Plan | Keep the combined line as well |
 | 3 | Irregular horizon | **Always the planning period** | End at a payment the user marks (not recommended: assumes it arrives) |
 | 4 | Bill due on payday | **Keep DEC-015 and show a note** | Amend DEC-015 to count it in this period (more cautious; changes Left to spend) |
-| 5 | Usual spending | **28 calendar days (no-entry days = 0), reconcile gaps included, one-offs listed, coverage check → ask and use the higher figure; override** (§5.4) | Median of daily totals; user-entered only |
+| 5 | Usual spending | **§5.4 rules: 28 calendar days; empty days = 0; reversed entries ignored; reconcile gaps spread over their own stretch; one-offs listed with "Count it"; confidence shown (Checked / Records only / Incomplete / Not enough history); no records-only figure when incomplete** | Median of daily totals; user-entered only |
 | 6 | Cushion | **Buffer if set; else max(500, 10% of N)** | Buffer only; a fixed KSh 1,000 |
 | 7 | Late or missing income | **Late status + Received / New date / Won't come; "Waiting for your pay" after a missed payday** | Do nothing until the user edits it |
 | 8 | Late salary | **One-cycle "my pay is late"** | Edit the usual payday (affects later months) |
 | 9 | Savings | **Never automatic; suggest a smaller set-aside; offer "use from goal" in Before You Spend** | Don't mention savings |
 | 10 | Fuliza and auto-repaid loans | **Decide in DB-3**; until then, a warning only | Deduct the Fuliza balance now as a must-pay |
 | 11 | Before You Spend actions | **Record / Not now / Save as planned** | Record / Not now |
-| 12 | The 3 optional stored fields (§7) | **Approve** (additive, after D13) | None (fewer features) |
+| 12 | The 4 optional stored fields (§7) | **Approve** (additive, after D13) | None (fewer features) |
 | 13 | Timing scenarios (§3) | **"If no money comes in" always shown, 30 days ahead, including payments after the expected payday; plus one "if it arrives" scenario per payment; same-day payments taken before income** | Look only until the next income (misses the late-salary case); 14 days ahead |
 | 14 | Short vs Already short wording (§3) | **As drafted**: "the bills alone don't fit" vs "bills plus everyday spending don't fit"; to be checked in user testing | Other wording after testing |
 

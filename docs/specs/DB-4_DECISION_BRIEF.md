@@ -45,97 +45,131 @@ Should PesaPilot let users save a **password-protected (encrypted) backup file**
 
 | Part | Choice | Why |
 |---|---|---|
-| Data key | A random 256-bit data key (DK) made on the phone when protection is first switched on | Strong, and never typed by anyone |
+| Backup key pair | An ECDH P-256 key pair made on the phone when protection is switched on. The **public** half stays on the phone. The **private** half exists only inside the two locks. | The phone can lock backups but cannot open them (§3a) |
+| File key | A fresh AES-GCM-256 key for **each** backup, made from a one-time key pair plus the backup public key (ECDH, then HKDF-SHA-256) | Every backup has its own key |
 | Encryption | **AES-GCM-256** with a fresh random IV for every backup | Standard; it **detects any change** to the file [T] |
 | Password → key | **PBKDF2-SHA-256, 600,000 rounds**, random 16-byte salt | Slows down guessing. The PIN uses 150,000 rounds because it is checked often on the phone; a file that can be attacked offline needs more. |
-| Two locks | DK is stored inside the file twice: once locked with the password, once locked with the recovery code | Either key opens the file |
+| Two locks | The private key is stored inside each file twice: once locked with the password, once locked with the recovery code | Either one opens the file |
 | Recovery code | 16 characters in 4 groups (e.g. `K7QM-3XRA-9VTE-HW2C`); no look-alike characters (0/O, 1/I/L); about 80 bits of randomness | Practical to write down; too strong to guess |
 | File label | `app: "PesaPilot"`, a **new backup version number** (so older apps refuse it [T]), `encrypted: true`, algorithm names and settings. **Nothing about the user's money is readable.** | Safe with older apps; open about how it was made |
-| Not in the file | The PIN or its hash (DEC-019), device ids, or DK in readable form | Same rules as today |
+| Not in the file | The PIN or its hash (DEC-019), device ids, the private key in readable form, the password, the code | Same rules as today |
 
 **Accurate wording (DEC-019 style)**
 - "Your **backup file** is encrypted: it is locked with your backup password."
 - "Records **on this phone** are not encrypted. Your PIN locks the app on this phone."
 - We never say "your data is encrypted" without saying which data.
 
-## 3a. Key architecture (clarified 25 Nov, owner review)
-Checked by `../prototypes/protected-backup/model.js`, which uses the same Web Crypto functions the browser provides. All 7 questions below have passing checks.
+## 3a. Key architecture: revision 2, "public key on the phone" (26 Nov)
 
-### The four things, kept separate
+**Evidence**
+- `../prototypes/protected-backup/model.js` (the same Web Crypto functions the browser provides): Q1–Q7, plus "the phone alone cannot open any backup", all pass.
+- `../prototypes/protected-backup/browser-key-access/` (Chromium, page + service worker): results below.
 
-| Name | What it is | Where it exists | Who knows it |
+### Why the design changed: "can't export" is not "can't use"
+
+The round-2 design kept a **non-extractable** data key (DK) in IndexedDB. Tested in Chromium, playing the part of *any* same-origin code with a service worker:
+
+| What we tried with the stored non-extractable key | Result |
+|---|---|
+| Retrieve the CryptoKey object from IndexedDB | **Succeeded** |
+| Export its raw value | Blocked |
+| **Ask the browser to decrypt a backup with it** | **Succeeded**: the records were read |
+
+**So "non-extractable" only stops the key's value being copied off the phone.** Any code running under PesaPilot's web address on that phone can *use* the key. That includes:
+- the page;
+- a service worker;
+- a future bug in our own code;
+- an injected script.
+
+My round-2 statement that "opening a file always needs the password or the code" was a **screen rule, not a cryptographic guarantee**. I've withdrawn it.
+
+**Revision 2 removes every decrypting key from the phone**:
+
+| What we tried with revision 2's stored key | Result |
+|---|---|
+| Retrieve it from IndexedDB | Succeeded; it is a **public** key |
+| Use it to open a backup | **Impossible**: a public key cannot derive any file key |
+| Use it to create a new protected backup | Succeeded |
+
+### The parts, kept separate
+
+| Name | What it is | Where it exists | Can it open a backup? |
 |---|---|---|---|
-| **Data key (DK)** | A random 256-bit AES-GCM key. **The only key that encrypts the records** in a backup file. | Made on the phone when protection is switched on. Stored on the phone as the **on-device secret** (below). Inside every backup file, but **only in locked form** (twice). | Nobody types or sees it |
-| **Password key (P-key)** | Derived from the backup password with PBKDF2-SHA-256 (600,000 rounds, its own random salt). Its only job is to **lock and unlock DK**. | **Never stored anywhere.** Re-derived from the password when needed, then discarded. | Whoever knows the password |
-| **Recovery key (R-key)** | Derived the same way from the recovery code (its own salt). Its only job is to **lock and unlock DK**. | **Never stored anywhere.** | Whoever has the paper code |
-| **On-device secret** | A **non-extractable** copy of DK in the browser's IndexedDB, plus the two locked copies of DK (by P-key and by R-key) and their salts | The phone only. **Never in any backup or export** (as the PIN, DEC-019). | — |
+| **Backup public key** | The public half of an ECDH P-256 key pair made at setup | On the phone (IndexedDB) and in every backup file. **Not secret.** | **No** |
+| **Backup private key** | The private half | **Only inside the two locks.** It is unlocked in memory for a moment when the user types the password or code (restore, password change), then discarded. **Never stored unlocked.** | Yes, but only once unlocked |
+| **Password key (P-key)** | Derived from the password with PBKDF2-SHA-256 (600,000 rounds, own salt). Only locks or unlocks the private key. | **Never stored** | Only through the private key |
+| **Recovery key (R-key)** | Derived the same way from the recovery code (own salt) | **Never stored** | Only through the private key |
+| **File key** | A fresh AES-GCM-256 key for each backup. A one-time key pair is made, combined with the backup public key (ECDH → HKDF-SHA-256), used once, then **discarded**. | Never stored. Only its one-time *public* part is written in the file. | It *is* what encrypts that one file |
+| **On the phone** | Backup public key + the two locks (each a salt, an IV and the locked private key) + a key id | IndexedDB, separate from the records (localStorage). **Never in any export.** | **No** [model-checked + browser-tested] |
 
-**Never stored anywhere:** the password, the recovery code, the P-key or the R-key.
-
-### Answers to the seven questions
+### The seven questions
 
 **1. How does the password unlock the backup?**
-- Password + the salt in the file → P-key.
-- P-key unlocks the **password lock** in the file, giving DK.
-- DK decrypts the records.
-- A wrong password fails at the unlock step, and nothing changes.
-- The file's whole header is authenticated with the records (AES-GCM associated data), so editing any part makes it fail [model-checked].
+- Password + salt → P-key.
+- P-key unlocks the **password lock** in the file, giving the private key.
+- Private key + the file's one-time public key → that file's key.
+- The file key decrypts the records.
+- A wrong password fails at the unlock step, and nothing changes. Any edit to the file (header or content) makes it fail [model-checked].
 
 **2. How does the recovery code unlock the same backup?**
-- Code + its own salt → R-key.
-- R-key unlocks the **code lock** in the same file, giving **the same DK**, which decrypts the same records.
-- Two locks, one key inside.
-- The code can be typed in lower case, without dashes, and with O/0 or I/1 mixed up [model-checked].
+- The same steps, using the **code lock** and the R-key.
+- It gives the **same private key**, so the same file opens.
+- Lower case, missing dashes and O/0 or I/1 mix-ups are accepted [model-checked].
 
-**3. What exactly is stored on the phone for one-tap backups?** Five things, under a storage area of their own, separate from the records:
-- a non-extractable DK;
-- the password lock (salt, IV, locked DK);
-- the code lock (salt, IV, locked DK);
-- a key identifier;
-- the date protection was set up.
+**3. What exactly is stored on the phone for one-tap backups?**
+- the backup **public** key;
+- the password lock;
+- the code lock;
+- a key id.
 
-There is no password, no code, no P-key and no R-key [model-checked].
+No password, no code, no P-key or R-key, and no usable private key [model-checked].
 
-**4. How is the on-device secret protected?**
-- **Non-extractable:** the browser lets PesaPilot *use* DK to encrypt, but **refuses to give out its value**, even to PesaPilot's own code [tested in Chromium: export blocked, still usable after a reload].
-- **Same-origin isolation:** only pages from PesaPilot's web address can reach it, inside the phone's app sandbox.
-- **PIN screen:** the app's screens are behind the PIN (required, DEC-026).
-- **Never exported:** checked by the same tests as the PIN (DEC-019).
-- **Honest limit:** someone who can open PesaPilot on the unlocked phone can *make new backups*, and can already read the records there. They **cannot** take DK off the phone, and they **cannot** use the phone to open backup files: opening a file always needs the password or the code. Malware with full control of the phone's browser is out of scope, as it is for the records.
+**4. How is it protected, and what are the limits?**
+- **Nothing stored on the phone can decrypt a backup.**
+  - The public key can only *lock*.
+  - The private key is stored only locked, and can be unlocked only by someone who knows the password or code. Guessing is slowed by 600,000 PBKDF2 rounds.
+- **Limits, stated plainly:**
+  1. **The locks are the same ones written into every backup file.** Anyone who copies them, from the phone or from a file, can try to guess the password offline. That is why the rounds are high and the password guidance asks for 4+ unrelated words. The recovery code (80 bits) can't be guessed.
+  2. **Malicious code on PesaPilot's address, while it is running, could:**
+     - capture the password **as the user types it**, during a restore or password change;
+     - replace the stored public key with its own, so that **future** backups are locked to an attacker.
+
+     The same code could already read the records directly. Defences against such code: no third-party scripts (the app loads none today), a content security policy, and our own worker containing no storage code (test-enforced).
+  3. **Records on the phone are not encrypted** (as today). Someone who gets past the PIN can read them. This design protects the **backup files**, not the phone.
+- **Not claimed:** that the stored items are hidden from code on PesaPilot's address. They are *reachable*. The protection is that **none of them can open a backup without the password or code**.
 
 **5. What happens when the password is changed?**
-- It needs the **current password or the recovery code**, because the phone's DK can't be read out to re-lock it.
-- DK stays the same.
-- Only the password lock is replaced.
+- It needs the **current password or the recovery code**: the private key must be unlocked to re-lock it.
+- The key pair stays the same. Only the password lock is replaced.
 
-| | Opens with old password | Opens with new password | Opens with recovery code |
+| | Old password | New password | Recovery code |
 |---|---|---|---|
-| Backups made **before** the change | **Yes** | No | **Yes** |
-| Backups made **after** the change | No | **Yes** | **Yes** |
+| Backups made **before** the change | **Opens** | No | **Opens** |
+| Backups made **after** the change | No | **Opens** | **Opens** |
 
-[All six cases model-checked.] The screen says: "Older backups still open with your old password or your recovery code."
+[All six cases model-checked.]
 
 **6. Can a user restore on a replacement phone using only the recovery code?**
-- **Yes.** Import → "Use recovery code instead" → the records are restored.
-- The new phone then:
-  - keeps DK (non-extractable);
-  - asks for a new backup password;
-  - keeps the **same** recovery code, so the paper copy stays valid.
-- Backups made on the new phone open with the new password **or the same code** [model-checked].
+- **Yes.** The code unlocks the private key in memory, and the records are restored.
+- The new phone then stores:
+  - the **same** public key;
+  - a new password lock (the user sets a password);
+  - the **same** code lock.
+- The paper code stays valid for every backup, old and new [model-checked].
 
 **7. What if the phone is lost but the backup file and recovery code remain?**
-- **Everything up to that backup is recovered**, on any phone (as answer 6).
-- A wrong code fails without changing anything.
-- An edited file is refused [model-checked].
+- **Everything up to that backup is recovered**, on any phone. A wrong code fails, and an edited file is refused [model-checked].
 - **Whoever has the lost phone:**
-  - can't open the backup files without the password or code;
-  - can't take DK off the phone;
-  - could read the records on the phone only by getting past the PIN, as today.
-- **Advice in the app after recovery:** "Make a new recovery code" if the old paper may also have been seen. That creates a new DK, and future backups need the new code.
+  - finds only a public key and two locks;
+  - **cannot open any backup** without the password or code;
+  - can read the records on the phone only by getting past the PIN, as today.
+- **After recovery the app advises:** "Make a new recovery code if your old one may have been seen". That creates a new key pair, and future backups need the new code.
 
-**Changed by this design** (compared with §4–§6 before 25 Nov):
-- Changing the password now needs the old password **or** the recovery code, not just the PIN. This closes a gap: someone using an unlocked phone can't re-lock DK with their own password and then open old backups found elsewhere.
-- If **both** the password and the code are forgotten but the phone is fine, the user starts **new protection** (new DK, new code). Old backups stay locked to the old secrets.
+**Changed from round 2:**
+- the phone keeps a **public** key instead of a usable data key;
+- each backup has its own file key;
+- changing the password still needs the old password or the code;
+- no other user-facing behaviour changes. One-tap backups still need no password.
 
 ## 4. Passwords
 
@@ -152,8 +186,8 @@ There is no password, no code, no P-key and no R-key [model-checked].
 - **The recovery code** is shown once, with "I've written it down". The user then types back 4 characters of it as a check.
 
 **Day to day: one tap**
-- The phone keeps the **on-device secret** (§3a): a non-extractable copy of DK, never exported. So later backups are **one tap** and need no password.
-- **Why this is safe enough:** the key can be used but not read out, and opening any backup file still needs the password or code (§3a, answer 4).
+- The phone keeps the backup **public** key and the two locks (§3a), never exported. So later backups are **one tap** and need no password.
+- **Why this is safe:** nothing stored on the phone can open a backup. Only the password or the recovery code can (§3a, answer 4, including its limits).
 
 **Remembering it**
 - Once a month, with the backup reminder (DEC-020): "**Do you still remember your backup password?**" The user types it, and the app checks it on the phone, so nothing is sent anywhere.
@@ -163,7 +197,7 @@ There is no password, no code, no P-key and no R-key [model-checked].
 - Needs the **current password or the recovery code**.
 - New backups use the new password.
 - **Older backup files still open with the old password, or with the recovery code**, which doesn't change.
-- **"Make a new recovery code"** creates a new DK (needs the current password). Old backups then still need the *old* code or old password. The screen says so in plain words.
+- **"Make a new recovery code"** creates a new key pair (needs the current password). Old backups then still need the *old* code or old password. The screen says so in plain words.
 
 ## 5. What happens if something is lost
 
@@ -173,7 +207,7 @@ There is no password, no code, no P-key and no R-key [model-checked].
 | **Phone lost; password forgotten; recovery code kept** | **Yes** | Import → "Use recovery code instead" → then set a new password |
 | **Phone lost; password AND recovery code both lost** | **No**, for protected backups. Nobody can open them, including PesaPilot. | Only a plain backup, if one exists, can help. **This is the one real new risk, and the screens say it clearly before the user chooses protection.** |
 | **Phone fine; password forgotten** | **Nothing is lost**: the records are on the phone | Use the **recovery code** to set a new password, then make a fresh backup. Older backups still open with the code. |
-| **Phone fine; password AND code forgotten** | **Nothing on the phone is lost** | "Start new protection" (new DK, new password, new code) → **make a fresh backup straight away**. Old protected backups stay locked to the old secrets. |
+| **Phone fine; password AND code forgotten** | **Nothing on the phone is lost** | "Start new protection" (new key pair, new password, new code) → **make a fresh backup straight away**. Old protected backups stay locked to the old secrets. |
 | **Phone fine; recovery code lost** | Nothing is lost | "Make a new recovery code" (needs the password) → write it down → make a fresh backup. Old backups still open with the password. |
 | **PIN forgotten** | Unchanged from today (DATA_RECOVERY §3): the "Forgot your PIN?" path saves a copy, resets this phone and re-imports. The backup password isn't needed. **That copy is a plain, unprotected file**, with the warnings in §5a. | As today |
 | **Someone finds the backup file** | They can't read it without the password or code. They can see it's a PesaPilot backup, its size, and the date in its file name. | Nothing |
@@ -205,7 +239,7 @@ The same message goes in `DATA_RECOVERY.md` §3, so the in-app wording and the r
    - a safety copy of the current data is made first;
    - the phone keeps **its own PIN** (DEC-019);
    - a new phone without a PIN is asked to set one (PIN required, DEC-026).
-7. **After restoring:** the phone keeps DK (non-extractable) and asks for a backup password. The **same recovery code** keeps working for future backups (§3a, answer 6).
+7. **After restoring:** the phone stores the same public key and code lock, and asks for a new backup password. The **same recovery code** keeps working (§3a, answer 6).
 
 **Older app versions:** today's live app and Release 1 both refuse a protected file with "This backup was created by a newer version of PesaPilot." Nothing is changed [T].
 
@@ -242,15 +276,16 @@ The same message goes in `DATA_RECOVERY.md` §3, so the in-app wording and the r
 | **Kenya Data Protection Act** | Minimal: we still don't collect or process users' financial data |
 | **Support** | We **cannot** recover a forgotten password. The app, the FAQ and `DATA_RECOVERY.md` must say so plainly. |
 | **Compatibility** | Plain backups keep working both ways. Older apps refuse protected files safely [T]. |
-| **Stored data** | The on-device secret (§3a) in **IndexedDB**, a browser storage area the app doesn't use today, kept apart from the records (localStorage). Never exported. No change to records and no schema change. Note for DB-6: a service worker *can* technically reach IndexedDB. PesaPilot's worker will contain no storage code, and a test checks that. |
+| **Stored data** | The backup public key + two locks (§3a) in **IndexedDB**, a browser storage area the app doesn't use today, kept apart from the records (localStorage). Never exported. Not secret enough to open anything. No change to records and no schema change. |
 | **Order of work** | After Release 1, and after the D13 fix (so an older app can't damage the new setting). Can be built separately from DB-5 and DB-6. |
 
 ## 10. Testing (when built)
 - **Round trip:** protect → back up → import on a fresh profile, with the password and with the recovery code.
 - **Failure cases:** wrong password, wrong code, a tampered file, a truncated file → refused, **nothing changed**.
-- **Changes:** after a password change, old files still open with the old password or the code; a new code needs a new DK; changing the password needs the old password or the code; the on-device DK cannot be exported.
+- **Changes:** after a password change, old files open with the old password or the code and new files with the new password or the code; a new code needs a new key pair; changing the password needs the old password or the code.
+- **Phone cannot open backups:** with only the phone's stored items, opening any backup fails. Tested in the browser from both the page and a service worker.
 - **Compatibility:** plain ↔ protected; refusal by today's live app and Release 1 (already tested).
-- **Exports:** no PIN, PIN hash, DK or lock record appears in any export or plain backup (extends the existing DEC-019 tests).
+- **Exports:** no PIN, PIN hash or on-phone backup item appears in any plain export (extends the existing DEC-019 tests).
 - **Real devices:** unlock time on a low-end Android phone; the share sheet to WhatsApp, Drive and Gmail.
 - **Full suites:** regression, migration, engine fingerprint and UI audit.
 
@@ -262,7 +297,7 @@ The same message goes in `DATA_RECOVERY.md` §3, so the in-app wording and the r
 | 2 | Encryption method | **AES-GCM-256; PBKDF2-SHA-256 at 600,000 rounds; random salt and IV** | Other parameters after phone timing tests |
 | 3 | Recovery | **Password + recovery code (1b)**, with the key architecture in §3a | Password only (1a); code only (1c) |
 | 4 | Default | **Offer protection first; "Save without protection" stays available, with a warning** | Force protection; keep plain as the default |
-| 5 | One-tap backups (non-extractable DK in IndexedDB, never exported; §3a answers 3–4) | **Yes** | Type the password for every backup |
+| 5 | One-tap backups (the phone keeps only the backup **public** key + locks in IndexedDB; nothing on the phone can open a backup; §3a) | **Yes** | Type the password for every backup |
 | 6 | Password rules | **At least 8 characters; not the PIN; 12+ if only numbers; common passwords and the example refused; guidance: 4+ unrelated words** | Stricter minimum (e.g. 12 characters) |
 | 7 | Monthly "do you remember your password?" check | **Yes, with the backup reminder** | No checks |
 | 8 | Saving | **Share sheet, with download as the fallback** | Download only |

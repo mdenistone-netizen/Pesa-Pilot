@@ -78,7 +78,7 @@ Should PesaPilot become an **installable app that opens without internet** (a Pr
 | localStorage | **No** (`undefined` inside workers, by design of the web platform) | **All PesaPilot records** |
 | sessionStorage | **No** | Nothing |
 | Cache Storage | Yes | The app-file copies the worker itself makes |
-| IndexedDB | **Yes** | Nothing today. DB-4 proposes the backup key there. |
+| IndexedDB | **Yes**, and it can retrieve **and use** any CryptoKey stored there, even a non-extractable one [tested, 26 Nov] | Nothing today. DB-4 (revision 2) proposes only a backup **public** key and locked items there, none of which can open a backup. |
 
 **Demonstrated:**
 - with records in localStorage, the worker installed, updated, failed an update and was killed;
@@ -88,7 +88,8 @@ Should PesaPilot become an **installable app that opens without internet** (a Pr
 **The remaining theoretical path is our own worker code touching IndexedDB.** The design prevents it in three ways:
 1. the worker's code does only caching;
 2. a test fails the build if `sw.js` mentions IndexedDB or any storage API;
-3. the DB-4 key is **non-extractable**, so even code that could reach it couldn't read its value.
+3. **DB-4 revision 2 stores nothing in IndexedDB that can open a backup:** only a public key and password/code locks.
+   - **Correction (26 Nov):** an earlier version relied on a *non-extractable* key. A test showed that a worker can retrieve such a key and **use** it to decrypt, even though it can't export it. That design was withdrawn (DB-4 brief §3a).
 
 ## 3. Update design (how nobody gets stuck)
 

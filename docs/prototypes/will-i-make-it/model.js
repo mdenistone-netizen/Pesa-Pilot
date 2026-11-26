@@ -120,39 +120,51 @@ function beforeYouSpend(x, amount, opts = {}) {
 }
 
 
-// ---------- DB-5.5 usual daily spending estimate (D) ----------
-// Window: the last 28 FULL calendar days before today (today is excluded because it is incomplete),
-// or fewer if the user started recording less than 28 days ago. Divided by CALENDAR days in the window:
-// a day with no entries counts as a zero-spending day. Quality checks decide whether the figure can be
-// trusted on its own (see the brief's §5.4).
+// ---------- DB-5.5 usual daily spending estimate (D): revision 2 (26 Nov) ----------
+// Definitions (DB-5 brief §5.4):
+//  window      = the last 28 FULL calendar days before today (fewer if recording started later); today excluded.
+//  divisor     = calendar days in the window. A day with no entries counts as zero.
+//  recorded day= a window day (by the entry's own date) with ≥1 QUALIFYING expense: type expense, amount > 0,
+//                not reversed. One-offs count as recorded days. Bills, goal use, transfers, adjustments do not.
+//  reconcile   = per account: a positive difference (unrecorded spending) is spread evenly over the days
+//                after that account's previous reconcile (or tracking start) up to the reconcile date; only
+//                the part inside the window counts. Negative differences (more money than recorded) are shown
+//                but never lower the estimate. Reversed adjustments are ignored.
+//  confidence  = ask (<7 days) · incomplete (<50% of days recorded, not checked) · records-only (not checked)
+//                · checked (every spending account reconciled in the last 14 days).
 const median = a => { const s = [...a].sort((x, y) => x - y), m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
-function estimateUsualDaily({ today, trackingStart, entries, adjustments = [], userDaily = null }) {
+const round10 = n => Math.round(n / 10) * 10;
+function estimateUsualDaily({ today, trackingStart, entries, reconciles = [], spendingAccounts = ["mpesa"], userDaily = null, restoredIds = [] }) {
   const end = addDays(today, -1);
-  const days = Math.min(28, daysBetween(trackingStart, today));          // full days available
-  if (days < 7) return { status: "ask", reason: "fewer than 7 days of records", daily: userDaily, used: "your figure" };
-  const start = addDays(today, -days);
-  const inWin = e => e.date >= start && e.date <= end;
-  const spend = entries.filter(e => inWin(e) && e.kind === "expense");   // bill payments and goal use are not counted (already elsewhere)
-  let excluded = [];
-  if (spend.length >= 10) {                                               // one-offs only judged with enough entries
-    const m = median(spend.map(e => e.amount));
-    excluded = spend.filter(e => e.amount > 3 * m);
+  const days = Math.min(28, daysBetween(trackingStart, today));
+  if (days < 7) return { status: "ask", reason: "fewer than 7 full days of records", daily: userDaily, used: "your figure" };
+  const start = addDays(today, -days), dayBefore = addDays(start, -1);
+  const inWin = d => d >= start && d <= end;
+  const qualifying = entries.filter(e => inWin(e.date) && e.kind === "expense" && e.amount > 0 && !e.reversed);
+  let oneOffs = [];
+  if (qualifying.length >= 10) { const m = median(qualifying.map(e => e.amount)); oneOffs = qualifying.filter(e => e.amount > 3 * m); }
+  const excluded = oneOffs.filter(e => !restoredIds.includes(e.id));
+  const counted = qualifying.filter(e => !excluded.includes(e));
+  let unrecorded = 0, moreMoneyFound = 0;
+  for (const rc of reconciles.filter(r => !r.reversed && inWin(r.date))) {
+    if (rc.difference < 0) { moreMoneyFound += -rc.difference; continue; }
+    const since = rc.since || trackingStart;
+    const span = Math.max(1, daysBetween(since, rc.date));
+    const overlap = Math.max(0, daysBetween(since > dayBefore ? since : dayBefore, rc.date));
+    unrecorded += rc.difference * Math.min(1, overlap / span);
   }
-  const counted = spend.filter(e => !excluded.includes(e));
-  // Unrecorded spending found by reconciling: spread over the days since that account's previous reconcile,
-  // and only the part that falls inside the window is counted.
-  const unrecorded = adjustments.filter(a => a.date >= start && a.date <= end).reduce((t, a) => {
-    const span = Math.max(1, daysBetween(a.since, a.date)), dayBefore = addDays(start, -1), overlap = Math.max(0, daysBetween(a.since > dayBefore ? a.since : dayBefore, a.date)); // days after `since`, up to and incl. the reconcile date
-    return t + a.amount * Math.min(1, overlap / span);
-  }, 0);
   const total = counted.reduce((t, e) => t + e.amount, 0) + unrecorded;
   const computed = Math.round(total / days);
-  const recordedDays = new Set(spend.map(e => e.date)).size, coverage = recordedDays / days;
-  const incomplete = coverage < 0.5 && unrecorded === 0;
-  let daily = computed, used = "records", status = "ok";
-  if (incomplete) { status = "check"; if (userDaily != null) { daily = Math.max(computed, userDaily); used = daily === computed ? "records" : "your figure (higher)"; } }
+  const recordedDays = new Set(qualifying.map(e => e.date)).size, coverage = recordedDays / days;
+  const checkedSince = addDays(today, -14);
+  const checked = spendingAccounts.every(a => reconciles.some(r => r.account === a && !r.reversed && r.date >= checkedSince));
+  let status, daily = computed, used = "records";
+  if (checked) status = "checked";
+  else if (coverage < 0.5) { status = "incomplete"; if (userDaily != null) { daily = Math.max(computed, userDaily); used = daily === computed ? "records" : "your figure (higher)"; } else { daily = null; used = "none yet: ask"; } }
+  else status = "records-only";
   return { status, days, recordedDays, coverage: Math.round(coverage * 100), counted: Math.round(total - unrecorded), unrecorded: Math.round(unrecorded),
-    excluded: excluded.map(e => `${e.note || "expense"} ${e.amount}`), computed, daily, used };
+    moreMoneyFound, excluded: excluded.map(e => ({ id: e.id, note: e.note || "expense", amount: e.amount, date: e.date })),
+    restored: oneOffs.filter(e => restoredIds.includes(e.id)).map(e => e.id), computed, daily, shown: daily == null ? null : round10(daily), used };
 }
 
 module.exports = { willIMakeIt, beforeYouSpend, horizon, estimateUsualDaily };
@@ -241,31 +253,57 @@ if (require.main === module) {
     assert.ok(rank[more] <= rank[v]);
   }
 
-  // ---------- DB-5.5 estimate examples ----------
-  const T = "2026-11-25", day = i => addDays(T, -i);                // day(1) = yesterday … day(28)
-  // E1 good records: 21 of 28 days have entries; 600 on each recorded day → 12,600 / 28 calendar days = 450.
-  const e1d = Array.from({ length: 21 }, (_, i) => ({ date: day(i + 1), amount: 600, kind: "expense" }));
-  const d1 = estimateUsualDaily({ today: T, trackingStart: "2026-09-01", entries: [...e1d, { date: day(3), amount: 6500, kind: "bill" }, { date: day(4), amount: 2000, kind: "goalUse" }] });
-  show("D1 good records", d1); assert.equal(d1.daily, 450); assert.equal(d1.status, "ok"); assert.equal(d1.coverage, 75);
-  // E2 incomplete: only 8 days recorded, 300 each → 2,400 / 28 = 86 a day. Flagged; user says 400 → 400 used.
-  const e2d = Array.from({ length: 8 }, (_, i) => ({ date: day(i * 3 + 1), amount: 300, kind: "expense" }));
+  // ---------- DB-5.5 estimate examples (revision 2) ----------
+  const T = "2026-11-25", day = i => addDays(T, -i);              // day(1) = yesterday … day(28)
+  const ex = (id, i, amount, extra = {}) => ({ id, date: day(i), amount, kind: "expense", ...extra });
+  const e1d = Array.from({ length: 21 }, (_, i) => ex(i + 1, i + 1, 600));
+  // D1 21 of 28 days recorded, 600 each; plus rent (bill) and goal use → 12,600 / 28 = 450, but NOT checked against a balance.
+  const d1 = estimateUsualDaily({ today: T, trackingStart: "2026-09-01", entries: [...e1d, { id: 90, date: day(3), amount: 6500, kind: "bill" }, { id: 91, date: day(4), amount: 2000, kind: "goalUse" }] });
+  show("D1 good coverage, unchecked", d1); assert.equal(d1.daily, 450); assert.equal(d1.status, "records-only"); assert.equal(d1.coverage, 75);
+  // D1b same records + M-Pesa reconciled 5 days ago with no difference → "checked".
+  const d1b = estimateUsualDaily({ today: T, trackingStart: "2026-09-01", entries: e1d, reconciles: [{ account: "mpesa", date: day(5), since: day(40), difference: 0 }] });
+  assert.equal(d1b.status, "checked"); assert.equal(d1b.daily, 450);
+  // D2 only 8 days recorded → incomplete. No figure until the user answers; then the HIGHER of 86 and 400.
+  const e2d = Array.from({ length: 8 }, (_, i) => ex(100 + i, i * 3 + 1, 300));
   const d2a = estimateUsualDaily({ today: T, trackingStart: "2026-09-01", entries: e2d });
   const d2b = estimateUsualDaily({ today: T, trackingStart: "2026-09-01", entries: e2d, userDaily: 400 });
-  show("D2 incomplete records", { d2a, d2b }); assert.equal(d2a.computed, 86); assert.equal(d2a.status, "check"); assert.equal(d2b.daily, 400);
-  // E3 same records, but a reconcile on M-Pesa found 7,000 unrecorded spending since a reconcile 35 days ago:
-  // 28/35 of it is inside the window = 5,600 → (2,400 + 5,600) / 28 = 286. Trusted (the gap was measured).
-  const d3 = estimateUsualDaily({ today: T, trackingStart: "2026-09-01", entries: e2d, adjustments: [{ date: day(1), amount: 7000, since: day(36) }] });
-  show("D3 with reconcile", d3); assert.equal(d3.unrecorded, 5600); assert.equal(d3.daily, 286); assert.equal(d3.status, "ok");
-  // E4 a one-off: 20 entries of about 300 plus a 12,000 phone → phone left out and listed.
-  const e4d = Array.from({ length: 20 }, (_, i) => ({ date: day(i + 1), amount: 300, kind: "expense" }));
-  const d4 = estimateUsualDaily({ today: T, trackingStart: "2026-09-01", entries: [...e4d, { date: day(2), amount: 12000, kind: "expense", note: "Phone" }] });
-  show("D4 one-off", d4); assert.deepEqual(d4.excluded, ["Phone 12000"]); assert.equal(d4.daily, 214);
-  // E5 new user (4 days) → ask, never guess.
-  const d5 = estimateUsualDaily({ today: T, trackingStart: day(4), entries: e1d.slice(0, 3) });
-  assert.equal(d5.status, "ask");
-  // E6 today's partial day is never in the average.
-  const d6 = estimateUsualDaily({ today: T, trackingStart: "2026-09-01", entries: [...e1d, { date: T, amount: 50000, kind: "expense" }] });
-  assert.equal(d6.daily, 450);
+  show("D2 incomplete", { d2a, d2b }); assert.equal(d2a.computed, 86); assert.equal(d2a.status, "incomplete"); assert.equal(d2a.daily, null); assert.equal(d2b.daily, 400);
+  // D3 as D2 + an M-Pesa reconcile yesterday finding 7,000 unrecorded since a reconcile 35 days earlier:
+  //    7,000 × 28/35 = 5,600 inside the window → (2,400 + 5,600) / 28 = 286, "checked".
+  const d3 = estimateUsualDaily({ today: T, trackingStart: "2026-09-01", entries: e2d, reconciles: [{ account: "mpesa", date: day(1), since: day(36), difference: 7000 }] });
+  show("D3 reconcile spread", d3); assert.equal(d3.unrecorded, 5600); assert.equal(d3.daily, 286); assert.equal(d3.status, "checked");
+  // D4 a one-off: 20 × 300 + a 12,000 phone → phone excluded and listed (6,000 / 28 = 214).
+  const e4d = Array.from({ length: 20 }, (_, i) => ex(200 + i, i + 1, 300));
+  const phoneBuy = ex(299, 2, 12000, { note: "Phone" });
+  const d4 = estimateUsualDaily({ today: T, trackingStart: "2026-09-01", entries: [...e4d, phoneBuy] });
+  show("D4 one-off", d4); assert.deepEqual(d4.excluded.map(e => [e.note, e.amount, e.date]), [["Phone", 12000, day(2)]]); assert.equal(d4.daily, 214);
+  // D4b the user taps "Count it" → restored: (6,000 + 12,000) / 28 = 643.
+  const d4b = estimateUsualDaily({ today: T, trackingStart: "2026-09-01", entries: [...e4d, phoneBuy], restoredIds: [299] });
+  assert.deepEqual(d4b.restored, [299]); assert.equal(d4b.excluded.length, 0); assert.equal(d4b.daily, 643);
+  // D5 new user (4 days) → ask, never guess.
+  assert.equal(estimateUsualDaily({ today: T, trackingStart: day(4), entries: e1d.slice(0, 3) }).status, "ask");
+  // D6 today's half-finished day is never counted.
+  assert.equal(estimateUsualDaily({ today: T, trackingStart: "2026-09-01", entries: [...e1d, { id: 98, date: T, amount: 50000, kind: "expense" }] }).daily, 450);
+  // D7 a reversed entry counts neither as spending nor as a recorded day.
+  const d7 = estimateUsualDaily({ today: T, trackingStart: "2026-09-01", entries: [...e1d, ex(97, 25, 5000, { reversed: true })] });
+  assert.equal(d7.recordedDays, 21); assert.equal(d7.daily, 450);
+  // D8 partial recording: every day has an entry (100) but real spending is ~400. Coverage looks perfect,
+  //    so the figure is labelled "records-only" (not checked). A reconcile then finds 8,400 unrecorded over the 28 days → 400, checked.
+  const e8d = Array.from({ length: 28 }, (_, i) => ex(300 + i, i + 1, 100));
+  const d8a = estimateUsualDaily({ today: T, trackingStart: "2026-09-01", entries: e8d });
+  const d8b = estimateUsualDaily({ today: T, trackingStart: "2026-09-01", entries: e8d, reconciles: [{ account: "mpesa", date: day(1), since: day(29), difference: 8400 }] });
+  show("D8 partial recording", { d8a, d8b }); assert.equal(d8a.status, "records-only"); assert.equal(d8a.daily, 100); assert.equal(d8b.status, "checked"); assert.equal(d8b.daily, 400);
+  // D9 a reconcile finding MORE money than recorded never lowers the estimate; it is shown.
+  const d9 = estimateUsualDaily({ today: T, trackingStart: "2026-09-01", entries: e1d, reconciles: [{ account: "mpesa", date: day(2), since: day(30), difference: -3000 }] });
+  assert.equal(d9.daily, 450); assert.equal(d9.moreMoneyFound, 3000); assert.equal(d9.status, "checked");
+  // D10 two accounts: only M-Pesa reconciled → not "checked" (cash spending unmeasured).
+  const d10 = estimateUsualDaily({ today: T, trackingStart: "2026-09-01", entries: e1d, spendingAccounts: ["mpesa", "cash"], reconciles: [{ account: "mpesa", date: day(2), since: day(30), difference: 0 }] });
+  assert.equal(d10.status, "records-only");
+  // D11 a reconcile older than the window spreads nothing into it; two reconciles on one account never overlap.
+  const d11 = estimateUsualDaily({ today: T, trackingStart: "2026-09-01", entries: e1d, reconciles: [
+    { account: "mpesa", date: day(15), since: day(43), difference: 2800 },   // covers day(42)…day(15): 14 of its 28 days in the window → 1,400
+    { account: "mpesa", date: day(1), since: day(15), difference: 1400 } ] }); // covers day(14)…day(1): all 14 days → 1,400
+  assert.equal(d11.unrecorded, 2800); assert.equal(d11.daily, 550);
 
   // DB-5.6: the default cushion is a warning threshold only. It never changes Left to spend or the daily guide.
   for (const base of [otieno, akinyi, mwangi, njeri]) {        // all have no buffer, so the default cushion applies

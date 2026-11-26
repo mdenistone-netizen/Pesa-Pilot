@@ -197,3 +197,14 @@ These need Node and Playwright, which are pre-installed in Claude Code cloud ses
   - Records are only in localStorage (checked).
   - Safeguards specified; clean repeated proof runs: a failed install keeps the old version; a good update clears old caches.
 - No app code, schema or production change.
+
+### 2026-11-26 · Decision pack round 3 (owner's final clarifications; no approval)
+- **DB-4:** browser test showed a service worker can retrieve a non-extractable CryptoKey from IndexedDB and use it to decrypt; only export is blocked. The round-2 design is withdrawn.
+  - **Revision 2:** the phone stores only an ECDH P-256 public key + password/code locks of the private key. Each backup gets a fresh one-time key (ECDH → HKDF → AES-GCM).
+  - Model: Q1–Q7 + "the phone alone cannot open any backup" pass. Browser: the worker can retrieve the public key and make backups, but can't open them.
+  - Evidence: `prototypes/protected-backup/model.js`, `browser-key-access/`.
+- **DB-5.5 revision 2:** recorded day = ≥1 expense above zero, not reversed, by entry date. Confidence levels: checked / records-only / incomplete (no figure shown) / ask. Reconcile gaps spread per account stretch; negative differences never lower the estimate; one-offs with Count it / Undo. 16 model cases (D1–D11).
+- **Schema 11 end-to-end** (`prototypes/schema11/e2e-release1.js`, real Release 1 + reference model): PASS.
+  - **New finding:** Release 1 displays a cancelled payment as expected while running (Plan list, Home "if it arrives"); it is never counted.
+  - Backup-version scope documented.
+- No app code, schema or production change.

@@ -159,6 +159,13 @@ Full detail: `FINANCIAL_RULES.md`.
   - Real Android testing is required.
 - **No schema change, code, merge or deployment is authorised.** Release 1, D13, DB-4, DB-5 and DB-6 stay separate.
 
+**Round 3 (26 Nov), the owner's 3 final clarifications, done. Still not approval:**
+- **DB-4:** the non-extractable key design is withdrawn (a worker could *use* it to decrypt). Revision 2 keeps only a public key + locks on the phone; the phone can't open backups (tested).
+- **DB-5.5:** recorded-day definition, confidence levels, reconcile spreading, and Count it / Undo for one-offs (4th optional field).
+- **Schema 11:** end-to-end test passes with the real Release 1 build. Release 1 *displays* a cancelled payment while it runs, but never counts it.
+
+**Next: the owner reviews the 33 choices systematically.**
+
 **Owner review pending (round 2):** clarifications ready. All 33 choices are in one place: `specs/DECISION_PACK_DB5_DB4_DB6.md`. Each choice gives the decision, recommendation, alternatives, the effect on an ordinary user, risks, and whether it changes an existing rule. Release 1, D13, DB-4, DB-5 and DB-6 are **separate approval matters**. Nothing in them is approved or implemented. Other waiting items: Release 1 preview review, P4 pack approval, D13 implementation go-ahead after Release 1.
 
 ## 8. Risks
