@@ -2,6 +2,10 @@
 
 **Status:** **Proposed, for owner decision (26 Nov 2026).** Planning only. No Netlify configuration, files or repository settings have been changed.
 
+**Implementation-readiness review:** `DB-7_IMPLEMENTATION_READINESS.md`. It has verified facts, exact steps, a tested header set and the test plan, and **supersedes §5 and §7 below where they differ**. Main refinements:
+- the **interim** policy is used now; the strict policy and the `app.js` split come with the PWA stage;
+- two new choices: adding the change to Release 1 (amends DEC-018) and updating the rollback procedure.
+
 **Why now:** RELEASE_1_CHECKLIST §5 already requires a decision on keeping `docs/` off the live site **before** Release 1 is merged. This brief is that decision, extended for the PWA.
 
 ## 1. Facts [V: verified 26 Nov]
@@ -101,6 +105,9 @@
 |---|---|---|
 | 7.1 | What Netlify publishes | **A1: an app folder (allowlist)**, before Release 1 is merged |
 | 7.2 | Repository visibility | **B1: private**, before L2 testers (you change it; I verify) |
-| 7.3 | Security headers | **Approve the set in §5**: interim policy now; strict policy with `app.js`/`app.css` in the PWA stage |
-| 7.4 | DEC-002 adjustment | **Allow app.js + app.css** (no build step) when the PWA is built |
+| 7.3 | Security headers | **The tested interim set** (readiness §2.2) now; strict policy with `app.js` in the PWA stage |
+| 7.4 | DEC-002 adjustment | **Deferred to the PWA stage:** an `app.js` file for the strict policy; styles stay inline (tested) |
 | 7.5 | Access control for ordinary users | **None** (nothing on the server to protect); no admin tools in the public app |
+| 7.6 | Include DB-7 in Release 1 (CR-008, before the merge) | **Yes**: amends DEC-018's scope (configuration only) |
+| 7.7 | Emergency-rollback procedure | **Prepared rollback branch in the new layout** (the safe build `8370097` contains `docs/`) |
+| 7.8 | Workspace access to the preview address, for verification | **Allow when implementing** |

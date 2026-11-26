@@ -299,3 +299,16 @@ These need Node and Playwright, which are pre-installed in Claude Code cloud ses
   - **DB-8** (identity and icon: "heading P" concept, colours, asset list).
 - **Recommendation:** DB-7 first, before the Release 1 merge.
 - No code, config, assets or deployment.
+
+### 2026-11-26 · DB-7 implementation-readiness review (no implementation)
+- **Verified:**
+  - repo public; only collaborator the owner (admin); 0 forks/stars/watchers; no Pages; no Actions;
+  - Netlify is connected via its GitHub app (deploy-preview status);
+  - `8370097` (safe rollback build) contains `docs/` and `tests/`, so the rollback procedure must change with the folder move;
+  - only 4 test path lines reference the working-tree `index.html`.
+- **CSP inventory:** 1 inline script, 1 inline style, 82 `style=` attributes, no handlers, no eval, no external resources, 1 self-hosted font, no network requests.
+- **Tested** with a local Netlify stand-in serving `app/` + the proposed headers (`prototypes/db7-headers/`):
+  - interim CSP: 0 violations; all flows correct (6,400 / 9,400 / 771); backup/import/PIN/dark mode OK; framing, external scripts and outside fetch blocked;
+  - strict CSP on the single file: the app doesn't start;
+  - strict CSP on a throwaway `app.js` split: 0 violations; the regression suite passes 64/64 against the split.
+- Wrote `specs/DB-7_IMPLEMENTATION_READINESS.md` (exact GitHub steps and checks; `netlify.toml` content; test plan; decisions; safest order) and updated the DB-7 brief choices (7.6 Release 1 scope, 7.7 rollback, 7.8 preview access). Nothing changed in the app, config or settings.
