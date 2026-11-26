@@ -212,14 +212,59 @@ A calendar day in the window, using the **date on the entry**, not when it was t
 - **Figures are rounded to the nearest KSh 10 and always say "about".**
 - **The working is always one tap away:** total, days, recorded days, reconcile gaps and one-offs.
 
-**5. Reconcile adjustments covering several days**
-- **Each reconcile belongs to one account.**
-- **Unrecorded spending** (a positive difference) is **spread evenly** over the days from the day after that account's **previous reconcile** (or the day recording started) up to the reconcile date.
-- **Only the days that fall inside the window count** [D3: 7,000 over 35 days, 28 inside the window = 5,600].
+**5. Reconcile differences: causes, direction and spreading** (revision 3, 26 Nov; model cases R1–R5 and D3, D8, D9, D11)
+
+**The model cannot tell causes apart by itself.** A balance difference is just a number. It could be:
+- forgotten spending or charges;
+- unrecorded income;
+- a transfer between the user's own accounts;
+- an M-Pesa reversal;
+- a refund;
+- something else.
+
+So PesaPilot uses **what the user says**, through mechanisms that already exist (DEC-016), and is cautious when nobody knows:
+
+| What the reconcile found | How it is recorded today (DEC-016) | Effect on the usual-spending estimate |
+|---|---|---|
+| **Less money than recorded, ticked "spending I didn't record"** | An "Unrecorded spending" expense | **Counted**, spread over the days it covers |
+| **Less money than recorded, cause not given** (an unexplained withdrawal) | A plain adjustment | **Counted (cautious), but reported separately as "unexplained"** [R4] |
+| **Less money, later explained** as a transfer to another own account, a reversal of income, or anything else | The user **reverses** the adjustment (DEC-016) and records the real movement (a transfer, or a correction of the income) | **Not counted.** Reversed adjustments are ignored; transfers are never spending [R2a, R3b] |
+| **More money than recorded** (unrecorded income, a refund, a reversal that returned money, a transfer in) | A plain adjustment (money in) | **Never counted, never lowers the estimate.** Shown as "more money found" [R1, R3a] |
+| **Matching opposite differences on two accounts**, within 3 days (e.g. M-Pesa −2,000, Cash +2,000) | Two plain adjustments | Counted until explained, and **flagged as a possible unrecorded transfer**: "Was this a withdrawal from M-Pesa to cash?" [R2b] |
+
+**Only shortfalls can raise the estimate.** Surpluses never lower it.
+
+**When the cause can't be identified, and what the user is told**
+- An unexplained shortfall is **counted**, because if it was spending, leaving it out would make the daily figure too low.
+- It is **never hidden**. The estimate says so, and shows the figure without it:
+
+> "About **KSh 520** a day. This **includes KSh 1,930 your balance checks couldn't explain** (M-Pesa, 24 Nov). If that wasn't spending, it's about **KSh 450**. [Explain it]"
+
+- **"Explain it"** offers:
+  - "It was spending" (records it as unrecorded spending);
+  - "It was a transfer" (records the transfer and reverses the adjustment);
+  - "It was a reversal / refund" (records it and reverses the adjustment);
+  - "I don't know" (it stays counted, and flagged).
+- The verdict uses the cautious figure, with the line: "includes unexplained differences".
+
+**Spreading over several days** (unchanged in principle)
+- **Each shortfall belongs to one account.** It is spread evenly over the days after that account's previous reconcile (or the day recording started) up to the reconcile date. **Only the days inside the 28-day window count.** Examples:
+  - D3: 7,000 over 35 days, 28 of them inside the window, so 5,600 is counted;
+  - R2b: 2,000 over 28 days, 27 inside the window, so 1,929.
 - **Consecutive reconciles on one account cover separate stretches,** so nothing is counted twice [D11].
-- **More money than recorded** (a negative difference, e.g. forgotten income) is shown in the working but **never lowers** the estimate. This is the cautious choice [D9].
-- **Reversed adjustments are ignored** (DEC-016).
-- **Even spreading is an assumption,** and it is stated in the working: "Unrecorded spending found on 24 Nov is spread over the 35 days since your last check."
+- **Even spreading is an assumption,** and the working says so.
+
+**Model cases for causes**
+
+| # | Situation | Estimate (base: 450 from records) |
+|---|---|---|
+| R1 | Unrecorded **income**: M-Pesa 3,000 higher than recorded | **450**; "3,000 more money found" shown |
+| R2a | Unrecorded **transfer**, explained (adjustment reversed, transfer recorded) | **450** |
+| R2b | The same transfer **not** explained: M-Pesa −2,000, Cash +2,000, a day apart | **519**: includes 1,929 unexplained; "without it: 450"; flagged "possible transfer M-Pesa → Cash" |
+| R3a | A **reversal that returned money** (a payment bounced back) | **450** |
+| R3b | A **reversal that took money back**, explained | **450** |
+| R4 | **Unexplained withdrawal**: M-Pesa 2,800 short over the last 28 days | **550**: includes 2,800 unexplained; "without it: 450" |
+| R5 | The same shortfall ticked "spending I didn't record" | **550**, not flagged |
 
 **6. Large purchases left out: inspecting and restoring**
 - **Rule:** a single expense over 3× the median expense in the window, applied only when there are at least 10 expenses.
@@ -307,7 +352,9 @@ A calendar day in the window, using the **date on the entry**, not when it was t
   - Release 1 reloads when another tab saves (R1, tested), so it fetches the new version.
   - Layer 3 repairs any status it rewrote.
 
-  **End-to-end cancellation test (26 Nov):** `../prototypes/schema11/e2e-release1.js`. It uses the **real Release 1 build** for steps 1, 3, 4 and 6, and a **schema 11 reference model** (`reference.js`) for the new app, which isn't built. **It must be re-run against the real schema 11 code when DB-5 is built.**
+  **End-to-end cancellation test (26 Nov):** `../prototypes/schema11/e2e-release1.js`. It uses the **real Release 1 build** for steps 1, 3, 4 and 6, and a **schema 11 reference model** (`reference.js`) for the new app, which isn't built.
+
+  **Release requirement (owner, 26 Nov):** before any DB-5 / schema 11 release is offered for approval, this exact test must be **re-run against the actual DB-5 implementation** (not the reference model) and pass. Its output goes into the release evidence. It is also on the Stage B entry in `ROADMAP.md` and in the release risk register (RELEASE_1_CHECKLIST R4).
 
   | Step | Result |
   |---|---|

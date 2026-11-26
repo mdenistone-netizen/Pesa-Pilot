@@ -171,18 +171,100 @@ No password, no code, no P-key or R-key, and no usable private key [model-checke
 - changing the password still needs the old password or the code;
 - no other user-facing behaviour changes. One-tap backups still need no password.
 
+## 3b. The complete lifecycle of design B (26 Nov)
+Every step below is executed in `../prototypes/protected-backup/model.js` (sections L1–L6 and D-a to D-e). All pass.
+
+### Where the locked private key lives between backups, and why the phone can't open backups
+- **Between backups, the phone stores:**
+  - the backup **public** key;
+  - the private key **locked twice** (password lock, code lock);
+  - a key id;
+  - an integrity check.
+
+  All of it is in IndexedDB. The private key is **never** stored unlocked.
+- **Making a backup** (no password needed):
+  1. The phone creates a brand-new **one-time key pair** for this backup.
+  2. One-time private key + backup public key → this file's key (ECDH → HKDF).
+  3. The records are encrypted.
+  4. The file gets: the one-time **public** key, the backup public key and copies of both locks.
+  5. **The one-time private key is then thrown away.**
+- **Why the phone can't open that file afterwards:** rebuilding the file key needs either the one-time private key (thrown away) or the backup private key (stored only locked). The phone holds only public keys and locks [L6: none of the 6 lifecycle backups could be opened with the phone's items].
+
+### Lifecycle steps (model-checked)
+
+| Step | What happens | Result |
+|---|---|---|
+| **L1 First setup** | Key pair made; private key locked with password A and with the code. **Setup verifies itself** (both locks unlock a private key that matches the stored public key) **before** the user is told it worked. First backup made. | Backup 1 opens with A |
+| **L2 One-tap backups** | `backup()` takes **no secret at all** | Backups 2 and 3 made without asking for a password |
+| **L3 Password change** | Needs the old password (or the code). Re-locks the same private key with B, and verifies. | Backups 4 and 5 made |
+| **L4 Phone lost** | Replacement phone restored from the newest backup with **the recovery code only**. The user sets password C. Same key pair and code. | Backup 6 made |
+| **L5 Restore every backup** | Each of the 6 files tried with A, B, C and the code | See below |
+| **L6 Phone tries to open its own backups** | Only the stored public key and locks are available | All 6 fail |
+
+**L5 result**
+
+| Backup | Password A | Password B | Password C | Recovery code |
+|---|---|---|---|---|
+| 1–3 (before the change) | **Opens** | No | No | **Opens** |
+| 4–5 (after the change) | No | **Opens** | No | **Opens** |
+| 6 (replacement phone) | No | No | **Opens** | **Opens** |
+
+**The recovery code opens every backup, ever.** Each password opens the backups made while it was the current password. The app says this in plain words when a password is changed.
+
+### When the stored key material is lost or damaged
+
+| Case | What happens | How the user recovers |
+|---|---|---|
+| **D-a Public key damaged on the phone** | The integrity check fails, so **one-tap backup is refused** ("Backup protection needs repair"). No unopenable file is ever written. | **Repair from any earlier backup file:** choose a file and type the password or code. The private key is re-locked with the **current** password (an old file's password does **not** come back). Same key pair and code. |
+| **D-b Phone items missing** (storage area cleared while the records survive) | Refused ("Backup protection is missing") | The same repair, or "Start new protection" (new key pair and code; old backups still open with the old secrets) |
+| **D-c Locked private key damaged on the phone** | Refused. Otherwise every new file would carry a broken lock. | The same repair |
+| **D-d A lock damaged inside one backup file** | That lock fails safely; **the other lock still opens the file**. Both locks damaged: that one file is lost. | Use the other secret, or another backup file. Each file carries its own copies. |
+| **D-e Deliberate swap** by malicious code on PesaPilot's address (its own key pair and locks, check recomputed) | The integrity check **can't** catch a deliberate swap. **The user's next password check fails**, so the swap is detected. | Repair from an earlier genuine file. **Backups made between the swap and the check are locked to the attacker's key: a stated limit.** |
+| **Payload damaged** or header edited | Refused ("damaged or changed") | Another backup file |
+| **All backup files and both secrets lost** | Nothing can be recovered (as §5) | — |
+
+### When the app verifies that the protection still works
+This needs the password or code, because the phone alone can't tell.
+- right after setup;
+- after a password change;
+- after a restore or a repair;
+- in the **monthly password check** (DEC-020 reminder). The user types the password, and the app confirms it unlocks a private key **matching the stored public key**.
+
+This catches deliberate swaps (D-e) within a month at most. Accidental damage (D-a to D-c) is caught **before every backup** by the integrity check.
+
+**What changed in revision 3** (found by these lifecycle tests):
+1. Repair re-locks with the **current** password. The first version would have brought back an old password.
+2. The two locks are no longer part of the content's shared authentication, so one damaged lock no longer makes the whole file unopenable. Each lock keeps its own tamper check, and swapped locks are still refused [D-d].
+
 ## 4. Passwords
 
 **Setting it up.** The first time the user taps **Back up**:
 > **Protect your backup?** A protected backup can only be opened with your password or your recovery code. Not even PesaPilot can open it without them.
 > [Protect with a password] (recommended) · [Save without protection]
 
-- **Password rules:**
-  - at least 8 characters;
-  - not the same as the PIN;
-  - if it is only numbers, at least 12 digits.
-- **Hint shown:** "Use **four or more unrelated words** you can remember, for example `chungwa basi kumi mlango`. Don't use names, birthdays, phone or ID numbers, or a saying people know."
-  - The example is never accepted as a password, and nor is a short list of common passwords.
+**Generated or user-created? (revised 26 Nov)**
+- **Recommendation: PesaPilot generates the backup password.** It is **5 random words** drawn by the phone's secure random generator from a fixed list of **2,048** short, common Kiswahili and English words. Example of the format only: `mvua kalamu tisa dirisha punda`.
+- **The user can tap "Give me different words"** until they get a set they can remember.
+- **A four-word phrase the user makes up is not proof of strength.** People choose predictable words and patterns, so its real strength is unknown and usually far lower than it looks. The earlier example is withdrawn as a model.
+- **A user-created password is allowed only if** it passes a strength check estimating at least as many guesses as 5 generated words. Otherwise the app explains why and offers generated words. (Choice 6; the alternative is to allow generated words only.)
+
+**Why 5 words: what an attacker with a copy of a backup file would face** [E: estimates]
+- **Guessing speed:** with 600,000 PBKDF2-SHA-256 rounds, each guess costs about 1.2 million SHA-256 operations. A current high-end graphics card does roughly 20 billion SHA-256 operations a second (public benchmark figures, not measured here). That is about **15,000–20,000 guesses a second per card**.
+
+| Secret | Possible values | Time to try them all (one card) | 100 cards |
+|---|---|---|---|
+| 4 user-chosen "unrelated" words | Unknown, often under 2³⁰ | Hours to days | Minutes to hours |
+| **4 generated words** (2,048-word list) | 2⁴⁴ ≈ 1.8 × 10¹³ | ~30 years | ~4 months: **not enough** |
+| **5 generated words** | 2⁵⁵ ≈ 3.6 × 10¹⁶ | ~60,000 years | ~600 years |
+| Recovery code (16 characters) | 2⁸⁰ ≈ 1.2 × 10²⁴ | Far beyond any attacker | — |
+
+- These figures matter **only for someone who has a copy of a backup file or the phone's stored locks**. A wrong guess inside the app is slow and visible.
+- **Work this needs, if approved:**
+  - a curated word list (2,048 words, reviewed by a Kiswahili speaker for clarity and offensive words);
+  - a strength check, if user-created passwords are allowed.
+
+  These are maintenance items: the list must never change once in use, or generated passwords would read differently.
+- **Unchanged rules:** never the same as the PIN; never stored anywhere; never in any file.
 - **The recovery code** is shown once, with "I've written it down". The user then types back 4 characters of it as a check.
 
 **Day to day: one tap**
@@ -298,11 +380,12 @@ The same message goes in `DATA_RECOVERY.md` §3, so the in-app wording and the r
 | 3 | Recovery | **Password + recovery code (1b)**, with the key architecture in §3a | Password only (1a); code only (1c) |
 | 4 | Default | **Offer protection first; "Save without protection" stays available, with a warning** | Force protection; keep plain as the default |
 | 5 | One-tap backups (the phone keeps only the backup **public** key + locks in IndexedDB; nothing on the phone can open a backup; §3a) | **Yes** | Type the password for every backup |
-| 6 | Password rules | **At least 8 characters; not the PIN; 12+ if only numbers; common passwords and the example refused; guidance: 4+ unrelated words** | Stricter minimum (e.g. 12 characters) |
+| 6 | Backup password | **Generated: 5 random words from a 2,048-word list, with "different words"; a user-created password only if a strength check rates it at least as strong** (§4) | Generated only; user-created with simple rules (not recommended: strength unknown) |
 | 7 | Monthly "do you remember your password?" check | **Yes, with the backup reminder** | No checks |
 | 8 | Saving | **Share sheet, with download as the fallback** | Download only |
 | 9 | Forgot-PIN path | **Process unchanged; the plain copy clearly labelled "NOT protected", with a delete reminder (§5a)** | Make that copy protected (risks loss if the password is also forgotten) |
 | 10 | Automatic Drive backup (Option 2) / PesaPilot cloud (Option 3) | **Not now** | Investigate Option 2 after interviews |
+| 11 | Integrity, verification and repair (§3b) | **Integrity check before every backup; verify after setup, password change, restore or repair, and monthly; repair from any earlier file, re-locked with the current password** | No repair (users must start new protection after any damage) |
 
 **Reversible?** Yes.
 - Plain backups keep working.

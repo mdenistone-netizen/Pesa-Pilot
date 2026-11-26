@@ -30,7 +30,7 @@
 | Stage | Build | Needs first | Engine impact |
 |---|---|---|---|
 | A | Guided onboarding | P1 reviewed by the owner | None: UI over existing features (opening balances, plan settings, bills, goals, debts) |
-| B | "Will I make it?" + Before You Spend | DB-5 approved (`specs/DB-5_DECISION_BRIEF.md`); D13 fixed | New read-only calculation; up to 3 optional, additive stored fields (spending override, one-cycle payday change, cancelled expected income) |
+| B | "Will I make it?" + Before You Spend | DB-5 approved (`specs/DB-5_DECISION_BRIEF.md`); D13 fixed and released. **Before release: the schema 11 cancellation test (`prototypes/schema11/e2e-release1.js`) re-run against the actual DB-5 code and passing.** | New read-only calculation; schema 11 with 4 optional stored fields (spending override, one-cycle payday change, `cancelledAt`, restored one-offs): a production data migration under DEC-017 |
 | C0 | **D13 schema guard** (never lower the schema version; read-only if data is newer) | Owner approval | Small storage-safety fix; full tests |
 | C | PWA install/offline | DB-6 approved, C0 done | Delivery architecture, not money rules |
 | ~~D~~ | ~~Paste/Share M-Pesa capture~~ **Declined (DEC-024).** Manual recording is the supported approach; quick manual entry is improved instead (see below). | — | — |

@@ -208,3 +208,13 @@ These need Node and Playwright, which are pre-installed in Claude Code cloud ses
   - **New finding:** Release 1 displays a cancelled payment as expected while running (Plan list, Home "if it arrives"); it is never counted.
   - Backup-version scope documented.
 - No app code, schema or production change.
+
+### 2026-11-26 · Decision pack round 4 (owner's final clarifications; no approval)
+- **DB-4 lifecycle** in `prototypes/protected-backup/model.js`:
+  - L1–L6: setup self-verifies; one-tap backups take no secret; password change; recovery-code-only replacement phone; 6 backups × 4 secrets; the phone can't open its own backups.
+  - D-a to D-e: integrity check refuses backups when items are damaged or missing; repair from any earlier file; one damaged lock still leaves the other; a deliberate swap is detected at the next password check.
+  - **Fixed 2 flaws** found by these tests: repair now re-locks with the current password; the locks are excluded from the content's shared authentication (each lock is self-authenticated, and swapped locks are still refused).
+- **DB-4 password:** generated 5 words from a 2,048-word list (≈ 2⁵⁵); guess-time estimates documented; a user-made phrase is allowed only if rated as strong. Added choice DB-4.11 (34 choices total).
+- **DB-5.5 revision 3:** difference = actual − recorded; only shortfalls count; unexplained shortfalls are counted but reported separately, with the figure without them; possible-transfer pairs flagged; explanations go through the DEC-016 tick or reversal. Tests R1–R5.
+- **Schema 11:** retest on the actual DB-5 code required before release (DB-5 brief §7, ROADMAP Stage B). Added **R4** to the RELEASE_1_CHECKLIST risk register and to MASTER §8.
+- No app code, schema or production change.

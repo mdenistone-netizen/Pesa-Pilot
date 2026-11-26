@@ -1,4 +1,4 @@
-# Decision pack: DB-5, DB-4 and DB-6 (33 choices)
+# Decision pack: DB-5, DB-4 and DB-6 (34 choices)
 
 **Status:** **For owner review. Nothing here is approved or implemented.**
 
@@ -25,6 +25,19 @@ Approving one approves none of the others. Production is untouched until you exp
 - **Changes DEC-xxx**: an existing decision's behaviour changes.
 
 ---
+
+## Changes after your review (26 Nov, round 4)
+These are clarifications only. **Nothing is approved for implementation.**
+
+**The pack now has 34 choices.** DB-4.11 (integrity, verification and repair) is new: the lifecycle tests showed it is a separate decision.
+
+| Your point | Where answered | Evidence | Outcome |
+|---|---|---|---|
+| DB-4: the full lifecycle of design B | DB-4 brief §3b | Model L1–L6: setup verified; 2 one-tap backups with no secret; password change; recovery-code-only replacement phone; **6 backups × 4 secrets** behave as designed; the phone can't open any of its own backups | **Two flaws found and fixed:** (1) repair from an old file would have brought back an old password, so it now re-locks with the current password; (2) one damaged lock broke the whole file, so the locks now authenticate themselves and the other lock still works. |
+| DB-4: lost or damaged key material | DB-4 brief §3b | Model D-a to D-e | Damage is caught **before** every backup (integrity check): a backup is refused, never written unopenable. Repair from any earlier file. A deliberate swap is caught at the next password check, with backups made in between locked to the attacker: a stated limit. |
+| DB-4: generated or user-created password | DB-4 brief §4 | Guess-time table [estimates from public benchmarks] | **Recommend generated: 5 random words from a 2,048-word list** (≈ 2⁵⁵). 4 generated words (≈ 2⁴⁴, ~4 months on 100 graphics cards) is not enough. A user-made phrase is **not** proof of strength, so it is allowed only if a strength check rates it as strong. |
+| DB-5.5: causes of reconcile differences | DB-5 brief §5.4 point 5 | Model R1–R5 | The model can't tell causes apart, so it uses what the user says (DEC-016 tick / reversal). **Only shortfalls** raise the estimate. **Unexplained shortfalls are counted but shown separately**, with the figure without them and an [Explain it] button. A matching pair across accounts is flagged as a possible transfer. |
+| Schema 11: retest on real code; record the Release 1 display defect | DB-5 brief §7; ROADMAP Stage B; **RELEASE_1_CHECKLIST R4**; MASTER §8 | — | Retest on the actual DB-5 code is now a release requirement. R4 records that Release 1 can *display* a cancelled payment as expected (never counted in available money). |
 
 ## Changes after your review (26 Nov, round 3)
 These are clarifications only. **Nothing is approved for implementation.**
@@ -72,11 +85,12 @@ Your review position is recorded in `MASTER_PROJECT_STATE.md`. **Nothing is appr
 | DB-4.3 | Recovery | Password + recovery code | No |
 | DB-4.4 | Default | Offer protection; plain stays available | No |
 | DB-4.5 | One-tap backups (public key + locks on phone; phone can't open backups) | Yes | **New on-phone items** (DEC-019 style: never exported) |
-| DB-4.6 | Password rules | 8+ chars; not the PIN; 12+ if only digits | No |
+| DB-4.6 | Backup password | Generated 5 random words; user-made only if rated as strong | No |
 | DB-4.7 | Monthly password check | Yes, with the backup reminder | Extends DEC-020 reminder |
 | DB-4.8 | How the file is saved | Share sheet; download as fallback | No |
 | DB-4.9 | Forgot-PIN path | Unchanged | No |
 | DB-4.10 | Drive auto-backup / PesaPilot cloud | Not now | No (keeps DEC-005, DEC-023) |
+| DB-4.11 | Integrity, verification and repair | Check before every backup; verify at key moments and monthly; repair from any earlier file | No |
 | DB-6.1 | Build a full PWA | Yes, Stage C, after Release 1 and D13 | Fixes D9; **extends release process (DEC-017)** |
 | DB-6.2 | Page update method | Network first, 3-second limit | No |
 | DB-6.3 | Switching versions | Reload banner; never mid-form; all tabs | No |
@@ -183,7 +197,7 @@ Also adopt the four verdicts in brief §3 (On track / Tight / Short / Already sh
 **Recommendation** (exact rules in DB-5 brief §5.4; 16 model-checked cases):
 - **Total ÷ 28 calendar days** (the last 28 full days before today). Empty days count as zero.
 - **A recorded day** is a day with ≥ 1 expense above zero that isn't reversed, by the entry's own date. Bills, goal use, transfers and adjustments don't count.
-- **Reconcile gaps:** unrecorded spending is spread evenly over that account's stretch since its previous reconcile. Only the part inside the window counts, and stretches never overlap. "More money than recorded" never lowers the estimate.
+- **Reconcile differences:** only **shortfalls** raise the estimate. Surpluses (income, refunds, transfers in) never lower it. A shortfall ticked "spending I didn't record" is counted. An **unexplained** shortfall is counted (the cautious choice) but **shown separately** ("includes KSh X your balance checks couldn't explain; without it, about KSh Y") with [Explain it]. Explained transfers or reversals are reversed and not counted. Each shortfall is spread over its own account's stretch; only the window part counts (DB-5 brief §5.4.5, cases R1–R5).
 - **One-offs** (over 3× the median, with ≥ 10 entries) are left out and listed under "How this is worked out", with **Count it / Undo**.
 - **Confidence shown:**
   - **Checked:** every spending account reconciled within 14 days;
@@ -383,6 +397,8 @@ Details: DB-5 brief §7.
 
 Details and the backup-version scope: DB-5 brief §7.
 
+**Release requirement:** the cancellation test must be **re-run against the actual DB-5 implementation** and pass before any schema 11 release is offered for approval. The Release 1 display issue is recorded as **R4** in the release risk register.
+
 **Changes an existing rule?** **Data structure change:** schema 11, with optional fields. No existing field changes meaning. A production data migration under DEC-017.
 
 ---
@@ -550,24 +566,27 @@ Full architecture: DB-4 brief §3a.
 
 ---
 
-### DB-4.6 · Password rules
+### DB-4.6 · Backup password (revised 26 Nov)
 
-**Decision:**
-- at least 8 characters;
-- not the same as the PIN;
-- if only numbers, at least 12 digits;
-- guidance: "four or more unrelated words"; no names, birthdays, phone or ID numbers;
-- the example and a short list of common passwords are refused.
+**Decision:** Whether PesaPilot generates the backup password or the user creates it, and what strength is required.
 
-**Recommendation:** Approve.
+**Recommendation:**
+- **PesaPilot generates it:** 5 words chosen by the phone's secure random generator from a fixed list of 2,048 short Kiswahili and English words (≈ 2⁵⁵ possibilities).
+- "Give me different words" lets the user pick a memorable set.
+- **A user-created password is allowed only if** a strength check rates it at least as strong.
+- Never the PIN; never stored; never in any file.
 
-**Alternative:** Stricter rules (mixed characters). These are harder to remember, so more lost passwords.
+**Alternatives:**
+- generated only (simplest, strongest);
+- user-created with simple rules: **not recommended**, because a made-up four-word phrase gives no assurance of strength;
+- 4 generated words: ≈ 2⁴⁴, about 4 months on 100 graphics cards [estimate], so **not enough**.
 
-**For an ordinary user:** Something like `chungwa basi kumi mlango` (four unrelated words): easy to remember, hard to guess. The example itself is refused, so nobody copies it.
+**For an ordinary user:** They get five everyday words to write down or remember, for example (format only) `mvua kalamu tisa dirisha punda`, plus the recovery code on paper.
 
 **Risks:**
-- **Security:** a guessable sentence is weaker. The 600,000 rounds slow guessing down a lot.
-- **Data-loss:** stricter rules would raise forgotten-password loss.
+- **Security:** strong against offline guessing (~600 years on 100 graphics cards [estimate]).
+- **Data-loss:** generated words can be forgotten. The recovery code and the monthly check cover this.
+- **Maintenance:** a curated 2,048-word list, reviewed by a Kiswahili speaker, that must **never change** once in use; plus a strength checker if user-created passwords are allowed.
 
 **Changes an existing rule?** **No.**
 
@@ -652,6 +671,32 @@ Full architecture: DB-4 brief §3a.
 - **Option 3:** we would hold financial data, with Kenya Data Protection Act duties, cost and breach risk.
 
 **Changes an existing rule?** **No.** It keeps DEC-005 (no cloud) and DEC-023 (local-first).
+
+---
+
+### DB-4.11 · Integrity, verification and repair (new, 26 Nov)
+
+**Decision:** How PesaPilot detects lost, damaged or swapped backup-protection items on the phone, and how users recover.
+
+**Recommendation** (DB-4 brief §3b; model cases D-a to D-e):
+- **Before every one-tap backup:** an integrity check of the stored items. If they are missing or damaged, **the backup is refused** ("Backup protection needs repair"), so no file nobody can open is ever written.
+- **Verify** that the locked private key matches the stored public key (needs the password or code):
+  - right after setup;
+  - after a password change, restore or repair;
+  - in the **monthly password check**.
+
+  This catches a deliberate swap within a month.
+- **Repair from any earlier backup file** with the password or code. It is re-locked with the **current** password, with the same key pair and the same recovery code. "Start new protection" is the fallback.
+
+**Alternative:** No repair. After any damage the user must start new protection (new code), and old backups need the old secrets.
+
+**For an ordinary user:** If something goes wrong on the phone, PesaPilot says so *before* making a useless backup, and fixes it with their password or code and one of their backup files.
+
+**Risks:**
+- **Security:** a deliberate swap by malicious code on PesaPilot's address is detected only at the next verification. **Backups made in between are locked to the attacker's key** (a stated limit; the same code could already read the records).
+- **Maintenance:** small; covered by the model's tests.
+
+**Changes an existing rule?** **No.** It extends DEC-020's monthly reminder with the verification.
 
 ---
 

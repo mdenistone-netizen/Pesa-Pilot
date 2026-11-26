@@ -164,7 +164,15 @@ Full detail: `FINANCIAL_RULES.md`.
 - **DB-5.5:** recorded-day definition, confidence levels, reconcile spreading, and Count it / Undo for one-offs (4th optional field).
 - **Schema 11:** end-to-end test passes with the real Release 1 build. Release 1 *displays* a cancelled payment while it runs, but never counts it.
 
-**Next: the owner reviews the 33 choices systematically.**
+**Next: the owner reviews the choices systematically (now 34 choices: DB-4.11 added in round 4).**
+
+**Round 4 (26 Nov), the owner's final clarifications, done. Still not approval:**
+- **DB-4 full lifecycle** model-checked (L1–L6, D-a to D-e). Two flaws found and fixed: repair re-locks with the current password; one damaged lock no longer breaks a file.
+  - Generated 5-word password recommended. A user-made phrase is not proof of strength.
+  - New DB-4.11: integrity, verification and repair.
+- **DB-5.5:** only shortfalls raise the estimate. Unexplained shortfalls are counted but shown separately with [Explain it]. Tests R1–R5 cover income, transfers, reversals and unexplained withdrawals.
+- **Schema 11:** retest on the actual DB-5 code is a release requirement. The Release 1 display issue is recorded as **R4** (RELEASE_1_CHECKLIST).
+- **Review order agreed:** DB-5, then DB-4, then DB-6.
 
 **Owner review pending (round 2):** clarifications ready. All 33 choices are in one place: `specs/DECISION_PACK_DB5_DB4_DB6.md`. Each choice gives the decision, recommendation, alternatives, the effect on an ordinary user, risks, and whether it changes an existing rule. Release 1, D13, DB-4, DB-5 and DB-6 are **separate approval matters**. Nothing in them is approved or implemented. Other waiting items: Release 1 preview review, P4 pack approval, D13 implementation go-ahead after Release 1.
 
@@ -174,6 +182,7 @@ Full detail: `FINANCIAL_RULES.md`.
 - **Old tab open during deployment** could overwrite new data. The new version protects itself; residual risk is reduced by deploying at a quiet hour.
 - **`main` is unprotected on GitHub:** one accidental merge publishes. Mitigated by the draft "[DO NOT MERGE]" PR; the owner should enable branch protection.
 - **Upgraded account balances need correcting:** they start at zero opening balance, so individual accounts can look wrong (below zero) until users reconcile. This is why Decision B is in Phase 2, before deployment.
+- **R4 (release risk register):** Release 1 would *display* a schema-11-cancelled expected payment as expected (never counted in available money). Mitigated at schema 11, which requires the cancellation test to be re-run on the real DB-5 code.
 - **Single-file growth:** `index.html` is about 175 KB. That is acceptable now; I will propose splitting it if changes start to become risky.
 
 ## 9. Next steps
